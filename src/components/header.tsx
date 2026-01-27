@@ -5,8 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { Button } from "@/components/ui/button";
 import {
   FolderKanban,
-  Building2,
-  User,
+  UserCircle,
   Users,
   Calendar,
   Menu,
@@ -22,8 +21,7 @@ import {
 
 const navItems = [
   { href: "/projects", label: "業務", icon: FolderKanban },
-  { href: "/accounts", label: "法人", icon: Building2 },
-  { href: "/contacts", label: "個人", icon: User },
+  { href: "/customers", label: "顧客", icon: UserCircle },
   { href: "/employees", label: "社員", icon: Users },
   { href: "/calendar", label: "カレンダー", icon: Calendar },
 ];
