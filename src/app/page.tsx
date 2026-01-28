@@ -1,9 +1,19 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { AttendanceClock } from "@/components/attendance-clock";
+import { getTodayAttendance } from "@/app/attendance/actions";
 
-export default function Home() {
+export default async function Home() {
+  const attendanceData = await getTodayAttendance();
+
   return (
     <main className="container mx-auto px-4 py-8">
+      {/* 打刻UI */}
+      <AttendanceClock
+        initialAttendance={attendanceData?.attendance || null}
+        employeeId={attendanceData?.employeeId || null}
+      />
+
       <header className="mb-8">
         <h1 className="text-3xl font-bold text-primary">ダッシュボード</h1>
         <p className="text-muted-foreground mt-2">

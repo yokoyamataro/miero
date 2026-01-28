@@ -21,6 +21,7 @@ Googleスプレッドシートでの管理から脱却し、PostgreSQLを用い�
 - `name`: String (氏名)
 - `email`: String (ログイン用)
 - `role`: String (権限)
+- `hourly_rate`: Integer (原価計算用の標準単価。例: 3000)
 
 #### `customers` (顧客マスタ)
 - `id`: UUID (PK)
@@ -47,7 +48,36 @@ Googleスプレッドシートでの管理から脱却し、PostgreSQLを用い�
 - **`monthly_allocations`: JSONB** (月次売上配分。例: `{"2024-04": 2827000, "2024-05": 0}`)
 - `created_at`: Timestamptz
 
-### 3.2. JSONB `details` の構造定義
+### 3.2. 勤怠・工数管理テーブル
+
+#### `attendance_daily` (日次勤怠)
+社員の1日の出退勤を記録する親テーブル。
+- `id`: UUID (PK)
+- `employee_id`: UUID (FK -> employees.id)
+- `date`: Date (YYYY-MM-DD)
+- `clock_in`: Timestamptz (出勤時刻)
+- `clock_out`: Timestamptz (退勤時刻)
+- `break_minutes`: Integer (休憩時間: 分単位)
+- `status`: String (Enum: Work, PaidLeave, Absence, HolidayWork)
+- `note`: Text (備考: 遅延理由など)
+- `created_at`: Timestamptz
+
+#### `work_logs` (工数ログ)
+その日の勤務時間内訳。どのプロジェクトに何時間使ったかを記録する最重要テーブル。
+- `id`: UUID (PK)
+- `attendance_id`: UUID (FK -> attendance_daily.id)
+- `project_id`: UUID (FK -> projects.id)
+- `minutes`: Integer (作業時間: 分単位)
+- `comment`: Text (作業内容詳細)
+
+#### `leave_balances` (休暇残管理)
+- `id`: UUID (PK)
+- `employee_id`: UUID (FK -> employees.id)
+- `year`: Integer (年度)
+- `granted_days`: Integer (付与日数)
+- `used_days`: Float (消化日数)
+
+### 3.3. JSONB `details` の構造定義
 業務カテゴリ(`category`)ごとに、`details`カラムには以下のJSON構造を格納する。
 
 **Type A: 一般測量 (Survey)**
@@ -128,7 +158,25 @@ start_date から end_date の期間をバー表示する。
 
 期限や決済日(details内の日付)がある場合は、アイコンで表示する。
 
-4.4. データ移行スクリプト
+4.4. 勤怠・工数機能
+- **スマート打刻UI**:
+  - スマホでの操作を前提とした大きな「出勤」「退勤」ボタン。
+  - 現在のステータス（勤務中/休憩中/退勤済）を視覚的に表示。
+- **退勤時の工数入力フロー**:
+  - 「退勤」ボタン押下時にモーダルを表示し、今日の作業内訳を入力させる。
+  - プロジェクト検索 → 時間入力（例: A24001に120分）をリスト追加していく形式。
+  - 未入力時間が残っている場合はアラートを出す（例: 8時間勤務中、6時間しか登録されていません）。
+- **勤怠月報画面**:
+  - 1ヶ月のカレンダー形式で「出勤・退勤・実働時間・残業時間」を表示。
+  - 管理者による修正機能。
+
+4.5. 経営分析ダッシュボード
+- **プロジェクト別予実管理**:
+  - 収入: `projects.fee_tax_excluded`
+  - 原価: `work_logs` の合計時間 × `employees.hourly_rate`
+  - 上記を比較し、粗利と原価率をグラフ表示する。
+
+4.6. データ移行スクリプト
 Google SheetsからエクスポートしたCSVデータを読み込み、上記のJSONB構造へ変換してSupabaseへInsertするスクリプトを用意すること。
 
 5. UIデザイン方針
