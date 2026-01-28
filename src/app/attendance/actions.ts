@@ -176,3 +176,49 @@ export async function getActiveProjects() {
   if (error) return { error: error.message };
   return { projects };
 }
+
+// 退勤取消
+export async function cancelClockOut() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) return { error: "ログインが必要です" };
+
+  const { data: employee } = await supabase
+    .from("employees")
+    .select("id")
+    .eq("auth_id", user.id)
+    .single();
+
+  if (!employee) return { error: "社員情報が見つかりません" };
+
+  const today = new Date().toISOString().split("T")[0];
+
+  const { data: existing } = await supabase
+    .from("attendance_daily")
+    .select("id, clock_out")
+    .eq("employee_id", employee.id)
+    .eq("date", today)
+    .single();
+
+  if (!existing?.clock_out) {
+    return { error: "退勤打刻がありません" };
+  }
+
+  // 工数ログも削除
+  await supabase
+    .from("work_logs")
+    .delete()
+    .eq("attendance_id", existing.id);
+
+  // 退勤時刻をクリア
+  const { error } = await supabase
+    .from("attendance_daily")
+    .update({ clock_out: null })
+    .eq("id", existing.id);
+
+  if (error) return { error: error.message };
+
+  revalidatePath("/");
+  return { success: true };
+}

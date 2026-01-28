@@ -11,8 +11,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Clock, LogIn, LogOut, Briefcase, Plus, Trash2 } from "lucide-react";
-import { clockIn, clockOut, saveWorkLogs, getActiveProjects } from "@/app/attendance/actions";
+import { Clock, LogIn, LogOut, Briefcase, Plus, Trash2, Undo2 } from "lucide-react";
+import { clockIn, clockOut, saveWorkLogs, getActiveProjects, cancelClockOut } from "@/app/attendance/actions";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 
@@ -175,6 +175,21 @@ export function AttendanceClock({ initialAttendance, employeeId }: Props) {
   // 合計時間の計算
   const totalMinutes = workLogs.reduce((sum, log) => sum + log.minutes, 0);
 
+  // 退勤取消処理
+  const handleCancelClockOut = async () => {
+    if (!confirm("退勤を取り消しますか？工数データも削除されます。")) return;
+
+    setLoading(true);
+    setError(null);
+    const result = await cancelClockOut();
+    if (result.error) {
+      setError(result.error);
+    } else {
+      window.location.reload();
+    }
+    setLoading(false);
+  };
+
   if (!employeeId) {
     return null;
   }
@@ -244,6 +259,18 @@ export function AttendanceClock({ initialAttendance, employeeId }: Props) {
                 >
                   <LogOut className="h-5 w-5" />
                   退勤
+                </Button>
+              )}
+              {status === "退勤済" && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={handleCancelClockOut}
+                  disabled={loading}
+                  className="gap-1 text-orange-600 border-orange-300 hover:bg-orange-50"
+                >
+                  <Undo2 className="h-4 w-4" />
+                  退勤取消
                 </Button>
               )}
             </div>
