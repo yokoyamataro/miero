@@ -262,16 +262,27 @@ export function AttendanceClock({ initialAttendance, employeeId }: Props) {
                 </Button>
               )}
               {status === "退勤済" && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={handleCancelClockOut}
-                  disabled={loading}
-                  className="gap-1 text-orange-600 border-orange-300 hover:bg-orange-50"
-                >
-                  <Undo2 className="h-4 w-4" />
-                  退勤取消
-                </Button>
+                <>
+                  <Button
+                    size="lg"
+                    onClick={handleClockIn}
+                    disabled={loading}
+                    className="gap-2 bg-green-600 hover:bg-green-700"
+                  >
+                    <LogIn className="h-5 w-5" />
+                    再出勤
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={handleCancelClockOut}
+                    disabled={loading}
+                    className="gap-1 text-orange-600 border-orange-300 hover:bg-orange-50"
+                  >
+                    <Undo2 className="h-4 w-4" />
+                    退勤取消
+                  </Button>
+                </>
               )}
             </div>
           </div>

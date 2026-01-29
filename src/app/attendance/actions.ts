@@ -52,23 +52,32 @@ export async function clockIn() {
   // 既存レコードをチェック
   const { data: existing } = await supabase
     .from("attendance_daily")
-    .select("id, clock_in")
+    .select("id, clock_in, clock_out")
     .eq("employee_id", employee.id)
     .eq("date", today)
     .single();
 
-  if (existing?.clock_in) {
+  // 出勤済みかつ退勤していない場合はエラー
+  if (existing?.clock_in && !existing?.clock_out) {
     return { error: "既に出勤打刻済みです" };
   }
 
   if (existing) {
-    // 既存レコードを更新
+    // 既存レコードを更新（再出勤の場合は退勤時刻もクリア）
     const { error } = await supabase
       .from("attendance_daily")
-      .update({ clock_in: now })
+      .update({ clock_in: now, clock_out: null })
       .eq("id", existing.id);
 
     if (error) return { error: error.message };
+
+    // 再出勤の場合は工数ログも削除
+    if (existing.clock_out) {
+      await supabase
+        .from("work_logs")
+        .delete()
+        .eq("attendance_id", existing.id);
+    }
   } else {
     // 新規レコードを作成
     const { error } = await supabase
