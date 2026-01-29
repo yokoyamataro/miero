@@ -5,23 +5,23 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Input } from "@/components/ui/input";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { MessageSquare, Send, Trash2, ThumbsUp } from "lucide-react";
+import { type Comment, type Employee, type CommentAcknowledgement } from "@/types/database";
+import { createComment, deleteComment, acknowledgeComment, removeAcknowledgement } from "./actions";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { MessageSquare, Send, Trash2 } from "lucide-react";
-import { type Comment, type Employee } from "@/types/database";
-import { createComment, deleteComment } from "./actions";
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface CommentSectionProps {
   projectId: string;
   comments: Comment[];
   employees: Employee[];
+  acknowledgementsByCommentId: Record<string, CommentAcknowledgement[]>;
+  currentEmployeeId: string | null;
 }
 
 // 日時フォーマット
@@ -54,14 +54,52 @@ function getInitials(name: string): string {
 function CommentItem({
   comment,
   employees,
+  acknowledgements,
+  currentEmployeeId,
+  projectId,
   onDelete,
 }: {
   comment: Comment;
   employees: Employee[];
+  acknowledgements: CommentAcknowledgement[];
+  currentEmployeeId: string | null;
+  projectId: string;
   onDelete: () => void;
 }) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+
   const author = employees.find((e) => e.id === comment.author_id);
   const authorName = author?.name || comment.author_name || "匿名";
+
+  // 自分のコメントかどうか
+  const isOwnComment = currentEmployeeId && comment.author_id === currentEmployeeId;
+
+  // 自分が確認済みかどうか
+  const hasAcknowledged = currentEmployeeId && acknowledgements.some(
+    (ack) => ack.employee_id === currentEmployeeId
+  );
+
+  // 確認者の名前リストを取得
+  const acknowledgerNames = acknowledgements
+    .map((ack) => {
+      const emp = employees.find((e) => e.id === ack.employee_id);
+      return emp?.name || "不明";
+    })
+    .join(", ");
+
+  const handleAcknowledge = () => {
+    if (!currentEmployeeId) return;
+
+    startTransition(async () => {
+      if (hasAcknowledged) {
+        await removeAcknowledgement(comment.id, projectId);
+      } else {
+        await acknowledgeComment(comment.id, projectId);
+      }
+      router.refresh();
+    });
+  };
 
   return (
     <div className="flex gap-3 p-3 rounded-lg hover:bg-muted/50 group">
@@ -78,40 +116,81 @@ function CommentItem({
           </span>
         </div>
         <p className="text-sm whitespace-pre-wrap break-words">{comment.content}</p>
+
+        {/* 確認ボタンと確認者表示 */}
+        <div className="flex items-center gap-2 mt-2">
+          {/* 自分のコメントでない場合のみ確認ボタンを表示 */}
+          {!isOwnComment && currentEmployeeId && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant={hasAcknowledged ? "default" : "outline"}
+                    size="sm"
+                    className={`h-7 px-2 gap-1 ${hasAcknowledged ? "bg-blue-500 hover:bg-blue-600" : ""}`}
+                    onClick={handleAcknowledge}
+                    disabled={isPending}
+                  >
+                    <ThumbsUp className="h-3.5 w-3.5" />
+                    <span className="text-xs">{acknowledgements.length || ""}</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {hasAcknowledged ? "確認を取り消す" : "確認済みにする"}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+
+          {/* 確認者がいる場合、確認者名を表示 */}
+          {acknowledgements.length > 0 && (
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <span className="text-xs text-muted-foreground cursor-help">
+                    {acknowledgements.length}人が確認済み
+                  </span>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p className="text-xs">{acknowledgerNames}</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          )}
+        </div>
       </div>
-      <Button
-        variant="ghost"
-        size="sm"
-        onClick={onDelete}
-        className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive"
-      >
-        <Trash2 className="h-4 w-4" />
-      </Button>
+
+      {/* 削除ボタン（自分のコメントのみ） */}
+      {isOwnComment && (
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={onDelete}
+          className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive"
+        >
+          <Trash2 className="h-4 w-4" />
+        </Button>
+      )}
     </div>
   );
 }
 
-export function CommentSection({ projectId, comments, employees }: CommentSectionProps) {
+export function CommentSection({
+  projectId,
+  comments,
+  employees,
+  acknowledgementsByCommentId,
+  currentEmployeeId,
+}: CommentSectionProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [content, setContent] = useState("");
-  const [authorMode, setAuthorMode] = useState<"select" | "manual">("select");
-  const [selectedAuthorId, setSelectedAuthorId] = useState<string>("");
-  const [manualAuthorName, setManualAuthorName] = useState("");
 
   const handleSubmit = () => {
     if (!content.trim()) return;
 
-    const authorId = authorMode === "select" && selectedAuthorId ? selectedAuthorId : null;
-    const authorName = authorMode === "manual" && manualAuthorName.trim() ? manualAuthorName.trim() : null;
-
     startTransition(async () => {
-      await createComment({
-        project_id: projectId,
-        author_id: authorId,
-        author_name: authorName,
-        content: content.trim(),
-      });
+      await createComment(projectId, content.trim());
       setContent("");
       router.refresh();
     });
@@ -142,60 +221,29 @@ export function CommentSection({ projectId, comments, employees }: CommentSectio
       <CardContent className="space-y-4">
         {/* コメント入力 */}
         <div className="space-y-3 p-3 border rounded-lg bg-muted/30">
-          <div className="flex items-center gap-2">
-            <Select
-              value={authorMode}
-              onValueChange={(v) => setAuthorMode(v as "select" | "manual")}
-            >
-              <SelectTrigger className="w-32">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="select">社員選択</SelectItem>
-                <SelectItem value="manual">名前入力</SelectItem>
-              </SelectContent>
-            </Select>
-
-            {authorMode === "select" ? (
-              <Select value={selectedAuthorId} onValueChange={setSelectedAuthorId}>
-                <SelectTrigger className="flex-1">
-                  <SelectValue placeholder="投稿者を選択..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {employees.map((emp) => (
-                    <SelectItem key={emp.id} value={emp.id}>
-                      {emp.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <Input
-                value={manualAuthorName}
-                onChange={(e) => setManualAuthorName(e.target.value)}
-                placeholder="名前を入力..."
-                className="flex-1"
-              />
-            )}
-          </div>
-
           <Textarea
             value={content}
             onChange={(e) => setContent(e.target.value)}
             placeholder="コメントを入力..."
             rows={3}
-            disabled={isPending}
+            disabled={isPending || !currentEmployeeId}
           />
 
           <div className="flex justify-end">
             <Button
               onClick={handleSubmit}
-              disabled={!content.trim() || isPending}
+              disabled={!content.trim() || isPending || !currentEmployeeId}
             >
               <Send className="h-4 w-4 mr-2" />
               送信
             </Button>
           </div>
+
+          {!currentEmployeeId && (
+            <p className="text-xs text-muted-foreground text-center">
+              コメントするにはログインが必要です
+            </p>
+          )}
         </div>
 
         {/* コメント一覧 */}
@@ -210,6 +258,9 @@ export function CommentSection({ projectId, comments, employees }: CommentSectio
                 key={comment.id}
                 comment={comment}
                 employees={employees}
+                acknowledgements={acknowledgementsByCommentId[comment.id] || []}
+                currentEmployeeId={currentEmployeeId}
+                projectId={projectId}
                 onDelete={() => handleDelete(comment.id)}
               />
             ))

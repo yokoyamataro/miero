@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import { type TaskInsert, type CommentInsert, type TaskStatus } from "@/types/database";
+import { type TaskInsert, type TaskStatus } from "@/types/database";
 
 // ============================================
 // Task Actions
@@ -77,17 +77,37 @@ export async function deleteTask(taskId: string) {
 // Comment Actions
 // ============================================
 
-export async function createComment(data: CommentInsert) {
+export async function createComment(projectId: string, content: string) {
   const supabase = await createClient();
 
-  const { error } = await supabase.from("comments" as never).insert(data as never);
+  // ログインユーザーの社員IDを取得
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    throw new Error("ログインが必要です");
+  }
+
+  const { data: employee } = await supabase
+    .from("employees")
+    .select("id")
+    .eq("auth_id", user.id)
+    .single();
+
+  if (!employee) {
+    throw new Error("社員情報が見つかりません");
+  }
+
+  const { error } = await supabase.from("comments" as never).insert({
+    project_id: projectId,
+    author_id: employee.id,
+    content: content,
+  } as never);
 
   if (error) {
     console.error("Error creating comment:", error);
     throw new Error("コメントの作成に失敗しました");
   }
 
-  revalidatePath(`/projects/${data.project_id}`);
+  revalidatePath(`/projects/${projectId}`);
 }
 
 export async function deleteComment(commentId: string) {
@@ -110,4 +130,92 @@ export async function deleteComment(commentId: string) {
   if (comment) {
     revalidatePath(`/projects/${(comment as { project_id: string }).project_id}`);
   }
+}
+
+// ============================================
+// Comment Acknowledgement Actions (確認機能)
+// ============================================
+
+export async function acknowledgeComment(commentId: string, projectId: string) {
+  const supabase = await createClient();
+
+  // ログインユーザーの社員IDを取得
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    throw new Error("ログインが必要です");
+  }
+
+  const { data: employee } = await supabase
+    .from("employees")
+    .select("id")
+    .eq("auth_id", user.id)
+    .single();
+
+  if (!employee) {
+    throw new Error("社員情報が見つかりません");
+  }
+
+  const { error } = await supabase.from("comment_acknowledgements" as never).insert({
+    comment_id: commentId,
+    employee_id: employee.id,
+  } as never);
+
+  if (error) {
+    // 既に確認済みの場合はエラーを無視
+    if (error.code !== "23505") {
+      console.error("Error acknowledging comment:", error);
+      throw new Error("確認の登録に失敗しました");
+    }
+  }
+
+  revalidatePath(`/projects/${projectId}`);
+}
+
+export async function removeAcknowledgement(commentId: string, projectId: string) {
+  const supabase = await createClient();
+
+  // ログインユーザーの社員IDを取得
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    throw new Error("ログインが必要です");
+  }
+
+  const { data: employee } = await supabase
+    .from("employees")
+    .select("id")
+    .eq("auth_id", user.id)
+    .single();
+
+  if (!employee) {
+    throw new Error("社員情報が見つかりません");
+  }
+
+  const { error } = await supabase
+    .from("comment_acknowledgements" as never)
+    .delete()
+    .eq("comment_id", commentId)
+    .eq("employee_id", employee.id);
+
+  if (error) {
+    console.error("Error removing acknowledgement:", error);
+    throw new Error("確認の取り消しに失敗しました");
+  }
+
+  revalidatePath(`/projects/${projectId}`);
+}
+
+// 現在のユーザーの社員IDを取得
+export async function getCurrentEmployeeId(): Promise<string | null> {
+  const supabase = await createClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data: employee } = await supabase
+    .from("employees")
+    .select("id")
+    .eq("auth_id", user.id)
+    .single();
+
+  return employee?.id || null;
 }

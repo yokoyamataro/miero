@@ -347,3 +347,28 @@ export interface CommentInsert {
 export interface CommentWithAuthor extends Comment {
   author?: Employee | null;
 }
+
+// ============================================
+// Comment Acknowledgement (コメント確認)
+// ============================================
+export interface CommentAcknowledgement {
+  id: string;
+  comment_id: string;
+  employee_id: string;
+  acknowledged_at: string;
+}
+
+export interface CommentAcknowledgementInsert {
+  comment_id: string;
+  employee_id: string;
+}
+
+// 確認者情報を含むコメント確認
+export interface CommentAcknowledgementWithEmployee extends CommentAcknowledgement {
+  employee: Employee;
+}
+
+// 確認情報を含むコメント
+export interface CommentWithAcknowledgements extends Comment {
+  acknowledgements: CommentAcknowledgementWithEmployee[];
+}

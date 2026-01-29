@@ -16,9 +16,11 @@ import {
   type Employee,
   type Task,
   type Comment,
+  type CommentAcknowledgement,
 } from "@/types/database";
 import { TaskList } from "./task-list";
 import { CommentSection } from "./comment-section";
+import { getCurrentEmployeeId } from "./actions";
 
 // 日付フォーマット
 function formatDate(dateStr: string | null): string {
@@ -60,6 +62,8 @@ export default async function ProjectDetailPage({
     { data: tasks },
     { data: comments },
     { data: employees },
+    { data: acknowledgements },
+    currentEmployeeId,
   ] = await Promise.all([
     project.contact_id
       ? supabase.from("contacts" as never).select("*").eq("id", project.contact_id).single()
@@ -93,6 +97,8 @@ export default async function ProjectDetailPage({
       .eq("project_id", id)
       .order("created_at", { ascending: false }),
     supabase.from("employees").select("*").order("name"),
+    supabase.from("comment_acknowledgements" as never).select("*"),
+    getCurrentEmployeeId(),
   ]);
 
   const typedProject = project as Project;
@@ -102,6 +108,14 @@ export default async function ProjectDetailPage({
   const typedTasks = (tasks as Task[]) || [];
   const typedComments = (comments as Comment[]) || [];
   const typedEmployees = (employees as Employee[]) || [];
+  const typedAcknowledgements = (acknowledgements as CommentAcknowledgement[]) || [];
+
+  // コメントIDごとの確認者リストを作成
+  const acknowledgementsByCommentId = typedAcknowledgements.reduce((acc, ack) => {
+    if (!acc[ack.comment_id]) acc[ack.comment_id] = [];
+    acc[ack.comment_id].push(ack);
+    return acc;
+  }, {} as Record<string, CommentAcknowledgement[]>);
 
   // 親タスクとサブタスクを整理
   const parentTasks = typedTasks.filter((t) => !t.parent_id);
@@ -245,6 +259,8 @@ export default async function ProjectDetailPage({
             projectId={id}
             comments={typedComments}
             employees={typedEmployees}
+            acknowledgementsByCommentId={acknowledgementsByCommentId}
+            currentEmployeeId={currentEmployeeId}
           />
         </div>
       </div>
