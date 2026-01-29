@@ -372,3 +372,77 @@ export interface CommentAcknowledgementWithEmployee extends CommentAcknowledgeme
 export interface CommentWithAcknowledgements extends Comment {
   acknowledgements: CommentAcknowledgementWithEmployee[];
 }
+
+// ============================================
+// Calendar Event (カレンダーイベント)
+// ============================================
+export type EventCategory =
+  | "打合せ"
+  | "現地調査"
+  | "立会"
+  | "申請"
+  | "決済"
+  | "研修"
+  | "社内"
+  | "その他";
+
+export const EVENT_CATEGORY_COLORS: Record<EventCategory, string> = {
+  打合せ: "bg-blue-500",
+  現地調査: "bg-green-500",
+  立会: "bg-yellow-500",
+  申請: "bg-purple-500",
+  決済: "bg-red-500",
+  研修: "bg-indigo-500",
+  社内: "bg-gray-500",
+  その他: "bg-slate-400",
+};
+
+export interface CalendarEvent {
+  id: string;
+  title: string;
+  description: string | null;
+  category: EventCategory;
+  start_date: string;
+  start_time: string | null;
+  end_date: string | null;
+  end_time: string | null;
+  all_day: boolean;
+  location: string | null;
+  map_url: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CalendarEventInsert {
+  id?: string;
+  title: string;
+  description?: string | null;
+  category?: EventCategory;
+  start_date: string;
+  start_time?: string | null;
+  end_date?: string | null;
+  end_time?: string | null;
+  all_day?: boolean;
+  location?: string | null;
+  map_url?: string | null;
+  created_by?: string | null;
+}
+
+export interface CalendarEventParticipant {
+  id: string;
+  event_id: string;
+  employee_id: string;
+  created_at: string;
+}
+
+export interface CalendarEventParticipantInsert {
+  event_id: string;
+  employee_id: string;
+}
+
+// 参加者情報を含むイベント
+export interface CalendarEventWithParticipants extends CalendarEvent {
+  participants: Employee[];
+  creator?: Employee | null;
+}

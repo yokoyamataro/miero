@@ -1,385 +1,458 @@
 "use client";
 
-import { useState } from "react";
-import Link from "next/link";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { ChevronLeft, ChevronRight, Calendar, Flag, CalendarDays } from "lucide-react";
 import {
-  PROJECT_CATEGORY_LABELS,
-  PROJECT_STATUS_COLORS,
-  type ProjectCategory,
-  type ProjectStatus,
-  type ProjectDetails,
+  ChevronLeft,
+  ChevronRight,
+  Calendar,
+  CalendarDays,
+  CalendarRange,
+  Plus,
+  MapPin,
+  Clock,
+  Users,
+} from "lucide-react";
+import {
+  format,
+  startOfMonth,
+  endOfMonth,
+  startOfWeek,
+  endOfWeek,
+  eachDayOfInterval,
+  isSameMonth,
+  isSameDay,
+  isToday,
+  addMonths,
+  subMonths,
+  addWeeks,
+  subWeeks,
+  addDays,
+  subDays,
+  parseISO,
+} from "date-fns";
+import { ja } from "date-fns/locale";
+import {
+  type CalendarEventWithParticipants,
+  type Employee,
+  EVENT_CATEGORY_COLORS,
+  type EventCategory,
 } from "@/types/database";
+import { EventModal } from "./event-modal";
+import { EventDetailModal } from "./event-detail-modal";
 
-type ViewMode = "month" | "week";
-
-interface ProjectWithContact {
-  id: string;
-  code: string;
-  category: ProjectCategory;
-  name: string;
-  status: ProjectStatus;
-  start_date: string | null;
-  end_date: string | null;
-  details: ProjectDetails;
-  contactName: string;
-}
+type ViewMode = "day" | "week" | "month";
 
 interface CalendarViewProps {
-  year: number;
-  month: number;
-  projects: ProjectWithContact[];
-  viewMode: ViewMode;
-  weekStart: string;
+  initialEvents: CalendarEventWithParticipants[];
+  employees: Employee[];
+  initialView: ViewMode;
+  initialDate: string;
 }
 
-// カテゴリ別の色
-const CATEGORY_COLORS: Record<ProjectCategory, string> = {
-  A_Survey: "bg-blue-500",
-  B_Boundary: "bg-green-500",
-  C_Registration: "bg-purple-500",
-  D_Inheritance: "bg-orange-500",
-  E_Corporate: "bg-pink-500",
-  F_Drone: "bg-cyan-500",
-  N_Farmland: "bg-amber-600",
-};
+const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
 
-// details内の日付フィールドを抽出
-function extractMilestones(
-  details: ProjectDetails,
-  category: ProjectCategory
-): { date: string; label: string }[] {
-  const milestones: { date: string; label: string }[] = [];
-
-  if (!details) return milestones;
-
-  if (category === "C_Registration") {
-    const d = details as { completion_date?: string; settlement_date?: string };
-    if (d.completion_date) milestones.push({ date: d.completion_date, label: "完了検査" });
-    if (d.settlement_date) milestones.push({ date: d.settlement_date, label: "決済" });
-  }
-
-  if (category === "D_Inheritance") {
-    const d = details as { will_date?: string };
-    if (d.will_date) milestones.push({ date: d.will_date, label: "遺言" });
-  }
-
-  if (category === "E_Corporate") {
-    const d = details as { next_election_date?: string };
-    if (d.next_election_date) milestones.push({ date: d.next_election_date, label: "改選" });
-  }
-
-  if (category === "N_Farmland") {
-    const d = details as { application_date?: string; permission_date?: string };
-    if (d.application_date) milestones.push({ date: d.application_date, label: "申請" });
-    if (d.permission_date) milestones.push({ date: d.permission_date, label: "許可" });
-  }
-
-  return milestones;
-}
-
-// 曜日ラベル
-const WEEKDAY_LABELS = ["月", "火", "水", "木", "金", "土", "日"];
-
-export function CalendarView({ year, month, projects, viewMode, weekStart }: CalendarViewProps) {
+export function CalendarView({
+  initialEvents,
+  employees,
+  initialView,
+  initialDate,
+}: CalendarViewProps) {
   const router = useRouter();
-  const today = new Date();
+  const [viewMode, setViewMode] = useState<ViewMode>(initialView);
+  const [currentDate, setCurrentDate] = useState(parseISO(initialDate));
+  const [events, setEvents] = useState(initialEvents);
+  const [showEventModal, setShowEventModal] = useState(false);
+  const [showDetailModal, setShowDetailModal] = useState(false);
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEventWithParticipants | null>(null);
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
-  // 週表示用の日付配列
-  const weekStartDate = new Date(weekStart);
-  const weekDays = Array.from({ length: 7 }, (_, i) => {
-    const d = new Date(weekStartDate);
-    d.setDate(d.getDate() + i);
-    return d;
-  });
+  // 月表示のカレンダー日付を生成
+  const monthDays = useMemo(() => {
+    const monthStart = startOfMonth(currentDate);
+    const monthEnd = endOfMonth(currentDate);
+    const calendarStart = startOfWeek(monthStart, { weekStartsOn: 0 });
+    const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 0 });
+    return eachDayOfInterval({ start: calendarStart, end: calendarEnd });
+  }, [currentDate]);
 
-  // 月の日数
-  const daysInMonth = new Date(year, month, 0).getDate();
+  // 週表示の日付を生成
+  const weekDays = useMemo(() => {
+    const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 });
+    return eachDayOfInterval({ start: weekStart, end: addDays(weekStart, 6) });
+  }, [currentDate]);
 
-  // 前月・次月へのナビゲーション
-  const prevMonth = month === 1 ? { year: year - 1, month: 12 } : { year, month: month - 1 };
-  const nextMonth = month === 12 ? { year: year + 1, month: 1 } : { year, month: month + 1 };
-
-  // 前週・次週へのナビゲーション
-  const prevWeekDate = new Date(weekStartDate);
-  prevWeekDate.setDate(prevWeekDate.getDate() - 7);
-  const nextWeekDate = new Date(weekStartDate);
-  nextWeekDate.setDate(nextWeekDate.getDate() + 7);
-
-  const formatWeekParam = (d: Date) => d.toISOString().split("T")[0];
-
-  // 今週の開始日を取得
-  const getTodayWeekStart = () => {
-    const d = new Date();
-    const day = d.getDay();
-    const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-    return new Date(d.setDate(diff));
+  // 日付ごとのイベントを取得
+  const getEventsForDate = (date: Date) => {
+    return events.filter((event) => {
+      const startDate = parseISO(event.start_date);
+      const endDate = event.end_date ? parseISO(event.end_date) : startDate;
+      return date >= startDate && date <= endDate;
+    });
   };
 
-  // 表示範囲
-  const rangeStart = viewMode === "week" ? weekStartDate : new Date(year, month - 1, 1);
-  const rangeEnd = viewMode === "week" ? weekDays[6] : new Date(year, month, 0);
-  const totalDays = viewMode === "week" ? 7 : daysInMonth;
-
-  // バーの位置計算
-  const getBarStyle = (startDate: string | null, endDate: string | null) => {
-    let start = startDate ? new Date(startDate) : rangeStart;
-    let end = endDate ? new Date(endDate) : rangeEnd;
-
-    // 範囲にクリップ
-    if (start < rangeStart) start = new Date(rangeStart);
-    if (end > rangeEnd) end = new Date(rangeEnd);
-
-    if (viewMode === "week") {
-      // 週表示: 日付の差分で計算
-      const startDiff = Math.max(0, Math.floor((start.getTime() - rangeStart.getTime()) / (1000 * 60 * 60 * 24)));
-      const endDiff = Math.min(6, Math.floor((end.getTime() - rangeStart.getTime()) / (1000 * 60 * 60 * 24)));
-      const left = (startDiff / 7) * 100;
-      const width = ((endDiff - startDiff + 1) / 7) * 100;
-      return { left: `${left}%`, width: `${width}%` };
-    } else {
-      // 月表示
-      const startDay = start.getDate();
-      const endDay = end.getDate();
-      const left = ((startDay - 1) / daysInMonth) * 100;
-      const width = ((endDay - startDay + 1) / daysInMonth) * 100;
-      return { left: `${left}%`, width: `${width}%` };
+  // ナビゲーション
+  const navigatePrev = () => {
+    switch (viewMode) {
+      case "month":
+        setCurrentDate(subMonths(currentDate, 1));
+        break;
+      case "week":
+        setCurrentDate(subWeeks(currentDate, 1));
+        break;
+      case "day":
+        setCurrentDate(subDays(currentDate, 1));
+        break;
     }
   };
 
-  // マイルストーンの位置計算
-  const getMilestonePosition = (dateStr: string) => {
-    const date = new Date(dateStr);
-
-    if (viewMode === "week") {
-      const diff = Math.floor((date.getTime() - rangeStart.getTime()) / (1000 * 60 * 60 * 24));
-      if (diff < 0 || diff > 6) return null;
-      return ((diff + 0.5) / 7) * 100;
-    } else {
-      if (date.getFullYear() !== year || date.getMonth() + 1 !== month) return null;
-      const day = date.getDate();
-      return ((day - 0.5) / daysInMonth) * 100;
+  const navigateNext = () => {
+    switch (viewMode) {
+      case "month":
+        setCurrentDate(addMonths(currentDate, 1));
+        break;
+      case "week":
+        setCurrentDate(addWeeks(currentDate, 1));
+        break;
+      case "day":
+        setCurrentDate(addDays(currentDate, 1));
+        break;
     }
   };
 
-  // ヘッダーの日付ラベル
-  const getHeaderLabels = () => {
-    if (viewMode === "week") {
-      return weekDays.map((d, i) => ({
-        label: `${d.getMonth() + 1}/${d.getDate()}(${WEEKDAY_LABELS[i]})`,
-        position: ((i + 0.5) / 7) * 100,
-      }));
-    } else {
-      return [1, 5, 10, 15, 20, 25, daysInMonth].map((day) => ({
-        label: String(day),
-        position: ((day - 0.5) / daysInMonth) * 100,
-      }));
-    }
+  const navigateToday = () => {
+    setCurrentDate(new Date());
+  };
+
+  // 日付クリックでイベント作成
+  const handleDateClick = (date: Date) => {
+    setSelectedDate(date);
+    setSelectedEvent(null);
+    setShowEventModal(true);
+  };
+
+  // イベントクリックで詳細表示
+  const handleEventClick = (event: CalendarEventWithParticipants, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setSelectedEvent(event);
+    setShowDetailModal(true);
+  };
+
+  // イベント編集
+  const handleEditEvent = (event: CalendarEventWithParticipants) => {
+    setShowDetailModal(false);
+    setSelectedEvent(event);
+    setSelectedDate(parseISO(event.start_date));
+    setShowEventModal(true);
+  };
+
+  // イベント更新後
+  const handleEventUpdated = () => {
+    router.refresh();
+    setShowEventModal(false);
+    setShowDetailModal(false);
+    // SSRからのデータを再取得するためにページをリロード
+    window.location.reload();
   };
 
   // タイトル
   const getTitle = () => {
-    if (viewMode === "week") {
-      const endDate = weekDays[6];
-      return `${weekStartDate.getFullYear()}年${weekStartDate.getMonth() + 1}月${weekStartDate.getDate()}日 〜 ${endDate.getMonth() + 1}月${endDate.getDate()}日`;
+    switch (viewMode) {
+      case "month":
+        return format(currentDate, "yyyy年M月", { locale: ja });
+      case "week":
+        const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 });
+        const weekEnd = addDays(weekStart, 6);
+        return `${format(weekStart, "M月d日", { locale: ja })} - ${format(weekEnd, "M月d日", { locale: ja })}`;
+      case "day":
+        return format(currentDate, "yyyy年M月d日(E)", { locale: ja });
     }
-    return `${year}年${month}月`;
+  };
+
+  // イベントレンダリング
+  const renderEvent = (event: CalendarEventWithParticipants, compact = false) => {
+    const categoryColor = EVENT_CATEGORY_COLORS[event.category];
+    const timeStr = event.start_time ? event.start_time.slice(0, 5) : "";
+
+    if (compact) {
+      return (
+        <div
+          key={event.id}
+          className={`text-xs truncate px-1 py-0.5 rounded ${categoryColor} text-white cursor-pointer hover:opacity-80`}
+          onClick={(e) => handleEventClick(event, e)}
+          title={event.title}
+        >
+          {timeStr && <span className="mr-1">{timeStr}</span>}
+          {event.title}
+        </div>
+      );
+    }
+
+    return (
+      <div
+        key={event.id}
+        className={`p-2 rounded ${categoryColor} text-white cursor-pointer hover:opacity-80 mb-1`}
+        onClick={(e) => handleEventClick(event, e)}
+      >
+        <div className="font-medium">{event.title}</div>
+        {event.start_time && (
+          <div className="text-sm flex items-center gap-1 mt-1">
+            <Clock className="h-3 w-3" />
+            {event.start_time.slice(0, 5)}
+            {event.end_time && ` - ${event.end_time.slice(0, 5)}`}
+          </div>
+        )}
+        {event.location && (
+          <div className="text-sm flex items-center gap-1 mt-1">
+            <MapPin className="h-3 w-3" />
+            <span className="truncate">{event.location}</span>
+          </div>
+        )}
+        {event.participants.length > 0 && (
+          <div className="text-sm flex items-center gap-1 mt-1">
+            <Users className="h-3 w-3" />
+            {event.participants.map((p) => p.name).join(", ")}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // 月表示
+  const renderMonthView = () => (
+    <div className="grid grid-cols-7 gap-px bg-border">
+      {/* 曜日ヘッダー */}
+      {WEEKDAY_LABELS.map((day, idx) => (
+        <div
+          key={day}
+          className={`p-2 text-center text-sm font-medium bg-muted ${
+            idx === 0 ? "text-red-500" : idx === 6 ? "text-blue-500" : ""
+          }`}
+        >
+          {day}
+        </div>
+      ))}
+
+      {/* 日付セル */}
+      {monthDays.map((date, idx) => {
+        const dayEvents = getEventsForDate(date);
+        const isCurrentMonth = isSameMonth(date, currentDate);
+        const dayOfWeek = date.getDay();
+
+        return (
+          <div
+            key={idx}
+            className={`min-h-[100px] p-1 bg-background cursor-pointer hover:bg-muted/50 ${
+              !isCurrentMonth ? "opacity-40" : ""
+            }`}
+            onClick={() => handleDateClick(date)}
+          >
+            <div
+              className={`text-sm mb-1 w-6 h-6 flex items-center justify-center rounded-full ${
+                isToday(date)
+                  ? "bg-primary text-primary-foreground"
+                  : dayOfWeek === 0
+                  ? "text-red-500"
+                  : dayOfWeek === 6
+                  ? "text-blue-500"
+                  : ""
+              }`}
+            >
+              {format(date, "d")}
+            </div>
+            <div className="space-y-0.5">
+              {dayEvents.slice(0, 3).map((event) => renderEvent(event, true))}
+              {dayEvents.length > 3 && (
+                <div className="text-xs text-muted-foreground">
+                  +{dayEvents.length - 3}件
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  // 週表示
+  const renderWeekView = () => (
+    <div className="grid grid-cols-7 gap-px bg-border">
+      {/* 曜日ヘッダー */}
+      {weekDays.map((date, idx) => (
+        <div
+          key={idx}
+          className={`p-2 text-center bg-muted ${
+            idx === 0 ? "text-red-500" : idx === 6 ? "text-blue-500" : ""
+          }`}
+        >
+          <div className="text-sm font-medium">{WEEKDAY_LABELS[idx]}</div>
+          <div
+            className={`text-lg ${
+              isToday(date)
+                ? "w-8 h-8 mx-auto flex items-center justify-center rounded-full bg-primary text-primary-foreground"
+                : ""
+            }`}
+          >
+            {format(date, "d")}
+          </div>
+        </div>
+      ))}
+
+      {/* イベントセル */}
+      {weekDays.map((date, idx) => {
+        const dayEvents = getEventsForDate(date);
+
+        return (
+          <div
+            key={idx}
+            className="min-h-[300px] p-2 bg-background cursor-pointer hover:bg-muted/50"
+            onClick={() => handleDateClick(date)}
+          >
+            <div className="space-y-1">
+              {dayEvents.map((event) => renderEvent(event))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  // 日表示
+  const renderDayView = () => {
+    const dayEvents = getEventsForDate(currentDate);
+    const hours = Array.from({ length: 24 }, (_, i) => i);
+
+    return (
+      <div className="border rounded-lg overflow-hidden">
+        <div
+          className="p-4 bg-muted cursor-pointer hover:bg-muted/80"
+          onClick={() => handleDateClick(currentDate)}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <div className="text-lg font-medium">
+              {format(currentDate, "M月d日(E)", { locale: ja })}
+            </div>
+            <Button size="sm" onClick={() => handleDateClick(currentDate)}>
+              <Plus className="h-4 w-4 mr-1" />
+              予定を追加
+            </Button>
+          </div>
+
+          {dayEvents.length === 0 ? (
+            <p className="text-muted-foreground text-center py-8">
+              予定はありません
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {dayEvents.map((event) => renderEvent(event))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
   };
 
   return (
     <div className="space-y-4">
       {/* ナビゲーション */}
       <div className="flex items-center justify-between flex-wrap gap-2">
-        <h2 className="text-xl font-semibold">
-          {getTitle()}
-        </h2>
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={navigatePrev}>
+            <ChevronLeft className="h-4 w-4" />
+          </Button>
+          <Button variant="outline" size="sm" onClick={navigateToday}>
+            今日
+          </Button>
+          <Button variant="outline" size="sm" onClick={navigateNext}>
+            <ChevronRight className="h-4 w-4" />
+          </Button>
+          <h2 className="text-xl font-semibold ml-2">{getTitle()}</h2>
+        </div>
+
+        <div className="flex gap-2">
           {/* 表示切替 */}
           <div className="flex border rounded-md">
-            <Link href={`/calendar?year=${year}&month=${month}&view=month`}>
-              <Button
-                variant={viewMode === "month" ? "default" : "ghost"}
-                size="sm"
-                className="rounded-r-none"
-              >
-                <Calendar className="h-4 w-4 mr-1" />
-                月
-              </Button>
-            </Link>
-            <Link href={`/calendar?view=week&week=${weekStart}`}>
-              <Button
-                variant={viewMode === "week" ? "default" : "ghost"}
-                size="sm"
-                className="rounded-l-none"
-              >
-                <CalendarDays className="h-4 w-4 mr-1" />
-                週
-              </Button>
-            </Link>
+            <Button
+              variant={viewMode === "day" ? "default" : "ghost"}
+              size="sm"
+              className="rounded-r-none"
+              onClick={() => setViewMode("day")}
+            >
+              <CalendarRange className="h-4 w-4 mr-1" />
+              日
+            </Button>
+            <Button
+              variant={viewMode === "week" ? "default" : "ghost"}
+              size="sm"
+              className="rounded-none border-x"
+              onClick={() => setViewMode("week")}
+            >
+              <CalendarDays className="h-4 w-4 mr-1" />
+              週
+            </Button>
+            <Button
+              variant={viewMode === "month" ? "default" : "ghost"}
+              size="sm"
+              className="rounded-l-none"
+              onClick={() => setViewMode("month")}
+            >
+              <Calendar className="h-4 w-4 mr-1" />
+              月
+            </Button>
           </div>
 
-          {/* ナビゲーションボタン */}
-          {viewMode === "month" ? (
-            <>
-              <Link href={`/calendar?year=${prevMonth.year}&month=${prevMonth.month}&view=month`}>
-                <Button variant="outline" size="sm">
-                  <ChevronLeft className="h-4 w-4" />
-                  前月
-                </Button>
-              </Link>
-              <Link href={`/calendar?year=${today.getFullYear()}&month=${today.getMonth() + 1}&view=month`}>
-                <Button variant="outline" size="sm">
-                  今月
-                </Button>
-              </Link>
-              <Link href={`/calendar?year=${nextMonth.year}&month=${nextMonth.month}&view=month`}>
-                <Button variant="outline" size="sm">
-                  次月
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </Link>
-            </>
-          ) : (
-            <>
-              <Link href={`/calendar?view=week&week=${formatWeekParam(prevWeekDate)}`}>
-                <Button variant="outline" size="sm">
-                  <ChevronLeft className="h-4 w-4" />
-                  前週
-                </Button>
-              </Link>
-              <Link href={`/calendar?view=week&week=${formatWeekParam(getTodayWeekStart())}`}>
-                <Button variant="outline" size="sm">
-                  今週
-                </Button>
-              </Link>
-              <Link href={`/calendar?view=week&week=${formatWeekParam(nextWeekDate)}`}>
-                <Button variant="outline" size="sm">
-                  次週
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-              </Link>
-            </>
-          )}
+          {/* 新規作成ボタン */}
+          <Button onClick={() => handleDateClick(new Date())}>
+            <Plus className="h-4 w-4 mr-1" />
+            予定を追加
+          </Button>
         </div>
       </div>
 
       {/* カレンダー本体 */}
       <Card>
-        <CardContent className="pt-6">
-          {/* 日付ヘッダー */}
-          <div className="flex border-b pb-2 mb-4">
-            <div className="w-48 flex-shrink-0 text-sm font-medium text-muted-foreground">
-              業務
-            </div>
-            <div className="flex-1 relative h-5">
-              <div className="flex justify-between text-xs text-muted-foreground">
-                {getHeaderLabels().map((item, idx) => (
-                  <span
-                    key={idx}
-                    style={{ position: "absolute", left: `${item.position}%`, transform: "translateX(-50%)" }}
-                  >
-                    {item.label}
-                  </span>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* プロジェクト行 */}
-          {projects.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">
-              {viewMode === "week" ? "この週" : "この月"}に該当する業務はありません
-            </p>
-          ) : (
-            <div className="space-y-3">
-              {projects.map((project) => {
-                const barStyle = getBarStyle(project.start_date, project.end_date);
-                const milestones = extractMilestones(project.details, project.category);
-                const categoryColor = CATEGORY_COLORS[project.category];
-
-                return (
-                  <div key={project.id} className="flex items-center group">
-                    {/* プロジェクト情報 */}
-                    <div className="w-48 flex-shrink-0 pr-2">
-                      <Link
-                        href={`/projects/${project.id}`}
-                        className="block hover:bg-muted rounded p-1 -m-1"
-                      >
-                        <div className="flex items-center gap-2">
-                          <Badge
-                            variant="secondary"
-                            className={`text-xs text-white ${categoryColor}`}
-                          >
-                            {project.code}
-                          </Badge>
-                        </div>
-                        <div className="text-sm font-medium truncate mt-1">
-                          {project.name}
-                        </div>
-                        {project.contactName && (
-                          <div className="text-xs text-muted-foreground truncate">
-                            {project.contactName}
-                          </div>
-                        )}
-                      </Link>
-                    </div>
-
-                    {/* タイムラインバー */}
-                    <div className="flex-1 relative h-8 bg-muted/30 rounded">
-                      {/* 期間バー */}
-                      {(project.start_date || project.end_date) && (
-                        <div
-                          className={`absolute top-1 bottom-1 rounded ${categoryColor} opacity-80 group-hover:opacity-100 transition-opacity`}
-                          style={barStyle}
-                        />
-                      )}
-
-                      {/* マイルストーン */}
-                      {milestones.map((milestone, idx) => {
-                        const pos = getMilestonePosition(milestone.date);
-                        if (pos === null) return null;
-                        return (
-                          <div
-                            key={idx}
-                            className="absolute top-0 bottom-0 flex items-center"
-                            style={{ left: `${pos}%`, transform: "translateX(-50%)" }}
-                            title={`${milestone.label}: ${milestone.date}`}
-                          >
-                            <Flag className="h-4 w-4 text-red-500" />
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+        <CardContent className="p-0 overflow-hidden">
+          {viewMode === "month" && renderMonthView()}
+          {viewMode === "week" && renderWeekView()}
+          {viewMode === "day" && renderDayView()}
         </CardContent>
       </Card>
 
       {/* 凡例 */}
       <Card>
-        <CardContent className="pt-4">
+        <CardContent className="py-3">
           <div className="flex flex-wrap gap-4 text-sm">
-            <span className="text-muted-foreground">カテゴリ:</span>
-            {(Object.keys(CATEGORY_COLORS) as ProjectCategory[]).map((cat) => (
+            <span className="text-muted-foreground">区分:</span>
+            {(Object.keys(EVENT_CATEGORY_COLORS) as EventCategory[]).map((cat) => (
               <div key={cat} className="flex items-center gap-1">
-                <div className={`w-3 h-3 rounded ${CATEGORY_COLORS[cat]}`} />
-                <span>{PROJECT_CATEGORY_LABELS[cat]}</span>
+                <div className={`w-3 h-3 rounded ${EVENT_CATEGORY_COLORS[cat]}`} />
+                <span>{cat}</span>
               </div>
             ))}
-            <div className="flex items-center gap-1 ml-4">
-              <Flag className="h-4 w-4 text-red-500" />
-              <span>期限・マイルストーン</span>
-            </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* イベント作成・編集モーダル */}
+      <EventModal
+        open={showEventModal}
+        onOpenChange={setShowEventModal}
+        employees={employees}
+        selectedDate={selectedDate}
+        event={selectedEvent}
+        onSaved={handleEventUpdated}
+      />
+
+      {/* イベント詳細モーダル */}
+      <EventDetailModal
+        open={showDetailModal}
+        onOpenChange={setShowDetailModal}
+        event={selectedEvent}
+        onEdit={handleEditEvent}
+        onDeleted={handleEventUpdated}
+      />
     </div>
   );
 }
