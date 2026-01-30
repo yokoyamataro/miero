@@ -257,10 +257,14 @@ export async function getActiveProjectsWithTasks(): Promise<ProjectWithTasks[]> 
     .from("projects")
     .select("*")
     .in("status", ["受注", "着手", "進行中"])
-    .is("deleted_at", null)
     .order("code", { ascending: false });
 
-  if (projectsError || !projects || projects.length === 0) {
+  if (projectsError) {
+    console.error("Error fetching projects:", projectsError);
+    return [];
+  }
+
+  if (!projects || projects.length === 0) {
     return [];
   }
 

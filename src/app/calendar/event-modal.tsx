@@ -45,6 +45,16 @@ const EVENT_CATEGORIES: EventCategory[] = [
   "その他",
 ];
 
+// 15分単位の時刻オプションを生成
+const TIME_OPTIONS: string[] = [];
+for (let h = 0; h < 24; h++) {
+  for (let m = 0; m < 60; m += 15) {
+    TIME_OPTIONS.push(
+      `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`
+    );
+  }
+}
+
 export function EventModal({
   open,
   onOpenChange,
@@ -91,12 +101,13 @@ export function EventModal({
       setParticipantIds(event.participants.map((p) => p.id));
       setShowProjectSelector(false);
     } else if (selectedDate) {
+      const dateStr = format(selectedDate, "yyyy-MM-dd");
       setTitle("");
       setDescription("");
       setCategory("その他");
-      setStartDate(format(selectedDate, "yyyy-MM-dd"));
+      setStartDate(dateStr);
       setStartTime("");
-      setEndDate("");
+      setEndDate(dateStr); // デフォルトで終了日＝開始日
       setEndTime("");
       setAllDay(false);
       setLocation("");
@@ -346,18 +357,31 @@ export function EventModal({
                 id="startDate"
                 type="date"
                 value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
+                onChange={(e) => {
+                  setStartDate(e.target.value);
+                  // 開始日を変更したら終了日も同じに
+                  if (!endDate || endDate < e.target.value) {
+                    setEndDate(e.target.value);
+                  }
+                }}
               />
             </div>
             {!allDay && (
               <div className="space-y-2">
                 <Label htmlFor="startTime">開始時刻</Label>
-                <Input
+                <select
                   id="startTime"
-                  type="time"
+                  className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
                   value={startTime}
                   onChange={(e) => setStartTime(e.target.value)}
-                />
+                >
+                  <option value="">選択してください</option>
+                  {TIME_OPTIONS.map((time) => (
+                    <option key={time} value={time}>
+                      {time}
+                    </option>
+                  ))}
+                </select>
               </div>
             )}
           </div>
@@ -375,12 +399,19 @@ export function EventModal({
             {!allDay && (
               <div className="space-y-2">
                 <Label htmlFor="endTime">終了時刻</Label>
-                <Input
+                <select
                   id="endTime"
-                  type="time"
+                  className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
                   value={endTime}
                   onChange={(e) => setEndTime(e.target.value)}
-                />
+                >
+                  <option value="">選択してください</option>
+                  {TIME_OPTIONS.map((time) => (
+                    <option key={time} value={time}>
+                      {time}
+                    </option>
+                  ))}
+                </select>
               </div>
             )}
           </div>
