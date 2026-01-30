@@ -8,6 +8,8 @@ import {
   type CalendarEventWithParticipants,
   type Employee,
   type EventCategory,
+  type Project,
+  type Task,
 } from "@/types/database";
 
 // 現在のユーザーの社員IDを取得
@@ -240,4 +242,47 @@ export async function getEvent(eventId: string): Promise<CalendarEventWithPartic
     participants: eventParticipants || [],
     creator: creator || null,
   } as CalendarEventWithParticipants;
+}
+
+// 進行中の業務とタスクを取得
+export type ProjectWithTasks = Project & {
+  tasks: Task[];
+};
+
+export async function getActiveProjectsWithTasks(): Promise<ProjectWithTasks[]> {
+  const supabase = await createClient();
+
+  // 進行中の業務を取得
+  const { data: projects, error: projectsError } = await supabase
+    .from("projects")
+    .select("*")
+    .in("status", ["受注", "着手", "進行中"])
+    .is("deleted_at", null)
+    .order("code", { ascending: false });
+
+  if (projectsError || !projects || projects.length === 0) {
+    return [];
+  }
+
+  // 各業務のタスクを取得（未完了のもの）
+  const projectIds = projects.map((p) => p.id);
+  const { data: tasks, error: tasksError } = await supabase
+    .from("tasks" as never)
+    .select("*")
+    .in("project_id", projectIds)
+    .in("status", ["未着手", "進行中"])
+    .is("parent_id", null)
+    .order("sort_order", { ascending: true });
+
+  // プロジェクトにタスクを紐付け
+  const tasksByProjectId = ((tasks as Task[]) || []).reduce((acc, task) => {
+    if (!acc[task.project_id]) acc[task.project_id] = [];
+    acc[task.project_id].push(task);
+    return acc;
+  }, {} as Record<string, Task[]>);
+
+  return (projects as Project[]).map((project) => ({
+    ...project,
+    tasks: tasksByProjectId[project.id] || [],
+  }));
 }

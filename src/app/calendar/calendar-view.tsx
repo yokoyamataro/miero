@@ -52,7 +52,8 @@ interface CalendarViewProps {
   initialDate: string;
 }
 
-const WEEKDAY_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
+// 月曜始まり
+const WEEKDAY_LABELS = ["月", "火", "水", "木", "金", "土", "日"];
 
 export function CalendarView({
   initialEvents,
@@ -69,18 +70,18 @@ export function CalendarView({
   const [selectedEvent, setSelectedEvent] = useState<CalendarEventWithParticipants | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
-  // 月表示のカレンダー日付を生成
+  // 月表示のカレンダー日付を生成（月曜始まり）
   const monthDays = useMemo(() => {
     const monthStart = startOfMonth(currentDate);
     const monthEnd = endOfMonth(currentDate);
-    const calendarStart = startOfWeek(monthStart, { weekStartsOn: 0 });
-    const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 0 });
+    const calendarStart = startOfWeek(monthStart, { weekStartsOn: 1 });
+    const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
     return eachDayOfInterval({ start: calendarStart, end: calendarEnd });
   }, [currentDate]);
 
-  // 週表示の日付を生成
+  // 週表示の日付を生成（月曜始まり）
   const weekDays = useMemo(() => {
-    const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 });
+    const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
     return eachDayOfInterval({ start: weekStart, end: addDays(weekStart, 6) });
   }, [currentDate]);
 
@@ -163,7 +164,7 @@ export function CalendarView({
       case "month":
         return format(currentDate, "yyyy年M月", { locale: ja });
       case "week":
-        const weekStart = startOfWeek(currentDate, { weekStartsOn: 0 });
+        const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
         const weekEnd = addDays(weekStart, 6);
         return `${format(weekStart, "M月d日", { locale: ja })} - ${format(weekEnd, "M月d日", { locale: ja })}`;
       case "day":
@@ -223,12 +224,12 @@ export function CalendarView({
   // 月表示
   const renderMonthView = () => (
     <div className="grid grid-cols-7 gap-px bg-border">
-      {/* 曜日ヘッダー */}
+      {/* 曜日ヘッダー（月曜始まり） */}
       {WEEKDAY_LABELS.map((day, idx) => (
         <div
           key={day}
           className={`p-2 text-center text-sm font-medium bg-muted ${
-            idx === 0 ? "text-red-500" : idx === 6 ? "text-blue-500" : ""
+            idx === 5 ? "text-blue-500" : idx === 6 ? "text-red-500" : ""
           }`}
         >
           {day}
@@ -279,12 +280,12 @@ export function CalendarView({
   // 週表示
   const renderWeekView = () => (
     <div className="grid grid-cols-7 gap-px bg-border">
-      {/* 曜日ヘッダー */}
+      {/* 曜日ヘッダー（月曜始まり） */}
       {weekDays.map((date, idx) => (
         <div
           key={idx}
           className={`p-2 text-center bg-muted ${
-            idx === 0 ? "text-red-500" : idx === 6 ? "text-blue-500" : ""
+            idx === 5 ? "text-blue-500" : idx === 6 ? "text-red-500" : ""
           }`}
         >
           <div className="text-sm font-medium">{WEEKDAY_LABELS[idx]}</div>

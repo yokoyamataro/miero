@@ -14,12 +14,14 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { format } from "date-fns";
+import { Briefcase, ChevronDown, ChevronRight } from "lucide-react";
 import {
   type CalendarEventWithParticipants,
   type Employee,
   type EventCategory,
+  type Task,
 } from "@/types/database";
-import { createEvent, updateEvent } from "./actions";
+import { createEvent, updateEvent, getActiveProjectsWithTasks, type ProjectWithTasks } from "./actions";
 
 interface EventModalProps {
   open: boolean;
@@ -31,13 +33,15 @@ interface EventModalProps {
 }
 
 const EVENT_CATEGORIES: EventCategory[] = [
-  "打合せ",
-  "現地調査",
-  "立会",
-  "申請",
-  "決済",
-  "研修",
-  "社内",
+  "内業",
+  "来客",
+  "外出",
+  "現場",
+  "出張",
+  "勉強",
+  "登記",
+  "整備",
+  "休み",
   "その他",
 ];
 
@@ -65,6 +69,12 @@ export function EventModal({
   const [mapUrl, setMapUrl] = useState("");
   const [participantIds, setParticipantIds] = useState<string[]>([]);
 
+  // 業務ToDo選択用
+  const [showProjectSelector, setShowProjectSelector] = useState(false);
+  const [projectsWithTasks, setProjectsWithTasks] = useState<ProjectWithTasks[]>([]);
+  const [loadingProjects, setLoadingProjects] = useState(false);
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+
   // 編集時のデータ読み込み
   useEffect(() => {
     if (event) {
@@ -79,6 +89,7 @@ export function EventModal({
       setLocation(event.location || "");
       setMapUrl(event.map_url || "");
       setParticipantIds(event.participants.map((p) => p.id));
+      setShowProjectSelector(false);
     } else if (selectedDate) {
       setTitle("");
       setDescription("");
@@ -91,8 +102,59 @@ export function EventModal({
       setLocation("");
       setMapUrl("");
       setParticipantIds([]);
+      setShowProjectSelector(false);
     }
   }, [event, selectedDate, open]);
+
+  // 業務ToDoを読み込む
+  const loadProjectsWithTasks = async () => {
+    if (projectsWithTasks.length > 0) {
+      setShowProjectSelector(!showProjectSelector);
+      return;
+    }
+
+    setLoadingProjects(true);
+    try {
+      const data = await getActiveProjectsWithTasks();
+      setProjectsWithTasks(data);
+      setShowProjectSelector(true);
+    } catch (err) {
+      console.error("Error loading projects:", err);
+    } finally {
+      setLoadingProjects(false);
+    }
+  };
+
+  // 業務を選択
+  const selectProject = (project: ProjectWithTasks) => {
+    setTitle(`【${project.code}】${project.name}`);
+    if (project.location) {
+      setLocation(project.location);
+    }
+    setShowProjectSelector(false);
+  };
+
+  // タスクを選択
+  const selectTask = (project: ProjectWithTasks, task: Task) => {
+    setTitle(`【${project.code}】${task.title}`);
+    if (project.location) {
+      setLocation(project.location);
+    }
+    setShowProjectSelector(false);
+  };
+
+  // プロジェクトの展開/折りたたみ
+  const toggleProjectExpand = (projectId: string) => {
+    setExpandedProjects((prev) => {
+      const next = new Set(prev);
+      if (next.has(projectId)) {
+        next.delete(projectId);
+      } else {
+        next.add(projectId);
+      }
+      return next;
+    });
+  };
 
   const handleSubmit = async () => {
     if (!title.trim() || !startDate) {
@@ -157,13 +219,94 @@ export function EventModal({
         <div className="space-y-4">
           {/* タイトル */}
           <div className="space-y-2">
-            <Label htmlFor="title">タイトル *</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="title">タイトル *</Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={loadProjectsWithTasks}
+                disabled={loadingProjects}
+              >
+                <Briefcase className="h-4 w-4 mr-1" />
+                {loadingProjects ? "読込中..." : "業務から選択"}
+              </Button>
+            </div>
             <Input
               id="title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="予定のタイトル"
             />
+
+            {/* 業務ToDo選択パネル */}
+            {showProjectSelector && (
+              <div className="border rounded-md p-2 max-h-48 overflow-y-auto bg-muted/30">
+                {projectsWithTasks.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-2">
+                    進行中の業務がありません
+                  </p>
+                ) : (
+                  <div className="space-y-1">
+                    {projectsWithTasks.map((project) => (
+                      <div key={project.id} className="text-sm">
+                        <div
+                          className="flex items-center gap-1 p-1 rounded hover:bg-muted cursor-pointer"
+                          onClick={() => {
+                            if (project.tasks.length > 0) {
+                              toggleProjectExpand(project.id);
+                            } else {
+                              selectProject(project);
+                            }
+                          }}
+                        >
+                          {project.tasks.length > 0 ? (
+                            expandedProjects.has(project.id) ? (
+                              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                            )
+                          ) : (
+                            <span className="w-4" />
+                          )}
+                          <span className="font-mono text-xs text-muted-foreground">
+                            {project.code}
+                          </span>
+                          <span className="truncate flex-1">{project.name}</span>
+                          {project.tasks.length > 0 && (
+                            <span className="text-xs text-muted-foreground">
+                              ({project.tasks.length})
+                            </span>
+                          )}
+                        </div>
+
+                        {/* タスク一覧 */}
+                        {expandedProjects.has(project.id) && project.tasks.length > 0 && (
+                          <div className="ml-5 border-l pl-2 space-y-0.5">
+                            {/* 業務自体を選択するオプション */}
+                            <div
+                              className="p-1 rounded hover:bg-muted cursor-pointer text-muted-foreground"
+                              onClick={() => selectProject(project)}
+                            >
+                              → 業務全体を選択
+                            </div>
+                            {project.tasks.map((task) => (
+                              <div
+                                key={task.id}
+                                className="p-1 rounded hover:bg-muted cursor-pointer"
+                                onClick={() => selectTask(project, task)}
+                              >
+                                {task.title}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           {/* 区分 */}

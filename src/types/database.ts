@@ -377,23 +377,27 @@ export interface CommentWithAcknowledgements extends Comment {
 // Calendar Event (カレンダーイベント)
 // ============================================
 export type EventCategory =
-  | "打合せ"
-  | "現地調査"
-  | "立会"
-  | "申請"
-  | "決済"
-  | "研修"
-  | "社内"
+  | "内業"
+  | "来客"
+  | "外出"
+  | "現場"
+  | "出張"
+  | "勉強"
+  | "登記"
+  | "整備"
+  | "休み"
   | "その他";
 
 export const EVENT_CATEGORY_COLORS: Record<EventCategory, string> = {
-  打合せ: "bg-blue-500",
-  現地調査: "bg-green-500",
-  立会: "bg-yellow-500",
-  申請: "bg-purple-500",
-  決済: "bg-red-500",
-  研修: "bg-indigo-500",
-  社内: "bg-gray-500",
+  内業: "bg-blue-500",
+  来客: "bg-green-500",
+  外出: "bg-yellow-500",
+  現場: "bg-orange-500",
+  出張: "bg-purple-500",
+  勉強: "bg-indigo-500",
+  登記: "bg-pink-500",
+  整備: "bg-cyan-500",
+  休み: "bg-gray-400",
   その他: "bg-slate-400",
 };
 
