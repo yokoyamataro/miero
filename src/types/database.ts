@@ -300,6 +300,11 @@ export interface Task {
   due_date: string | null;
   assigned_to: string | null;
   sort_order: number;
+  // 時間管理
+  estimated_minutes: number | null;  // 標準時間（見積もり・分単位）
+  started_at: string | null;         // 開始時刻
+  completed_at: string | null;       // 終了時刻
+  actual_minutes: number | null;     // 所要時間（実績・分単位）
   created_at: string;
   updated_at: string;
 }
@@ -314,6 +319,11 @@ export interface TaskInsert {
   due_date?: string | null;
   assigned_to?: string | null;
   sort_order?: number;
+  // 時間管理
+  estimated_minutes?: number | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+  actual_minutes?: number | null;
 }
 
 // サブタスクを含むタスク

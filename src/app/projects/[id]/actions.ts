@@ -30,6 +30,11 @@ export async function updateTask(
     due_date?: string | null;
     assigned_to?: string | null;
     sort_order?: number;
+    // 時間管理
+    estimated_minutes?: number | null;
+    started_at?: string | null;
+    completed_at?: string | null;
+    actual_minutes?: number | null;
   }
 ) {
   const supabase = await createClient();
