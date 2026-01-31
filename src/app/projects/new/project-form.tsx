@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useMemo } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,6 +12,8 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
+  SelectGroup,
+  SelectLabel,
 } from "@/components/ui/select";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import {
@@ -38,6 +40,12 @@ export function ProjectForm({ contacts, employees }: ProjectFormProps) {
   const [status, setStatus] = useState<ProjectStatus>("受注");
   const [contactId, setContactId] = useState<string>("");
   const [managerId, setManagerId] = useState<string>("");
+
+  // 法人と個人に分類
+  const { corporateContacts, individualContacts } = useMemo(() => ({
+    corporateContacts: contacts.filter((c) => c.type === "corporate"),
+    individualContacts: contacts.filter((c) => c.type === "individual"),
+  }), [contacts]);
 
   // カテゴリ別詳細データ
   const [details, setDetails] = useState<Record<string, unknown>>({});
@@ -67,7 +75,7 @@ export function ProjectForm({ contacts, employees }: ProjectFormProps) {
       category: category as ProjectCategory,
       name: formData.get("name") as string,
       status: status,
-      contact_id: contactId || null,
+      contact_id: contactId && contactId !== "none" ? contactId : null,
       manager_id: managerId || null,
       start_date: (formData.get("start_date") as string) || null,
       end_date: (formData.get("end_date") as string) || null,
@@ -234,13 +242,27 @@ export function ProjectForm({ contacts, employees }: ProjectFormProps) {
                     <SelectValue placeholder="顧客を選択" />
                   </SelectTrigger>
                   <SelectContent>
-                    {contacts.map((contact) => (
-                      <SelectItem key={contact.id} value={contact.id}>
-                        {contact.type === "corporate" && contact.company_name
-                          ? `${contact.company_name} (${contact.name})`
-                          : contact.name}
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="none">未選択</SelectItem>
+                    {corporateContacts.length > 0 && (
+                      <SelectGroup>
+                        <SelectLabel>法人（担当者）</SelectLabel>
+                        {corporateContacts.map((contact) => (
+                          <SelectItem key={contact.id} value={contact.id}>
+                            {contact.company_name} ({contact.name})
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    )}
+                    {individualContacts.length > 0 && (
+                      <SelectGroup>
+                        <SelectLabel>個人</SelectLabel>
+                        {individualContacts.map((contact) => (
+                          <SelectItem key={contact.id} value={contact.id}>
+                            {contact.name}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    )}
                   </SelectContent>
                 </Select>
               </div>

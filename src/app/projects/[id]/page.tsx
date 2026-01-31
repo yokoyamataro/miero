@@ -14,7 +14,7 @@ import {
 } from "@/types/database";
 import { TaskList } from "./task-list";
 import { CommentSection } from "./comment-section";
-import { ProjectInfo } from "./project-info";
+import { ProjectInfo, type ContactOption } from "./project-info";
 import { getCurrentEmployeeId } from "./actions";
 
 
@@ -47,6 +47,8 @@ export default async function ProjectDetailPage({
     { data: comments },
     { data: employees },
     { data: acknowledgements },
+    { data: allContacts },
+    { data: allAccounts },
     currentEmployeeId,
   ] = await Promise.all([
     project.contact_id
@@ -82,6 +84,10 @@ export default async function ProjectDetailPage({
       .order("created_at", { ascending: false }),
     supabase.from("employees").select("*").order("name"),
     supabase.from("comment_acknowledgements" as never).select("*"),
+    // 顧客選択用：全連絡先を取得
+    supabase.from("contacts" as never).select("*").is("deleted_at", null).order("last_name"),
+    // 顧客選択用：全法人を取得
+    supabase.from("accounts" as never).select("*").is("deleted_at", null),
     getCurrentEmployeeId(),
   ]);
 
@@ -93,6 +99,24 @@ export default async function ProjectDetailPage({
   const typedComments = (comments as Comment[]) || [];
   const typedEmployees = (employees as Employee[]) || [];
   const typedAcknowledgements = (acknowledgements as CommentAcknowledgement[]) || [];
+  const typedAllContacts = (allContacts as Contact[]) || [];
+  const typedAllAccounts = (allAccounts as Account[]) || [];
+
+  // 顧客選択肢を作成
+  const accountMap = typedAllAccounts.reduce((acc, a) => {
+    acc[a.id] = a;
+    return acc;
+  }, {} as Record<string, Account>);
+
+  const contactOptions: ContactOption[] = typedAllContacts.map((c) => {
+    const acc = c.account_id ? accountMap[c.account_id] : null;
+    return {
+      id: c.id,
+      name: `${c.last_name} ${c.first_name}`,
+      type: c.account_id ? "corporate" : "individual",
+      companyName: acc?.company_name,
+    };
+  });
 
   // コメントIDごとの確認者リストを作成
   const acknowledgementsByCommentId = typedAcknowledgements.reduce((acc, ack) => {
@@ -138,6 +162,7 @@ export default async function ProjectDetailPage({
             account={typedAccount}
             manager={typedManager}
             employees={typedEmployees}
+            contactOptions={contactOptions}
           />
         </div>
 
