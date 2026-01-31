@@ -2,7 +2,40 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import { type TaskInsert, type TaskStatus } from "@/types/database";
+import { type TaskInsert, type TaskStatus, type ProjectStatus, type ProjectCategory } from "@/types/database";
+
+// ============================================
+// Project Actions
+// ============================================
+
+export async function updateProject(
+  projectId: string,
+  updates: {
+    name?: string;
+    status?: ProjectStatus;
+    category?: ProjectCategory;
+    manager_id?: string | null;
+    start_date?: string | null;
+    end_date?: string | null;
+    fee_tax_excluded?: number | null;
+    location?: string | null;
+  }
+) {
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("projects")
+    .update(updates as never)
+    .eq("id", projectId);
+
+  if (error) {
+    console.error("Error updating project:", error);
+    throw new Error("業務の更新に失敗しました");
+  }
+
+  revalidatePath(`/projects/${projectId}`);
+  revalidatePath("/projects");
+}
 
 // ============================================
 // Task Actions
