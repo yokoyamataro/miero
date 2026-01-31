@@ -45,14 +45,23 @@ const EVENT_CATEGORIES: EventCategory[] = [
   "その他",
 ];
 
-// 15分単位の時刻オプションを生成
-const TIME_OPTIONS: string[] = [];
-for (let h = 0; h < 24; h++) {
-  for (let m = 0; m < 60; m += 15) {
-    TIME_OPTIONS.push(
-      `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`
-    );
-  }
+// 時間オプション (0-23)
+const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
+
+// 分オプション (15分単位)
+const MINUTE_OPTIONS = ["00", "15", "30", "45"];
+
+// 時刻を結合
+function combineTime(hour: string, minute: string): string {
+  if (!hour && !minute) return "";
+  return `${hour || "00"}:${minute || "00"}`;
+}
+
+// 時刻を分割
+function splitTime(time: string): { hour: string; minute: string } {
+  if (!time) return { hour: "", minute: "" };
+  const [hour, minute] = time.split(":");
+  return { hour: hour || "", minute: minute || "" };
 }
 
 export function EventModal({
@@ -71,9 +80,11 @@ export function EventModal({
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState<EventCategory>("その他");
   const [startDate, setStartDate] = useState("");
-  const [startTime, setStartTime] = useState("");
+  const [startHour, setStartHour] = useState("");
+  const [startMinute, setStartMinute] = useState("");
   const [endDate, setEndDate] = useState("");
-  const [endTime, setEndTime] = useState("");
+  const [endHour, setEndHour] = useState("");
+  const [endMinute, setEndMinute] = useState("");
   const [allDay, setAllDay] = useState(false);
   const [location, setLocation] = useState("");
   const [mapUrl, setMapUrl] = useState("");
@@ -92,9 +103,13 @@ export function EventModal({
       setDescription(event.description || "");
       setCategory(event.category);
       setStartDate(event.start_date);
-      setStartTime(event.start_time?.slice(0, 5) || "");
+      const startTimeParts = splitTime(event.start_time?.slice(0, 5) || "");
+      setStartHour(startTimeParts.hour);
+      setStartMinute(startTimeParts.minute);
       setEndDate(event.end_date || "");
-      setEndTime(event.end_time?.slice(0, 5) || "");
+      const endTimeParts = splitTime(event.end_time?.slice(0, 5) || "");
+      setEndHour(endTimeParts.hour);
+      setEndMinute(endTimeParts.minute);
       setAllDay(event.all_day);
       setLocation(event.location || "");
       setMapUrl(event.map_url || "");
@@ -106,9 +121,11 @@ export function EventModal({
       setDescription("");
       setCategory("その他");
       setStartDate(dateStr);
-      setStartTime("");
+      setStartHour("");
+      setStartMinute("");
       setEndDate(dateStr); // デフォルトで終了日＝開始日
-      setEndTime("");
+      setEndHour("");
+      setEndMinute("");
       setAllDay(false);
       setLocation("");
       setMapUrl("");
@@ -177,6 +194,9 @@ export function EventModal({
     setError(null);
 
     try {
+      const startTime = combineTime(startHour, startMinute);
+      const endTime = combineTime(endHour, endMinute);
+
       const eventData = {
         title: title.trim(),
         description: description.trim() || null,
@@ -368,20 +388,34 @@ export function EventModal({
             </div>
             {!allDay && (
               <div className="space-y-2">
-                <Label htmlFor="startTime">開始時刻</Label>
-                <select
-                  id="startTime"
-                  className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
-                  value={startTime}
-                  onChange={(e) => setStartTime(e.target.value)}
-                >
-                  <option value="">選択してください</option>
-                  {TIME_OPTIONS.map((time) => (
-                    <option key={time} value={time}>
-                      {time}
-                    </option>
-                  ))}
-                </select>
+                <Label>開始時刻</Label>
+                <div className="flex items-center gap-1">
+                  <select
+                    className="w-20 h-10 px-2 rounded-md border border-input bg-background text-sm"
+                    value={startHour}
+                    onChange={(e) => setStartHour(e.target.value)}
+                  >
+                    <option value="">--</option>
+                    {HOUR_OPTIONS.map((h) => (
+                      <option key={h} value={h}>
+                        {h}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-muted-foreground">:</span>
+                  <select
+                    className="w-20 h-10 px-2 rounded-md border border-input bg-background text-sm"
+                    value={startMinute}
+                    onChange={(e) => setStartMinute(e.target.value)}
+                  >
+                    <option value="">--</option>
+                    {MINUTE_OPTIONS.map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
             )}
           </div>
@@ -398,20 +432,34 @@ export function EventModal({
             </div>
             {!allDay && (
               <div className="space-y-2">
-                <Label htmlFor="endTime">終了時刻</Label>
-                <select
-                  id="endTime"
-                  className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
-                  value={endTime}
-                  onChange={(e) => setEndTime(e.target.value)}
-                >
-                  <option value="">選択してください</option>
-                  {TIME_OPTIONS.map((time) => (
-                    <option key={time} value={time}>
-                      {time}
-                    </option>
-                  ))}
-                </select>
+                <Label>終了時刻</Label>
+                <div className="flex items-center gap-1">
+                  <select
+                    className="w-20 h-10 px-2 rounded-md border border-input bg-background text-sm"
+                    value={endHour}
+                    onChange={(e) => setEndHour(e.target.value)}
+                  >
+                    <option value="">--</option>
+                    {HOUR_OPTIONS.map((h) => (
+                      <option key={h} value={h}>
+                        {h}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="text-muted-foreground">:</span>
+                  <select
+                    className="w-20 h-10 px-2 rounded-md border border-input bg-background text-sm"
+                    value={endMinute}
+                    onChange={(e) => setEndMinute(e.target.value)}
+                  >
+                    <option value="">--</option>
+                    {MINUTE_OPTIONS.map((m) => (
+                      <option key={m} value={m}>
+                        {m}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
             )}
           </div>
