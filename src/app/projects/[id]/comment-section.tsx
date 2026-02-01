@@ -92,12 +92,16 @@ function CommentItem({
     if (!currentEmployeeId) return;
 
     startTransition(async () => {
-      if (hasAcknowledged) {
-        await removeAcknowledgement(comment.id, projectId);
-      } else {
-        await acknowledgeComment(comment.id, projectId);
+      try {
+        if (hasAcknowledged) {
+          await removeAcknowledgement(comment.id, projectId);
+        } else {
+          await acknowledgeComment(comment.id, projectId);
+        }
+        router.refresh();
+      } catch (error) {
+        console.error("Error handling acknowledgement:", error);
       }
-      router.refresh();
     });
   };
 

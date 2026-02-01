@@ -181,17 +181,24 @@ export async function acknowledgeComment(commentId: string, projectId: string) {
   // ログインユーザーの社員IDを取得
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    throw new Error("ログインが必要です");
+    console.error("acknowledgeComment: No user found");
+    return { error: "ログインが必要です" };
   }
 
-  const { data: employee } = await supabase
+  const { data: employee, error: employeeError } = await supabase
     .from("employees")
     .select("id")
     .eq("auth_id", user.id)
     .single();
 
+  if (employeeError) {
+    console.error("acknowledgeComment: Employee fetch error:", employeeError);
+    return { error: "社員情報の取得に失敗しました" };
+  }
+
   if (!employee) {
-    throw new Error("社員情報が見つかりません");
+    console.error("acknowledgeComment: No employee found for user:", user.id);
+    return { error: "社員情報が見つかりません" };
   }
 
   const { error } = await supabase.from("comment_acknowledgements" as never).insert({
@@ -203,11 +210,12 @@ export async function acknowledgeComment(commentId: string, projectId: string) {
     // 既に確認済みの場合はエラーを無視
     if (error.code !== "23505") {
       console.error("Error acknowledging comment:", error);
-      throw new Error("確認の登録に失敗しました");
+      return { error: "確認の登録に失敗しました" };
     }
   }
 
   revalidatePath(`/projects/${projectId}`);
+  return { success: true };
 }
 
 export async function removeAcknowledgement(commentId: string, projectId: string) {
@@ -216,17 +224,24 @@ export async function removeAcknowledgement(commentId: string, projectId: string
   // ログインユーザーの社員IDを取得
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
-    throw new Error("ログインが必要です");
+    console.error("removeAcknowledgement: No user found");
+    return { error: "ログインが必要です" };
   }
 
-  const { data: employee } = await supabase
+  const { data: employee, error: employeeError } = await supabase
     .from("employees")
     .select("id")
     .eq("auth_id", user.id)
     .single();
 
+  if (employeeError) {
+    console.error("removeAcknowledgement: Employee fetch error:", employeeError);
+    return { error: "社員情報の取得に失敗しました" };
+  }
+
   if (!employee) {
-    throw new Error("社員情報が見つかりません");
+    console.error("removeAcknowledgement: No employee found for user:", user.id);
+    return { error: "社員情報が見つかりません" };
   }
 
   const { error } = await supabase
@@ -237,10 +252,11 @@ export async function removeAcknowledgement(commentId: string, projectId: string
 
   if (error) {
     console.error("Error removing acknowledgement:", error);
-    throw new Error("確認の取り消しに失敗しました");
+    return { error: "確認の取り消しに失敗しました" };
   }
 
   revalidatePath(`/projects/${projectId}`);
+  return { success: true };
 }
 
 // 現在のユーザーの社員IDを取得
