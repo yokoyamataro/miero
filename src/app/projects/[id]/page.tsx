@@ -14,7 +14,7 @@ import {
 } from "@/types/database";
 import { TaskList } from "./task-list";
 import { CommentSection } from "./comment-section";
-import { ProjectInfo, type ContactOption } from "./project-info";
+import { ProjectInfo, type CustomerData, type CorporateContact } from "./project-info";
 import { getCurrentEmployeeId } from "./actions";
 
 
@@ -102,21 +102,32 @@ export default async function ProjectDetailPage({
   const typedAllContacts = (allContacts as Contact[]) || [];
   const typedAllAccounts = (allAccounts as Account[]) || [];
 
-  // 顧客選択肢を作成
-  const accountMap = typedAllAccounts.reduce((acc, a) => {
-    acc[a.id] = a;
-    return acc;
-  }, {} as Record<string, Account>);
+  // 顧客データを作成（法人→担当者の2段階選択用）
+  const contactsByAccountId = typedAllContacts
+    .filter((c) => c.account_id)
+    .reduce((acc, c) => {
+      const accountId = c.account_id!;
+      if (!acc[accountId]) acc[accountId] = [];
+      acc[accountId].push({
+        id: c.id,
+        name: `${c.last_name} ${c.first_name}`,
+      });
+      return acc;
+    }, {} as Record<string, CorporateContact[]>);
 
-  const contactOptions: ContactOption[] = typedAllContacts.map((c) => {
-    const acc = c.account_id ? accountMap[c.account_id] : null;
-    return {
-      id: c.id,
-      name: `${c.last_name} ${c.first_name}`,
-      type: c.account_id ? "corporate" : "individual",
-      companyName: acc?.company_name,
-    };
-  });
+  const customerData: CustomerData = {
+    accounts: typedAllAccounts.map((a) => ({
+      id: a.id,
+      companyName: a.company_name,
+      contacts: contactsByAccountId[a.id] || [],
+    })),
+    individuals: typedAllContacts
+      .filter((c) => !c.account_id)
+      .map((c) => ({
+        id: c.id,
+        name: `${c.last_name} ${c.first_name}`,
+      })),
+  };
 
   // コメントIDごとの確認者リストを作成
   const acknowledgementsByCommentId = typedAcknowledgements.reduce((acc, ack) => {
@@ -162,7 +173,7 @@ export default async function ProjectDetailPage({
             account={typedAccount}
             manager={typedManager}
             employees={typedEmployees}
-            contactOptions={contactOptions}
+            customerData={customerData}
           />
         </div>
 

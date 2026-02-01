@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useMemo } from "react";
+import { useState, useTransition } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -21,7 +21,7 @@ import {
   type ProjectCategory,
   type ProjectStatus,
 } from "@/types/database";
-import { createProject, type CreateProjectData, type ContactOption } from "../actions";
+import { createProject, type CreateProjectData, type CustomerData } from "../actions";
 
 interface Employee {
   id: string;
@@ -29,23 +29,21 @@ interface Employee {
 }
 
 interface ProjectFormProps {
-  contacts: ContactOption[];
+  customerData: CustomerData;
   employees: Employee[];
 }
 
-export function ProjectForm({ contacts, employees }: ProjectFormProps) {
+export function ProjectForm({ customerData, employees }: ProjectFormProps) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [category, setCategory] = useState<ProjectCategory | "">("");
   const [status, setStatus] = useState<ProjectStatus>("受注");
+  const [selectedAccountId, setSelectedAccountId] = useState<string>("");
   const [contactId, setContactId] = useState<string>("");
   const [managerId, setManagerId] = useState<string>("");
 
-  // 法人と個人に分類
-  const { corporateContacts, individualContacts } = useMemo(() => ({
-    corporateContacts: contacts.filter((c) => c.type === "corporate"),
-    individualContacts: contacts.filter((c) => c.type === "individual"),
-  }), [contacts]);
+  // 選択した法人の担当者リスト
+  const selectedAccount = customerData.accounts.find((a) => a.id === selectedAccountId);
 
   // カテゴリ別詳細データ
   const [details, setDetails] = useState<Record<string, unknown>>({});
@@ -234,40 +232,69 @@ export function ProjectForm({ contacts, employees }: ProjectFormProps) {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="contact_id">顧客</Label>
-                <Select value={contactId} onValueChange={setContactId}>
-                  <SelectTrigger id="contact_id">
-                    <SelectValue placeholder="顧客を選択" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">未選択</SelectItem>
-                    {corporateContacts.length > 0 && (
-                      <SelectGroup>
-                        <SelectLabel>法人（担当者）</SelectLabel>
-                        {corporateContacts.map((contact) => (
-                          <SelectItem key={contact.id} value={contact.id}>
-                            {contact.company_name} ({contact.name})
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    )}
-                    {individualContacts.length > 0 && (
-                      <SelectGroup>
-                        <SelectLabel>個人</SelectLabel>
-                        {individualContacts.map((contact) => (
+            {/* 顧客選択（2段階選択） */}
+            <div className="space-y-4">
+              <Label>顧客</Label>
+              <div className="grid grid-cols-2 gap-4">
+                {/* 法人 or 個人 選択 */}
+                <div>
+                  <Label className="text-xs text-muted-foreground">法人</Label>
+                  <Select
+                    value={selectedAccountId}
+                    onValueChange={(val) => {
+                      setSelectedAccountId(val);
+                      setContactId(""); // 法人を変えたら担当者をリセット
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="法人を選択" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">選択しない</SelectItem>
+                      {customerData.accounts.map((account) => (
+                        <SelectItem key={account.id} value={account.id}>
+                          {account.companyName}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* 法人の担当者 or 個人 選択 */}
+                <div>
+                  <Label className="text-xs text-muted-foreground">
+                    {selectedAccountId && selectedAccountId !== "none" ? "担当者" : "個人"}
+                  </Label>
+                  <Select value={contactId} onValueChange={setContactId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder={selectedAccountId && selectedAccountId !== "none" ? "担当者を選択" : "個人を選択"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">未選択</SelectItem>
+                      {selectedAccountId && selectedAccountId !== "none" ? (
+                        // 法人の担当者リスト
+                        selectedAccount?.contacts.map((contact) => (
                           <SelectItem key={contact.id} value={contact.id}>
                             {contact.name}
                           </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    )}
-                  </SelectContent>
-                </Select>
+                        ))
+                      ) : (
+                        // 個人リスト
+                        customerData.individuals.map((contact) => (
+                          <SelectItem key={contact.id} value={contact.id}>
+                            {contact.name}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="manager_id">担当者</Label>
+                <Label htmlFor="manager_id">担当者（社員）</Label>
                 <Select value={managerId} onValueChange={setManagerId}>
                   <SelectTrigger id="manager_id">
                     <SelectValue placeholder="担当者を選択" />

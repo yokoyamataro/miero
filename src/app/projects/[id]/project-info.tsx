@@ -27,6 +27,8 @@ import {
   Building2,
   Search,
   X,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import {
   PROJECT_CATEGORY_LABELS,
@@ -39,12 +41,29 @@ import {
 } from "@/types/database";
 import { updateProject } from "./actions";
 
-// 顧客選択肢の型
-export interface ContactOption {
+// 法人の担当者
+export interface CorporateContact {
   id: string;
   name: string;
-  type: "individual" | "corporate";
-  companyName?: string;
+}
+
+// 法人（担当者リスト付き）
+export interface AccountOption {
+  id: string;
+  companyName: string;
+  contacts: CorporateContact[];
+}
+
+// 個人顧客
+export interface IndividualContact {
+  id: string;
+  name: string;
+}
+
+// 顧客データ
+export interface CustomerData {
+  accounts: AccountOption[];
+  individuals: IndividualContact[];
 }
 
 interface ProjectInfoProps {
@@ -53,7 +72,7 @@ interface ProjectInfoProps {
   account: Account | null;
   manager: Employee | null;
   employees: Employee[];
-  contactOptions: ContactOption[];
+  customerData: CustomerData;
 }
 
 const PROJECT_STATUSES: ProjectStatus[] = ["受注", "着手", "進行中", "完了", "請求済"];
@@ -71,55 +90,94 @@ function formatCurrency(amount: number | null): string {
   return `¥${amount.toLocaleString()}`;
 }
 
-// 顧客選択モーダル
+// 顧客選択モーダル（2段階選択）
 function ContactSelectModal({
   open,
   onOpenChange,
-  contactOptions,
+  customerData,
   currentContactId,
   onSelect,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  contactOptions: ContactOption[];
+  customerData: CustomerData;
   currentContactId: string | null;
   onSelect: (contactId: string | null) => void;
 }) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedAccount, setSelectedAccount] = useState<AccountOption | null>(null);
 
-  // 法人と個人に分類
-  const { corporateContacts, individualContacts } = useMemo(() => {
-    const filtered = contactOptions.filter((c) => {
-      const query = searchQuery.toLowerCase();
-      const matchesName = c.name.toLowerCase().includes(query);
-      const matchesCompany = c.companyName?.toLowerCase().includes(query);
-      return matchesName || matchesCompany;
+  // 検索フィルタリング
+  const { filteredAccounts, filteredIndividuals } = useMemo(() => {
+    const query = searchQuery.toLowerCase();
+
+    const filteredAccounts = customerData.accounts.filter((acc) => {
+      const matchesCompany = acc.companyName.toLowerCase().includes(query);
+      const matchesContact = acc.contacts.some((c) => c.name.toLowerCase().includes(query));
+      return matchesCompany || matchesContact;
     });
 
-    return {
-      corporateContacts: filtered.filter((c) => c.type === "corporate"),
-      individualContacts: filtered.filter((c) => c.type === "individual"),
-    };
-  }, [contactOptions, searchQuery]);
+    const filteredIndividuals = customerData.individuals.filter((ind) =>
+      ind.name.toLowerCase().includes(query)
+    );
+
+    return { filteredAccounts, filteredIndividuals };
+  }, [customerData, searchQuery]);
 
   const handleSelect = (contactId: string | null) => {
     onSelect(contactId);
     onOpenChange(false);
     setSearchQuery("");
+    setSelectedAccount(null);
   };
 
+  const handleClose = () => {
+    onOpenChange(false);
+    setSearchQuery("");
+    setSelectedAccount(null);
+  };
+
+  const handleBack = () => {
+    setSelectedAccount(null);
+  };
+
+  // 法人内の担当者をフィルタリング
+  const filteredContactsInAccount = useMemo(() => {
+    if (!selectedAccount) return [];
+    const query = searchQuery.toLowerCase();
+    return selectedAccount.contacts.filter((c) =>
+      c.name.toLowerCase().includes(query)
+    );
+  }, [selectedAccount, searchQuery]);
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-md max-h-[80vh] flex flex-col">
         <DialogHeader>
-          <DialogTitle>顧客を選択</DialogTitle>
+          <DialogTitle className="flex items-center gap-2">
+            {selectedAccount ? (
+              <>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleBack}
+                  className="h-8 w-8 p-0"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                {selectedAccount.companyName}の担当者
+              </>
+            ) : (
+              "顧客を選択"
+            )}
+          </DialogTitle>
         </DialogHeader>
 
         {/* 検索ボックス */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
-            placeholder="名前・法人名で検索..."
+            placeholder={selectedAccount ? "担当者名で検索..." : "名前・法人名で検索..."}
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-10"
@@ -137,70 +195,96 @@ function ContactSelectModal({
 
         {/* 顧客リスト */}
         <div className="flex-1 overflow-y-auto space-y-4 mt-4">
-          {/* 未選択オプション */}
-          <Button
-            variant={currentContactId === null ? "secondary" : "ghost"}
-            className="w-full justify-start"
-            onClick={() => handleSelect(null)}
-          >
-            <span className="text-muted-foreground">未選択</span>
-          </Button>
+          {selectedAccount ? (
+            // 担当者選択画面
+            <>
+              {filteredContactsInAccount.length > 0 ? (
+                <div className="space-y-1">
+                  {filteredContactsInAccount.map((contact) => (
+                    <Button
+                      key={contact.id}
+                      variant={currentContactId === contact.id ? "secondary" : "ghost"}
+                      className="w-full justify-start"
+                      onClick={() => handleSelect(contact.id)}
+                    >
+                      {contact.name}
+                    </Button>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center text-muted-foreground py-4">
+                  担当者が登録されていません
+                </div>
+              )}
+            </>
+          ) : (
+            // 法人・個人選択画面
+            <>
+              {/* 未選択オプション */}
+              <Button
+                variant={currentContactId === null ? "secondary" : "ghost"}
+                className="w-full justify-start"
+                onClick={() => handleSelect(null)}
+              >
+                <span className="text-muted-foreground">未選択</span>
+              </Button>
 
-          {/* 法人 */}
-          {corporateContacts.length > 0 && (
-            <div>
-              <div className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
-                <Building2 className="h-4 w-4" />
-                法人（担当者）
-              </div>
-              <div className="space-y-1">
-                {corporateContacts.map((contact) => (
-                  <Button
-                    key={contact.id}
-                    variant={currentContactId === contact.id ? "secondary" : "ghost"}
-                    className="w-full justify-start text-left h-auto py-2"
-                    onClick={() => handleSelect(contact.id)}
-                  >
-                    <div>
-                      <div className="font-medium">
-                        {contact.companyName}
-                      </div>
-                      <div className="text-sm text-muted-foreground">
+              {/* 法人 */}
+              {filteredAccounts.length > 0 && (
+                <div>
+                  <div className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
+                    <Building2 className="h-4 w-4" />
+                    法人
+                  </div>
+                  <div className="space-y-1">
+                    {filteredAccounts.map((account) => (
+                      <Button
+                        key={account.id}
+                        variant="ghost"
+                        className="w-full justify-between h-auto py-2"
+                        onClick={() => setSelectedAccount(account)}
+                      >
+                        <div className="text-left">
+                          <div className="font-medium">{account.companyName}</div>
+                          <div className="text-xs text-muted-foreground">
+                            担当者 {account.contacts.length}名
+                          </div>
+                        </div>
+                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* 個人 */}
+              {filteredIndividuals.length > 0 && (
+                <div>
+                  <div className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
+                    <User className="h-4 w-4" />
+                    個人
+                  </div>
+                  <div className="space-y-1">
+                    {filteredIndividuals.map((contact) => (
+                      <Button
+                        key={contact.id}
+                        variant={currentContactId === contact.id ? "secondary" : "ghost"}
+                        className="w-full justify-start"
+                        onClick={() => handleSelect(contact.id)}
+                      >
                         {contact.name}
-                      </div>
-                    </div>
-                  </Button>
-                ))}
-              </div>
-            </div>
-          )}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
-          {/* 個人 */}
-          {individualContacts.length > 0 && (
-            <div>
-              <div className="text-sm font-medium text-muted-foreground mb-2 flex items-center gap-2">
-                <User className="h-4 w-4" />
-                個人
-              </div>
-              <div className="space-y-1">
-                {individualContacts.map((contact) => (
-                  <Button
-                    key={contact.id}
-                    variant={currentContactId === contact.id ? "secondary" : "ghost"}
-                    className="w-full justify-start"
-                    onClick={() => handleSelect(contact.id)}
-                  >
-                    {contact.name}
-                  </Button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {corporateContacts.length === 0 && individualContacts.length === 0 && (
-            <div className="text-center text-muted-foreground py-4">
-              該当する顧客がありません
-            </div>
+              {filteredAccounts.length === 0 && filteredIndividuals.length === 0 && (
+                <div className="text-center text-muted-foreground py-4">
+                  該当する顧客がありません
+                </div>
+              )}
+            </>
           )}
         </div>
       </DialogContent>
@@ -361,7 +445,7 @@ export function ProjectInfo({
   account,
   manager,
   employees,
-  contactOptions,
+  customerData,
 }: ProjectInfoProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -525,7 +609,7 @@ export function ProjectInfo({
       <ContactSelectModal
         open={showContactModal}
         onOpenChange={setShowContactModal}
-        contactOptions={contactOptions}
+        customerData={customerData}
         currentContactId={project.contact_id}
         onSelect={handleContactChange}
       />
