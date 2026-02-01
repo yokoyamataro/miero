@@ -213,6 +213,7 @@ export function EventModal({
       const eventData = {
         title: title.trim(),
         description: description.trim() || null,
+        category: "その他" as const, // 後方互換性のためデフォルト値を設定
         event_category_id: categoryId || null,
         start_date: startDate,
         start_time: startTime || null,

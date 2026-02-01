@@ -35,3 +35,27 @@ UPDATE calendar_events ce
 SET event_category_id = ec.id
 FROM event_categories ec
 WHERE ce.category::text = ec.name AND ce.event_category_id IS NULL;
+
+-- RLSを有効化
+ALTER TABLE event_categories ENABLE ROW LEVEL SECURITY;
+
+-- event_categories のRLSポリシー
+CREATE POLICY "Everyone can view event categories"
+  ON event_categories FOR SELECT
+  TO authenticated
+  USING (true);
+
+CREATE POLICY "Authenticated users can create event categories"
+  ON event_categories FOR INSERT
+  TO authenticated
+  WITH CHECK (true);
+
+CREATE POLICY "Authenticated users can update event categories"
+  ON event_categories FOR UPDATE
+  TO authenticated
+  USING (true);
+
+CREATE POLICY "Authenticated users can delete event categories"
+  ON event_categories FOR DELETE
+  TO authenticated
+  USING (true);
