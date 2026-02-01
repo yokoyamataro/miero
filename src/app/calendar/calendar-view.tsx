@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -16,6 +17,7 @@ import {
   Users,
   User,
   UsersRound,
+  Settings,
 } from "lucide-react";
 import {
   Select,
@@ -46,8 +48,9 @@ import { ja } from "date-fns/locale";
 import {
   type CalendarEventWithParticipants,
   type Employee,
-  EVENT_CATEGORY_COLORS,
   type EventCategory,
+  EVENT_CATEGORY_COLORS,
+  type EventCategoryLegacy,
 } from "@/types/database";
 import { EventModal } from "./event-modal";
 import { EventDetailModal } from "./event-detail-modal";
@@ -58,6 +61,7 @@ type EmployeeFilter = "me" | "all" | string; // "me" = 自分のみ, "all" = 全
 interface CalendarViewProps {
   initialEvents: CalendarEventWithParticipants[];
   employees: Employee[];
+  eventCategories: EventCategory[];
   initialView: ViewMode;
   initialDate: string;
   currentEmployeeId: string | null;
@@ -69,6 +73,7 @@ const WEEKDAY_LABELS = ["月", "火", "水", "木", "金", "土", "日"];
 export function CalendarView({
   initialEvents,
   employees,
+  eventCategories,
   initialView,
   initialDate,
   currentEmployeeId,
@@ -203,9 +208,22 @@ export function CalendarView({
     }
   };
 
+  // イベントの区分色を取得
+  const getCategoryColor = (event: CalendarEventWithParticipants) => {
+    // 新しい区分マスタを使用
+    if (event.eventCategory) {
+      return event.eventCategory.color;
+    }
+    // 旧カテゴリーから色を取得（後方互換）
+    if (event.category && EVENT_CATEGORY_COLORS[event.category as EventCategoryLegacy]) {
+      return EVENT_CATEGORY_COLORS[event.category as EventCategoryLegacy];
+    }
+    return "bg-gray-500";
+  };
+
   // イベントレンダリング
   const renderEvent = (event: CalendarEventWithParticipants, compact = false) => {
-    const categoryColor = EVENT_CATEGORY_COLORS[event.category];
+    const categoryColor = getCategoryColor(event);
     const timeStr = event.start_time ? event.start_time.slice(0, 5) : "";
 
     if (compact) {
@@ -473,6 +491,13 @@ export function CalendarView({
             <Plus className="h-4 w-4 mr-1" />
             予定を追加
           </Button>
+
+          {/* 設定ボタン */}
+          <Link href="/calendar/settings">
+            <Button variant="outline" size="icon">
+              <Settings className="h-4 w-4" />
+            </Button>
+          </Link>
         </div>
       </div>
 
@@ -485,26 +510,12 @@ export function CalendarView({
         </CardContent>
       </Card>
 
-      {/* 凡例 */}
-      <Card>
-        <CardContent className="py-3">
-          <div className="flex flex-wrap gap-4 text-sm">
-            <span className="text-muted-foreground">区分:</span>
-            {(Object.keys(EVENT_CATEGORY_COLORS) as EventCategory[]).map((cat) => (
-              <div key={cat} className="flex items-center gap-1">
-                <div className={`w-3 h-3 rounded ${EVENT_CATEGORY_COLORS[cat]}`} />
-                <span>{cat}</span>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
       {/* イベント作成・編集モーダル */}
       <EventModal
         open={showEventModal}
         onOpenChange={setShowEventModal}
         employees={employees}
+        eventCategories={eventCategories}
         selectedDate={selectedDate}
         event={selectedEvent}
         onSaved={handleEventUpdated}

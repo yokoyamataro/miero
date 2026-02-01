@@ -27,23 +27,11 @@ interface EventModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   employees: Employee[];
+  eventCategories: EventCategory[];
   selectedDate: Date | null;
   event: CalendarEventWithParticipants | null;
   onSaved: () => void;
 }
-
-const EVENT_CATEGORIES: EventCategory[] = [
-  "内業",
-  "来客",
-  "外出",
-  "現場",
-  "出張",
-  "勉強",
-  "登記",
-  "整備",
-  "休み",
-  "その他",
-];
 
 // 時間オプション (0-23)
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
@@ -68,6 +56,7 @@ export function EventModal({
   open,
   onOpenChange,
   employees,
+  eventCategories,
   selectedDate,
   event,
   onSaved,
@@ -78,7 +67,7 @@ export function EventModal({
   // フォーム状態
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [category, setCategory] = useState<EventCategory>("その他");
+  const [categoryId, setCategoryId] = useState<string>("");
   const [startDate, setStartDate] = useState("");
   const [startHour, setStartHour] = useState("");
   const [startMinute, setStartMinute] = useState("");
@@ -106,7 +95,7 @@ export function EventModal({
     if (event) {
       setTitle(event.title);
       setDescription(event.description || "");
-      setCategory(event.category);
+      setCategoryId(event.event_category_id || eventCategories[0]?.id || "");
       setStartDate(event.start_date);
       const startTimeParts = splitTime(event.start_time?.slice(0, 5) || "");
       setStartHour(startTimeParts.hour);
@@ -127,7 +116,7 @@ export function EventModal({
       const dateStr = format(selectedDate, "yyyy-MM-dd");
       setTitle("");
       setDescription("");
-      setCategory("その他");
+      setCategoryId(eventCategories[0]?.id || "");
       setStartDate(dateStr);
       setStartHour("");
       setStartMinute("");
@@ -143,7 +132,7 @@ export function EventModal({
       setLinkedTaskId(null);
       setLinkedProjectCode(null);
     }
-  }, [event, selectedDate, open]);
+  }, [event, selectedDate, open, eventCategories]);
 
   // 業務ToDoを読み込む
   const loadProjectsWithTasks = async () => {
@@ -224,7 +213,7 @@ export function EventModal({
       const eventData = {
         title: title.trim(),
         description: description.trim() || null,
-        category,
+        event_category_id: categoryId || null,
         start_date: startDate,
         start_time: startTime || null,
         end_date: endDate || null,
@@ -384,18 +373,29 @@ export function EventModal({
           {/* 区分 */}
           <div className="space-y-2">
             <Label htmlFor="category">区分</Label>
-            <select
-              id="category"
-              className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
-              value={category}
-              onChange={(e) => setCategory(e.target.value as EventCategory)}
-            >
-              {EVENT_CATEGORIES.map((cat) => (
-                <option key={cat} value={cat}>
-                  {cat}
-                </option>
-              ))}
-            </select>
+            {eventCategories.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {eventCategories.map((cat) => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setCategoryId(cat.id)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-md border text-sm transition-colors ${
+                      categoryId === cat.id
+                        ? "border-primary bg-primary/10"
+                        : "border-input hover:bg-muted"
+                    }`}
+                  >
+                    <div className={`w-3 h-3 rounded ${cat.color}`} />
+                    {cat.name}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                区分が設定されていません。設定画面で追加してください。
+              </p>
+            )}
           </div>
 
           {/* 終日チェック */}

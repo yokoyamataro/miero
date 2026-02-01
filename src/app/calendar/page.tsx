@@ -1,5 +1,5 @@
 import { CalendarView } from "./calendar-view";
-import { getEventsInRange, getEmployees, getCurrentEmployeeId } from "./actions";
+import { getEventsInRange, getEmployees, getCurrentEmployeeId, getEventCategories } from "./actions";
 import {
   startOfMonth,
   endOfMonth,
@@ -25,11 +25,12 @@ export default async function CalendarPage({
   const rangeStart = format(subMonths(startOfMonth(currentDate), 1), "yyyy-MM-dd");
   const rangeEnd = format(addMonths(endOfMonth(currentDate), 1), "yyyy-MM-dd");
 
-  // イベントと社員と現在のユーザーを取得
-  const [events, employees, currentEmployeeId] = await Promise.all([
+  // イベントと社員と現在のユーザーと区分マスタを取得
+  const [events, employees, currentEmployeeId, eventCategories] = await Promise.all([
     getEventsInRange(rangeStart, rangeEnd),
     getEmployees(),
     getCurrentEmployeeId(),
+    getEventCategories(),
   ]);
 
   return (
@@ -42,6 +43,7 @@ export default async function CalendarPage({
       <CalendarView
         initialEvents={events}
         employees={employees}
+        eventCategories={eventCategories}
         initialView={view}
         initialDate={dateParam}
         currentEmployeeId={currentEmployeeId}

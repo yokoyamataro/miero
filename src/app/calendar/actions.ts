@@ -8,6 +8,7 @@ import {
   type CalendarEventWithParticipants,
   type Employee,
   type EventCategory,
+  type EventCategoryInsert,
   type Project,
   type Task,
 } from "@/types/database";
@@ -91,7 +92,18 @@ export async function getEventsInRange(
     (tasks as Task[])?.forEach((t) => taskMap.set(t.id, t));
   }
 
-  // イベントに参加者・プロジェクト・タスク情報を付与
+  // 区分マスタ情報を取得
+  const categoryIds = events.map((e) => e.event_category_id).filter(Boolean) as string[];
+  const categoryMap = new Map<string, EventCategory>();
+  if (categoryIds.length > 0) {
+    const { data: categories } = await supabase
+      .from("event_categories")
+      .select("*")
+      .in("id", categoryIds);
+    (categories as EventCategory[])?.forEach((c) => categoryMap.set(c.id, c));
+  }
+
+  // イベントに参加者・プロジェクト・タスク・区分情報を付与
   return events.map((event) => {
     const eventParticipants = participants
       ?.filter((p) => p.event_id === event.id)
@@ -101,6 +113,7 @@ export async function getEventsInRange(
     const creator = event.created_by ? employeeMap.get(event.created_by) : null;
     const project = event.project_id ? projectMap.get(event.project_id) : null;
     const task = event.task_id ? taskMap.get(event.task_id) : null;
+    const eventCategory = event.event_category_id ? categoryMap.get(event.event_category_id) : null;
 
     return {
       ...event,
@@ -108,6 +121,7 @@ export async function getEventsInRange(
       creator: creator || null,
       project: project || null,
       task: task || null,
+      eventCategory: eventCategory || null,
     } as CalendarEventWithParticipants;
   });
 }
@@ -321,4 +335,139 @@ export async function getActiveProjectsWithTasks(): Promise<ProjectWithTasks[]> 
     ...project,
     tasks: tasksByProjectId[project.id] || [],
   }));
+}
+
+// ============================================
+// Event Category Actions (イベント区分)
+// ============================================
+
+// イベント区分一覧を取得
+export async function getEventCategories(): Promise<EventCategory[]> {
+  const supabase = await createClient();
+
+  const { data: categories, error } = await supabase
+    .from("event_categories")
+    .select("*")
+    .order("sort_order", { ascending: true });
+
+  if (error) {
+    console.error("Error fetching event categories:", error);
+    return [];
+  }
+
+  return (categories as EventCategory[]) || [];
+}
+
+// イベント区分を作成
+export async function createEventCategory(
+  data: EventCategoryInsert
+): Promise<{ success?: boolean; error?: string; id?: string }> {
+  const supabase = await createClient();
+
+  // 最大のsort_orderを取得
+  const { data: maxOrder } = await supabase
+    .from("event_categories")
+    .select("sort_order")
+    .order("sort_order", { ascending: false })
+    .limit(1)
+    .single();
+
+  const newSortOrder = (maxOrder?.sort_order ?? -1) + 1;
+
+  const { data: category, error } = await supabase
+    .from("event_categories")
+    .insert({
+      ...data,
+      sort_order: newSortOrder,
+    } as never)
+    .select("id")
+    .single();
+
+  if (error) {
+    console.error("Error creating event category:", error);
+    if (error.code === "23505") {
+      return { error: "同じ名前の区分が既に存在します" };
+    }
+    return { error: "区分の作成に失敗しました" };
+  }
+
+  revalidatePath("/calendar");
+  return { success: true, id: category.id };
+}
+
+// イベント区分を更新
+export async function updateEventCategory(
+  categoryId: string,
+  data: Partial<EventCategoryInsert>
+): Promise<{ success?: boolean; error?: string }> {
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("event_categories")
+    .update(data as never)
+    .eq("id", categoryId);
+
+  if (error) {
+    console.error("Error updating event category:", error);
+    if (error.code === "23505") {
+      return { error: "同じ名前の区分が既に存在します" };
+    }
+    return { error: "区分の更新に失敗しました" };
+  }
+
+  revalidatePath("/calendar");
+  return { success: true };
+}
+
+// イベント区分を削除
+export async function deleteEventCategory(
+  categoryId: string
+): Promise<{ success?: boolean; error?: string }> {
+  const supabase = await createClient();
+
+  // この区分を使用しているイベントがあるか確認
+  const { data: eventsUsingCategory } = await supabase
+    .from("calendar_events")
+    .select("id")
+    .eq("event_category_id", categoryId)
+    .limit(1);
+
+  if (eventsUsingCategory && eventsUsingCategory.length > 0) {
+    return { error: "この区分を使用しているイベントがあるため削除できません" };
+  }
+
+  const { error } = await supabase
+    .from("event_categories")
+    .delete()
+    .eq("id", categoryId);
+
+  if (error) {
+    console.error("Error deleting event category:", error);
+    return { error: "区分の削除に失敗しました" };
+  }
+
+  revalidatePath("/calendar");
+  return { success: true };
+}
+
+// イベント区分の並び順を更新
+export async function reorderEventCategories(
+  categoryOrders: { id: string; sort_order: number }[]
+): Promise<{ success?: boolean; error?: string }> {
+  const supabase = await createClient();
+
+  for (const category of categoryOrders) {
+    const { error } = await supabase
+      .from("event_categories")
+      .update({ sort_order: category.sort_order } as never)
+      .eq("id", category.id);
+
+    if (error) {
+      console.error("Error updating category order:", error);
+      return { error: "並び順の更新に失敗しました" };
+    }
+  }
+
+  revalidatePath("/calendar");
+  return { success: true };
 }

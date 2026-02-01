@@ -27,6 +27,7 @@ import { ja } from "date-fns/locale";
 import {
   type CalendarEventWithParticipants,
   EVENT_CATEGORY_COLORS,
+  type EventCategoryLegacy,
 } from "@/types/database";
 import { deleteEvent } from "./actions";
 
@@ -93,18 +94,36 @@ export function EventDetailModal({
     return format(startDate, "M月d日(E)", { locale: ja });
   };
 
-  const categoryColor = EVENT_CATEGORY_COLORS[event.category];
+  // 区分の色と名前を取得
+  const getCategoryInfo = () => {
+    if (event.eventCategory) {
+      return {
+        color: event.eventCategory.color,
+        name: event.eventCategory.name,
+      };
+    }
+    // 旧カテゴリーから取得（後方互換）
+    if (event.category && EVENT_CATEGORY_COLORS[event.category as EventCategoryLegacy]) {
+      return {
+        color: EVENT_CATEGORY_COLORS[event.category as EventCategoryLegacy],
+        name: event.category,
+      };
+    }
+    return { color: "bg-gray-500", name: "未設定" };
+  };
+
+  const categoryInfo = getCategoryInfo();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <div className="flex items-start gap-3">
-            <div className={`w-4 h-4 rounded mt-1 ${categoryColor}`} />
+            <div className={`w-4 h-4 rounded mt-1 ${categoryInfo.color}`} />
             <div className="flex-1">
               <DialogTitle className="text-xl">{event.title}</DialogTitle>
               <Badge variant="secondary" className="mt-1">
-                {event.category}
+                {categoryInfo.name}
               </Badge>
             </div>
           </div>

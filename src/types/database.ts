@@ -384,9 +384,45 @@ export interface CommentWithAcknowledgements extends Comment {
 }
 
 // ============================================
+// Event Category (イベント区分マスタ)
+// ============================================
+export interface EventCategory {
+  id: string;
+  name: string;
+  color: string;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface EventCategoryInsert {
+  id?: string;
+  name: string;
+  color: string;
+  sort_order?: number;
+}
+
+// デフォルトの区分色（新規作成時の選択肢）
+export const DEFAULT_CATEGORY_COLORS = [
+  "bg-blue-500",
+  "bg-green-500",
+  "bg-yellow-500",
+  "bg-orange-500",
+  "bg-red-500",
+  "bg-purple-500",
+  "bg-pink-500",
+  "bg-indigo-500",
+  "bg-cyan-500",
+  "bg-teal-500",
+  "bg-gray-500",
+  "bg-slate-500",
+];
+
+// ============================================
 // Calendar Event (カレンダーイベント)
 // ============================================
-export type EventCategory =
+// 旧EventCategory型（後方互換のため残す）
+export type EventCategoryLegacy =
   | "内業"
   | "来客"
   | "外出"
@@ -398,7 +434,7 @@ export type EventCategory =
   | "休み"
   | "その他";
 
-export const EVENT_CATEGORY_COLORS: Record<EventCategory, string> = {
+export const EVENT_CATEGORY_COLORS: Record<EventCategoryLegacy, string> = {
   内業: "bg-blue-500",
   来客: "bg-green-500",
   外出: "bg-yellow-500",
@@ -415,7 +451,8 @@ export interface CalendarEvent {
   id: string;
   title: string;
   description: string | null;
-  category: EventCategory;
+  category: EventCategoryLegacy; // 旧カラム（後方互換）
+  event_category_id: string | null; // 新カラム（区分マスタへの参照）
   start_date: string;
   start_time: string | null;
   end_date: string | null;
@@ -434,7 +471,8 @@ export interface CalendarEventInsert {
   id?: string;
   title: string;
   description?: string | null;
-  category?: EventCategory;
+  category?: EventCategoryLegacy; // 旧カラム（後方互換）
+  event_category_id?: string | null; // 新カラム（区分マスタへの参照）
   start_date: string;
   start_time?: string | null;
   end_date?: string | null;
@@ -465,4 +503,5 @@ export interface CalendarEventWithParticipants extends CalendarEvent {
   creator?: Employee | null;
   project?: Project | null;
   task?: Task | null;
+  eventCategory?: EventCategory | null; // 区分マスタ情報
 }

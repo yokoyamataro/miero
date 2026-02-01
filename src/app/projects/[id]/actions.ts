@@ -112,6 +112,30 @@ export async function deleteTask(taskId: string) {
   }
 }
 
+// タスクの並び順を更新
+export async function reorderTasks(
+  projectId: string,
+  taskOrders: { id: string; sort_order: number }[]
+): Promise<{ success?: boolean; error?: string }> {
+  const supabase = await createClient();
+
+  // 各タスクのsort_orderを更新
+  for (const task of taskOrders) {
+    const { error } = await supabase
+      .from("tasks" as never)
+      .update({ sort_order: task.sort_order } as never)
+      .eq("id", task.id);
+
+    if (error) {
+      console.error("Error updating task order:", error);
+      return { error: "タスクの並び替えに失敗しました" };
+    }
+  }
+
+  revalidatePath(`/projects/${projectId}`);
+  return { success: true };
+}
+
 // ============================================
 // Comment Actions
 // ============================================

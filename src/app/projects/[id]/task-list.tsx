@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,7 @@ import {
   Square,
   Timer,
   Settings2,
+  GripVertical,
 } from "lucide-react";
 import {
   Dialog,
@@ -36,12 +37,29 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import {
   type Task,
   type TaskStatus,
   type Employee,
   TASK_STATUS_COLORS,
 } from "@/types/database";
-import { createTask, updateTask, deleteTask } from "./actions";
+import { createTask, updateTask, deleteTask, reorderTasks } from "./actions";
 
 interface TaskWithSubtasks extends Task {
   subtasks: Task[];
@@ -504,7 +522,7 @@ function TaskTimeModal({
   );
 }
 
-function ParentTaskItem({
+function SortableParentTaskItem({
   task,
   employees,
   projectId,
@@ -518,6 +536,21 @@ function ParentTaskItem({
   const [expanded, setExpanded] = useState(true);
   const [isAddingSubtask, setIsAddingSubtask] = useState(false);
   const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
+
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: task.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
 
   const completedSubtasks = task.subtasks.filter((s) => s.status === "完了").length;
   const totalSubtasks = task.subtasks.length;
@@ -538,8 +571,18 @@ function ParentTaskItem({
   };
 
   return (
-    <div className="border rounded-lg p-2">
+    <div ref={setNodeRef} style={style} className="border rounded-lg p-2">
       <div className="flex items-center gap-2">
+        {/* ドラッグハンドル */}
+        <button
+          {...attributes}
+          {...listeners}
+          className="flex-shrink-0 p-1 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
+          title="ドラッグして並び替え"
+        >
+          <GripVertical className="h-4 w-4" />
+        </button>
+
         <button
           onClick={() => setExpanded(!expanded)}
           className="flex-shrink-0 p-1"
@@ -621,6 +664,47 @@ export function TaskList({ projectId, tasks, employees }: TaskListProps) {
   const [isPending, startTransition] = useTransition();
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
+  const [localTasks, setLocalTasks] = useState(tasks);
+
+  // tasksが更新されたらlocalTasksも更新
+  useEffect(() => {
+    setLocalTasks(tasks);
+  }, [tasks]);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      setLocalTasks((items) => {
+        const oldIndex = items.findIndex((t) => t.id === active.id);
+        const newIndex = items.findIndex((t) => t.id === over.id);
+        const newItems = arrayMove(items, oldIndex, newIndex);
+
+        // サーバーに並び順を保存
+        startTransition(async () => {
+          const taskOrders = newItems.map((task, index) => ({
+            id: task.id,
+            sort_order: index,
+          }));
+          await reorderTasks(projectId, taskOrders);
+          router.refresh();
+        });
+
+        return newItems;
+      });
+    }
+  };
 
   const handleAddTask = () => {
     if (newTaskTitle.trim()) {
@@ -637,7 +721,7 @@ export function TaskList({ projectId, tasks, employees }: TaskListProps) {
   };
 
   // 進捗計算
-  const allTasks = tasks.flatMap((t) => [t, ...t.subtasks]);
+  const allTasks = localTasks.flatMap((t) => [t, ...t.subtasks]);
   const completedCount = allTasks.filter((t) => t.status === "完了").length;
   const totalCount = allTasks.length;
   const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
@@ -665,20 +749,31 @@ export function TaskList({ projectId, tasks, employees }: TaskListProps) {
         )}
       </CardHeader>
       <CardContent className="space-y-2">
-        {tasks.length === 0 && !isAddingTask && (
+        {localTasks.length === 0 && !isAddingTask && (
           <p className="text-center text-muted-foreground py-4">
             タスクがありません
           </p>
         )}
 
-        {tasks.map((task) => (
-          <ParentTaskItem
-            key={task.id}
-            task={task}
-            employees={employees}
-            projectId={projectId}
-          />
-        ))}
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={localTasks.map((t) => t.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            {localTasks.map((task) => (
+              <SortableParentTaskItem
+                key={task.id}
+                task={task}
+                employees={employees}
+                projectId={projectId}
+              />
+            ))}
+          </SortableContext>
+        </DndContext>
 
         {isAddingTask ? (
           <div className="flex items-center gap-2 p-2 border rounded-lg">
