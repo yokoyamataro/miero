@@ -1,6 +1,5 @@
-import { createClient } from "@/lib/supabase/server";
 import { CalendarView } from "./calendar-view";
-import { getEventsInRange, getEmployees } from "./actions";
+import { getEventsInRange, getEmployees, getCurrentEmployeeId } from "./actions";
 import {
   startOfMonth,
   endOfMonth,
@@ -26,10 +25,11 @@ export default async function CalendarPage({
   const rangeStart = format(subMonths(startOfMonth(currentDate), 1), "yyyy-MM-dd");
   const rangeEnd = format(addMonths(endOfMonth(currentDate), 1), "yyyy-MM-dd");
 
-  // イベントと社員を取得
-  const [events, employees] = await Promise.all([
+  // イベントと社員と現在のユーザーを取得
+  const [events, employees, currentEmployeeId] = await Promise.all([
     getEventsInRange(rangeStart, rangeEnd),
     getEmployees(),
+    getCurrentEmployeeId(),
   ]);
 
   return (
@@ -44,6 +44,7 @@ export default async function CalendarPage({
         employees={employees}
         initialView={view}
         initialDate={dateParam}
+        currentEmployeeId={currentEmployeeId}
       />
     </main>
   );

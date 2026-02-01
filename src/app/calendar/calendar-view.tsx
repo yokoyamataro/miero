@@ -14,7 +14,16 @@ import {
   MapPin,
   Clock,
   Users,
+  User,
+  UsersRound,
 } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   format,
   startOfMonth,
@@ -44,12 +53,14 @@ import { EventModal } from "./event-modal";
 import { EventDetailModal } from "./event-detail-modal";
 
 type ViewMode = "day" | "week" | "month";
+type EmployeeFilter = "me" | "all" | string; // "me" = 自分のみ, "all" = 全員, string = 特定の社員ID
 
 interface CalendarViewProps {
   initialEvents: CalendarEventWithParticipants[];
   employees: Employee[];
   initialView: ViewMode;
   initialDate: string;
+  currentEmployeeId: string | null;
 }
 
 // 月曜始まり
@@ -60,6 +71,7 @@ export function CalendarView({
   employees,
   initialView,
   initialDate,
+  currentEmployeeId,
 }: CalendarViewProps) {
   const router = useRouter();
   const [viewMode, setViewMode] = useState<ViewMode>(initialView);
@@ -69,6 +81,25 @@ export function CalendarView({
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEventWithParticipants | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [employeeFilter, setEmployeeFilter] = useState<EmployeeFilter>("all");
+
+  // フィルタリングされたイベント
+  const filteredEvents = useMemo(() => {
+    if (employeeFilter === "all") {
+      return events;
+    }
+
+    const targetEmployeeId = employeeFilter === "me" ? currentEmployeeId : employeeFilter;
+    if (!targetEmployeeId) return events;
+
+    return events.filter((event) => {
+      // 作成者が対象社員
+      if (event.created_by === targetEmployeeId) return true;
+      // 参加者に対象社員が含まれる
+      if (event.participants.some((p) => p.id === targetEmployeeId)) return true;
+      return false;
+    });
+  }, [events, employeeFilter, currentEmployeeId]);
 
   // 月表示のカレンダー日付を生成（月曜始まり）
   const monthDays = useMemo(() => {
@@ -85,9 +116,9 @@ export function CalendarView({
     return eachDayOfInterval({ start: weekStart, end: addDays(weekStart, 6) });
   }, [currentDate]);
 
-  // 日付ごとのイベントを取得
+  // 日付ごとのイベントを取得（フィルタリング済み）
   const getEventsForDate = (date: Date) => {
-    return events.filter((event) => {
+    return filteredEvents.filter((event) => {
       const startDate = parseISO(event.start_date);
       const endDate = event.end_date ? parseISO(event.end_date) : startDate;
       return date >= startDate && date <= endDate;
@@ -372,7 +403,40 @@ export function CalendarView({
           <h2 className="text-xl font-semibold ml-2">{getTitle()}</h2>
         </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          {/* 社員フィルター */}
+          <div className="flex items-center gap-1">
+            <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
+              <SelectTrigger className="w-[160px] h-9">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">
+                  <div className="flex items-center gap-2">
+                    <UsersRound className="h-4 w-4" />
+                    全員の予定
+                  </div>
+                </SelectItem>
+                {currentEmployeeId && (
+                  <SelectItem value="me">
+                    <div className="flex items-center gap-2">
+                      <User className="h-4 w-4" />
+                      自分の予定
+                    </div>
+                  </SelectItem>
+                )}
+                {employees.map((emp) => (
+                  <SelectItem key={emp.id} value={emp.id}>
+                    <div className="flex items-center gap-2">
+                      <User className="h-4 w-4 opacity-50" />
+                      {emp.name}
+                    </div>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
           {/* 表示切替 */}
           <div className="flex border rounded-md">
             <Button

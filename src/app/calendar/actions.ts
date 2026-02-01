@@ -12,8 +12,8 @@ import {
   type Task,
 } from "@/types/database";
 
-// 現在のユーザーの社員IDを取得
-async function getCurrentEmployeeId(supabase: Awaited<ReturnType<typeof createClient>>) {
+// 現在のユーザーの社員IDを取得（内部用）
+async function getCurrentEmployeeIdInternal(supabase: Awaited<ReturnType<typeof createClient>>) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return null;
 
@@ -24,6 +24,12 @@ async function getCurrentEmployeeId(supabase: Awaited<ReturnType<typeof createCl
     .single();
 
   return employee?.id || null;
+}
+
+// 現在のユーザーの社員IDを取得（公開用）
+export async function getCurrentEmployeeId(): Promise<string | null> {
+  const supabase = await createClient();
+  return getCurrentEmployeeIdInternal(supabase);
 }
 
 // 期間内のイベントを取得
@@ -87,7 +93,7 @@ export async function createEvent(
 ): Promise<{ success?: boolean; error?: string; eventId?: string }> {
   const supabase = await createClient();
 
-  const employeeId = await getCurrentEmployeeId(supabase);
+  const employeeId = await getCurrentEmployeeIdInternal(supabase);
   if (!employeeId) {
     return { error: "ログインが必要です" };
   }
@@ -135,7 +141,7 @@ export async function updateEvent(
 ): Promise<{ success?: boolean; error?: string }> {
   const supabase = await createClient();
 
-  const employeeId = await getCurrentEmployeeId(supabase);
+  const employeeId = await getCurrentEmployeeIdInternal(supabase);
   if (!employeeId) {
     return { error: "ログインが必要です" };
   }
@@ -178,7 +184,7 @@ export async function deleteEvent(
 ): Promise<{ success?: boolean; error?: string }> {
   const supabase = await createClient();
 
-  const employeeId = await getCurrentEmployeeId(supabase);
+  const employeeId = await getCurrentEmployeeIdInternal(supabase);
   if (!employeeId) {
     return { error: "ログインが必要です" };
   }
