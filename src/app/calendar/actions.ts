@@ -69,7 +69,29 @@ export async function getEventsInRange(
 
   const employeeMap = new Map(employees?.map((e) => [e.id, e]) || []);
 
-  // イベントに参加者情報を付与
+  // プロジェクト情報を取得
+  const projectIds = events.map((e) => e.project_id).filter(Boolean) as string[];
+  const projectMap = new Map<string, Project>();
+  if (projectIds.length > 0) {
+    const { data: projects } = await supabase
+      .from("projects")
+      .select("*")
+      .in("id", projectIds);
+    projects?.forEach((p) => projectMap.set(p.id, p as Project));
+  }
+
+  // タスク情報を取得
+  const taskIds = events.map((e) => e.task_id).filter(Boolean) as string[];
+  const taskMap = new Map<string, Task>();
+  if (taskIds.length > 0) {
+    const { data: tasks } = await supabase
+      .from("tasks" as never)
+      .select("*")
+      .in("id", taskIds);
+    (tasks as Task[])?.forEach((t) => taskMap.set(t.id, t));
+  }
+
+  // イベントに参加者・プロジェクト・タスク情報を付与
   return events.map((event) => {
     const eventParticipants = participants
       ?.filter((p) => p.event_id === event.id)
@@ -77,11 +99,15 @@ export async function getEventsInRange(
       .filter(Boolean) as Employee[];
 
     const creator = event.created_by ? employeeMap.get(event.created_by) : null;
+    const project = event.project_id ? projectMap.get(event.project_id) : null;
+    const task = event.task_id ? taskMap.get(event.task_id) : null;
 
     return {
       ...event,
       participants: eventParticipants || [],
       creator: creator || null,
+      project: project || null,
+      task: task || null,
     } as CalendarEventWithParticipants;
   });
 }

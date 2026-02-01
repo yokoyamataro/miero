@@ -14,7 +14,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { format } from "date-fns";
-import { Briefcase, ChevronDown, ChevronRight } from "lucide-react";
+import { Briefcase, ChevronDown, ChevronRight, LinkIcon, X } from "lucide-react";
 import {
   type CalendarEventWithParticipants,
   type Employee,
@@ -96,6 +96,11 @@ export function EventModal({
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
 
+  // 業務リンク
+  const [linkedProjectId, setLinkedProjectId] = useState<string | null>(null);
+  const [linkedTaskId, setLinkedTaskId] = useState<string | null>(null);
+  const [linkedProjectCode, setLinkedProjectCode] = useState<string | null>(null);
+
   // 編集時のデータ読み込み
   useEffect(() => {
     if (event) {
@@ -115,6 +120,9 @@ export function EventModal({
       setMapUrl(event.map_url || "");
       setParticipantIds(event.participants.map((p) => p.id));
       setShowProjectSelector(false);
+      setLinkedProjectId(event.project_id);
+      setLinkedTaskId(event.task_id);
+      setLinkedProjectCode(event.project?.code || null);
     } else if (selectedDate) {
       const dateStr = format(selectedDate, "yyyy-MM-dd");
       setTitle("");
@@ -131,6 +139,9 @@ export function EventModal({
       setMapUrl("");
       setParticipantIds([]);
       setShowProjectSelector(false);
+      setLinkedProjectId(null);
+      setLinkedTaskId(null);
+      setLinkedProjectCode(null);
     }
   }, [event, selectedDate, open]);
 
@@ -159,6 +170,9 @@ export function EventModal({
     if (project.location) {
       setLocation(project.location);
     }
+    setLinkedProjectId(project.id);
+    setLinkedTaskId(null);
+    setLinkedProjectCode(project.code);
     setShowProjectSelector(false);
   };
 
@@ -168,7 +182,17 @@ export function EventModal({
     if (project.location) {
       setLocation(project.location);
     }
+    setLinkedProjectId(project.id);
+    setLinkedTaskId(task.id);
+    setLinkedProjectCode(project.code);
     setShowProjectSelector(false);
+  };
+
+  // 業務リンクを解除
+  const clearProjectLink = () => {
+    setLinkedProjectId(null);
+    setLinkedTaskId(null);
+    setLinkedProjectCode(null);
   };
 
   // プロジェクトの展開/折りたたみ
@@ -208,6 +232,8 @@ export function EventModal({
         all_day: allDay,
         location: location.trim() || null,
         map_url: mapUrl.trim() || null,
+        project_id: linkedProjectId,
+        task_id: linkedTaskId,
       };
 
       if (event) {
@@ -269,6 +295,21 @@ export function EventModal({
               onChange={(e) => setTitle(e.target.value)}
               placeholder="予定のタイトル"
             />
+
+            {/* リンク中の業務表示 */}
+            {linkedProjectId && (
+              <div className="flex items-center gap-2 text-sm bg-blue-50 text-blue-700 px-3 py-2 rounded-md">
+                <LinkIcon className="h-4 w-4" />
+                <span>業務 {linkedProjectCode} にリンク中</span>
+                <button
+                  type="button"
+                  onClick={clearProjectLink}
+                  className="ml-auto p-0.5 hover:bg-blue-100 rounded"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+            )}
 
             {/* 業務ToDo選択パネル */}
             {showProjectSelector && (

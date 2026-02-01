@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -19,6 +20,7 @@ import {
   Trash2,
   ExternalLink,
   FileText,
+  Briefcase,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ja } from "date-fns/locale";
@@ -145,6 +147,28 @@ export function EventDetailModal({
               >
                 Google Map で開く
               </a>
+            </div>
+          )}
+
+          {/* 業務リンク */}
+          {event.project && (
+            <div className="flex items-start gap-3">
+              <Briefcase className="h-5 w-5 text-muted-foreground mt-0.5" />
+              <div>
+                <Link
+                  href={`/projects/${event.project.id}`}
+                  className="text-blue-600 hover:underline flex items-center gap-1"
+                  onClick={() => onOpenChange(false)}
+                >
+                  【{event.project.code}】{event.project.name}
+                  <ExternalLink className="h-3 w-3" />
+                </Link>
+                {event.task && (
+                  <div className="text-sm text-muted-foreground mt-1">
+                    タスク: {event.task.title}
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

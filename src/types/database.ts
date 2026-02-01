@@ -423,6 +423,8 @@ export interface CalendarEvent {
   all_day: boolean;
   location: string | null;
   map_url: string | null;
+  project_id: string | null;
+  task_id: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -440,6 +442,8 @@ export interface CalendarEventInsert {
   all_day?: boolean;
   location?: string | null;
   map_url?: string | null;
+  project_id?: string | null;
+  task_id?: string | null;
   created_by?: string | null;
 }
 
@@ -459,4 +463,6 @@ export interface CalendarEventParticipantInsert {
 export interface CalendarEventWithParticipants extends CalendarEvent {
   participants: Employee[];
   creator?: Employee | null;
+  project?: Project | null;
+  task?: Task | null;
 }
