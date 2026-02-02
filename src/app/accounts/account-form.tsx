@@ -74,12 +74,21 @@ export function AccountForm({ account, isEdit = false, industries }: AccountForm
     field: keyof ContactFormData,
     value: string | boolean
   ) => {
-    const newContacts = [...contacts];
-    if (field === "is_primary" && value === true) {
-      newContacts.forEach((c) => (c.is_primary = false));
-    }
-    newContacts[index] = { ...newContacts[index], [field]: value };
-    setContacts(newContacts);
+    setContacts((prev) => {
+      const newContacts = prev.map((c, i) => {
+        if (field === "is_primary" && value === true) {
+          // 主担当者変更時は全員をfalseにしてから対象をtrueに
+          return i === index
+            ? { ...c, is_primary: true }
+            : { ...c, is_primary: false };
+        }
+        if (i === index) {
+          return { ...c, [field]: value };
+        }
+        return c;
+      });
+      return newContacts;
+    });
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
