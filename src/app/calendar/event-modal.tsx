@@ -21,7 +21,7 @@ import {
   type EventCategory,
   type Task,
 } from "@/types/database";
-import { createEvent, updateEvent, getActiveProjectsWithTasks, type ProjectWithTasks } from "./actions";
+import { createEvent, updateEvent, getActiveProjectsWithTasks, type ProjectWithTasks, type TaskWithChildren } from "./actions";
 
 interface EventModalProps {
   open: boolean;
@@ -96,6 +96,7 @@ export function EventModal({
   const [projectsWithTasks, setProjectsWithTasks] = useState<ProjectWithTasks[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(false);
   const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
+  const [expandedTasks, setExpandedTasks] = useState<Set<string>>(new Set());
 
   // 業務リンク
   const [linkedProjectId, setLinkedProjectId] = useState<string | null>(null);
@@ -165,9 +166,15 @@ export function EventModal({
     }
   };
 
+  // 業務名を先頭10文字に切り詰める
+  const truncateName = (name: string, maxLength: number = 10): string => {
+    if (name.length <= maxLength) return name;
+    return name.slice(0, maxLength);
+  };
+
   // 業務を選択
   const selectProject = (project: ProjectWithTasks) => {
-    setTitle(`【${project.code}】${project.name}`);
+    setTitle(truncateName(project.name));
     if (project.location) {
       setLocation(project.location);
     }
@@ -178,8 +185,9 @@ export function EventModal({
   };
 
   // タスクを選択
-  const selectTask = (project: ProjectWithTasks, task: Task) => {
-    setTitle(`【${project.code}】${task.title}`);
+  const selectTask = (project: ProjectWithTasks, task: TaskWithChildren) => {
+    // 業務名(先頭10文字)>タスク名
+    setTitle(`${truncateName(project.name)}>${task.title}`);
     if (project.location) {
       setLocation(project.location);
     }
@@ -187,6 +195,32 @@ export function EventModal({
     setLinkedTaskId(task.id);
     setLinkedProjectCode(project.code);
     setShowProjectSelector(false);
+  };
+
+  // サブタスクを選択
+  const selectSubtask = (project: ProjectWithTasks, parentTask: TaskWithChildren, subtask: Task) => {
+    // 業務名(先頭10文字)>タスク名>サブタスク名
+    setTitle(`${truncateName(project.name)}>${parentTask.title}>${subtask.title}`);
+    if (project.location) {
+      setLocation(project.location);
+    }
+    setLinkedProjectId(project.id);
+    setLinkedTaskId(subtask.id);
+    setLinkedProjectCode(project.code);
+    setShowProjectSelector(false);
+  };
+
+  // タスクの展開/折りたたみ
+  const toggleTaskExpand = (taskId: string) => {
+    setExpandedTasks((prev) => {
+      const next = new Set(prev);
+      if (next.has(taskId)) {
+        next.delete(taskId);
+      } else {
+        next.add(taskId);
+      }
+      return next;
+    });
   };
 
   // 業務リンクを解除
@@ -365,12 +399,54 @@ export function EventModal({
                               → 業務全体を選択
                             </div>
                             {project.tasks.map((task) => (
-                              <div
-                                key={task.id}
-                                className="p-1 rounded hover:bg-muted cursor-pointer"
-                                onClick={() => selectTask(project, task)}
-                              >
-                                {task.title}
+                              <div key={task.id}>
+                                <div
+                                  className="flex items-center gap-1 p-1 rounded hover:bg-muted cursor-pointer"
+                                  onClick={() => {
+                                    if (task.children && task.children.length > 0) {
+                                      toggleTaskExpand(task.id);
+                                    } else {
+                                      selectTask(project, task);
+                                    }
+                                  }}
+                                >
+                                  {task.children && task.children.length > 0 ? (
+                                    expandedTasks.has(task.id) ? (
+                                      <ChevronDown className="h-3 w-3 text-muted-foreground" />
+                                    ) : (
+                                      <ChevronRight className="h-3 w-3 text-muted-foreground" />
+                                    )
+                                  ) : (
+                                    <span className="w-3" />
+                                  )}
+                                  <span>{task.title}</span>
+                                  {task.children && task.children.length > 0 && (
+                                    <span className="text-xs text-muted-foreground">
+                                      ({task.children.length})
+                                    </span>
+                                  )}
+                                </div>
+                                {/* サブタスク一覧 */}
+                                {expandedTasks.has(task.id) && task.children && task.children.length > 0 && (
+                                  <div className="ml-4 border-l pl-2 space-y-0.5">
+                                    {/* タスク自体を選択するオプション */}
+                                    <div
+                                      className="p-1 rounded hover:bg-muted cursor-pointer text-muted-foreground text-xs"
+                                      onClick={() => selectTask(project, task)}
+                                    >
+                                      → タスクを選択
+                                    </div>
+                                    {task.children.map((subtask) => (
+                                      <div
+                                        key={subtask.id}
+                                        className="p-1 rounded hover:bg-muted cursor-pointer text-xs"
+                                        onClick={() => selectSubtask(project, task, subtask)}
+                                      >
+                                        {subtask.title}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
                               </div>
                             ))}
                           </div>
