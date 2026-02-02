@@ -37,20 +37,20 @@ export async function getNextProjectCode(category: ProjectCategory): Promise<str
   const currentYear = new Date().getFullYear() % 100;
 
   if (!projects || projects.length === 0) {
-    // 該当カテゴリに業務がない場合、年度の初番号
+    // 該当カテゴリに業務がない場合、年度の初番号（例: A250001）
     return `${prefix}${currentYear}0001`;
   }
 
   const maxCode = projects[0].code;
-  // コードから数字部分を取得（例: A250080 -> 250080）
+  // コードから数字部分を取得（例: A250013 -> 250013）
   const numPart = maxCode.slice(1);
   const numValue = parseInt(numPart, 10);
 
   // 次の番号
   const nextNum = numValue + 1;
 
-  // 7桁でゼロパディング
-  return `${prefix}${String(nextNum).padStart(7, "0")}`;
+  // 6桁でゼロパディング（例: A250014）
+  return `${prefix}${String(nextNum).padStart(6, "0")}`;
 }
 
 export interface CreateProjectData {
