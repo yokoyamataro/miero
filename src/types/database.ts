@@ -145,11 +145,42 @@ export interface AccountInsert {
 }
 
 // ============================================
+// Branch (支店)
+// ============================================
+export interface Branch {
+  id: string;
+  account_id: string;
+  name: string;
+  phone: string | null;
+  postal_code: string | null;
+  prefecture: string | null;
+  city: string | null;
+  street: string | null;
+  building: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+}
+
+export interface BranchInsert {
+  id?: string;
+  account_id: string;
+  name: string;
+  phone?: string | null;
+  postal_code?: string | null;
+  prefecture?: string | null;
+  city?: string | null;
+  street?: string | null;
+  building?: string | null;
+}
+
+// ============================================
 // Contact (顧客・担当者)
 // ============================================
 export interface Contact {
   id: string;
   account_id: string | null;
+  branch_id: string | null;
   last_name: string;
   first_name: string;
   last_name_kana: string | null;
@@ -174,6 +205,7 @@ export interface Contact {
 export interface ContactInsert {
   id?: string;
   account_id?: string | null;
+  branch_id?: string | null;
   last_name: string;
   first_name: string;
   last_name_kana?: string | null;
@@ -192,9 +224,10 @@ export interface ContactInsert {
   notes?: string | null;
 }
 
-// 法人と担当者を含む型
+// 法人と担当者・支店を含む型
 export interface AccountWithContacts extends Account {
   contacts: Contact[];
+  branches: Branch[];
 }
 
 // 連絡先と法人情報を含む型

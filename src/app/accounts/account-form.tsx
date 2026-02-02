@@ -7,7 +7,14 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Loader2, Trash2, Plus, X, Star } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ArrowLeft, Loader2, Trash2, Plus, X, Star, Building } from "lucide-react";
 import type { AccountWithContacts, Industry } from "@/types/database";
 import {
   createAccount,
@@ -15,6 +22,7 @@ import {
   deleteAccount,
   type AccountFormData,
   type ContactFormData,
+  type BranchFormData,
 } from "./actions";
 import { IndustrySelect } from "./industry-select";
 
@@ -29,6 +37,22 @@ export function AccountForm({ account, isEdit = false, industries }: AccountForm
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [industry, setIndustry] = useState<string>(account?.industry || "");
+
+  // 支店の状態管理
+  const [branches, setBranches] = useState<BranchFormData[]>(
+    account?.branches?.map((b) => ({
+      id: b.id,
+      name: b.name,
+      phone: b.phone,
+      postal_code: b.postal_code,
+      prefecture: b.prefecture,
+      city: b.city,
+      street: b.street,
+      building: b.building,
+    })) || []
+  );
+
+  // 担当者の状態管理
   const [contacts, setContacts] = useState<ContactFormData[]>(
     account?.contacts?.map((c) => ({
       id: c.id,
@@ -41,9 +65,49 @@ export function AccountForm({ account, isEdit = false, industries }: AccountForm
       department: c.department,
       position: c.position,
       is_primary: c.is_primary,
+      branch_id: c.branch_id,
     })) || []
   );
 
+  // 支店の追加
+  const addBranch = () => {
+    setBranches([
+      ...branches,
+      {
+        id: `temp-${Date.now()}`,
+        name: "",
+        phone: null,
+        postal_code: null,
+        prefecture: null,
+        city: null,
+        street: null,
+        building: null,
+      },
+    ]);
+  };
+
+  // 支店の削除
+  const removeBranch = (index: number) => {
+    const branchId = branches[index].id;
+    setBranches(branches.filter((_, i) => i !== index));
+    // この支店を参照している担当者のbranch_idをクリア
+    setContacts((prev) =>
+      prev.map((c) => (c.branch_id === branchId ? { ...c, branch_id: null } : c))
+    );
+  };
+
+  // 支店の更新
+  const updateBranch = (
+    index: number,
+    field: keyof BranchFormData,
+    value: string | null
+  ) => {
+    setBranches((prev) =>
+      prev.map((b, i) => (i === index ? { ...b, [field]: value } : b))
+    );
+  };
+
+  // 担当者の追加
   const addContact = () => {
     setContacts([
       ...contacts,
@@ -57,10 +121,12 @@ export function AccountForm({ account, isEdit = false, industries }: AccountForm
         department: null,
         position: null,
         is_primary: contacts.length === 0,
+        branch_id: null,
       },
     ]);
   };
 
+  // 担当者の削除
   const removeContact = (index: number) => {
     const newContacts = contacts.filter((_, i) => i !== index);
     if (contacts[index].is_primary && newContacts.length > 0) {
@@ -69,15 +135,15 @@ export function AccountForm({ account, isEdit = false, industries }: AccountForm
     setContacts(newContacts);
   };
 
+  // 担当者の更新
   const updateContact = (
     index: number,
     field: keyof ContactFormData,
-    value: string | boolean
+    value: string | boolean | null
   ) => {
     setContacts((prev) => {
       const newContacts = prev.map((c, i) => {
         if (field === "is_primary" && value === true) {
-          // 主担当者変更時は全員をfalseにしてから対象をtrueに
           return i === index
             ? { ...c, is_primary: true }
             : { ...c, is_primary: false };
@@ -114,12 +180,14 @@ export function AccountForm({ account, isEdit = false, industries }: AccountForm
       (c) => c.last_name.trim() !== "" || c.first_name.trim() !== ""
     );
 
+    const validBranches = branches.filter((b) => b.name.trim() !== "");
+
     startTransition(async () => {
       let result;
       if (isEdit && account) {
-        result = await updateAccount(account.id, data, validContacts);
+        result = await updateAccount(account.id, data, validContacts, validBranches);
       } else {
-        result = await createAccount(data, validContacts);
+        result = await createAccount(data, validContacts, validBranches);
       }
 
       if (result.error) {
@@ -134,7 +202,7 @@ export function AccountForm({ account, isEdit = false, industries }: AccountForm
     if (!account) return;
     if (
       !confirm(
-        "この法人を削除してもよろしいですか？\n関連する担当者情報も削除されます。"
+        "この法人を削除してもよろしいですか？\n関連する支店・担当者情報も削除されます。"
       )
     )
       return;
@@ -284,6 +352,130 @@ export function AccountForm({ account, isEdit = false, industries }: AccountForm
           </CardContent>
         </Card>
 
+        {/* 支店セクション */}
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>支店</CardTitle>
+            <Button type="button" variant="outline" size="sm" onClick={addBranch}>
+              <Plus className="h-4 w-4 mr-2" />
+              支店を追加
+            </Button>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {branches.length === 0 ? (
+              <p className="text-muted-foreground text-sm text-center py-4">
+                支店がありません。「支店を追加」ボタンで追加できます。
+              </p>
+            ) : (
+              branches.map((branch, index) => (
+                <div
+                  key={branch.id || index}
+                  className="border rounded-lg p-4 space-y-3 relative"
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="flex items-center gap-2">
+                      <Building className="h-5 w-5 text-muted-foreground" />
+                      <span className="text-sm font-medium">
+                        {branch.name || "（支店名未入力）"}
+                      </span>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removeBranch(index)}
+                      className="text-destructive hover:text-destructive"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">支店名 *</Label>
+                      <Input
+                        placeholder="例: 札幌支店"
+                        value={branch.name}
+                        onChange={(e) =>
+                          updateBranch(index, "name", e.target.value)
+                        }
+                        required
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">電話番号</Label>
+                      <Input
+                        placeholder="例: 011-9999-8888"
+                        value={branch.phone || ""}
+                        onChange={(e) =>
+                          updateBranch(index, "phone", e.target.value || null)
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    <div>
+                      <Label className="text-xs">郵便番号</Label>
+                      <Input
+                        placeholder="060-0001"
+                        value={branch.postal_code || ""}
+                        onChange={(e) =>
+                          updateBranch(index, "postal_code", e.target.value || null)
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">都道府県</Label>
+                      <Input
+                        placeholder="北海道"
+                        value={branch.prefecture || ""}
+                        onChange={(e) =>
+                          updateBranch(index, "prefecture", e.target.value || null)
+                        }
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <Label className="text-xs">市区町村</Label>
+                      <Input
+                        placeholder="札幌市中央区"
+                        value={branch.city || ""}
+                        onChange={(e) =>
+                          updateBranch(index, "city", e.target.value || null)
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <Label className="text-xs">町名・番地</Label>
+                      <Input
+                        placeholder="大通1-1"
+                        value={branch.street || ""}
+                        onChange={(e) =>
+                          updateBranch(index, "street", e.target.value || null)
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">建物名・部屋番号</Label>
+                      <Input
+                        placeholder="○○ビル3F"
+                        value={branch.building || ""}
+                        onChange={(e) =>
+                          updateBranch(index, "building", e.target.value || null)
+                        }
+                      />
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </CardContent>
+        </Card>
+
+        {/* 担当者セクション */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <CardTitle>担当者</CardTitle>
@@ -386,6 +578,29 @@ export function AccountForm({ account, isEdit = false, industries }: AccountForm
 
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                     <div>
+                      <Label className="text-xs">所属支店</Label>
+                      <Select
+                        value={contact.branch_id || "none"}
+                        onValueChange={(value) =>
+                          updateContact(index, "branch_id", value === "none" ? null : value)
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="選択なし" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">本社</SelectItem>
+                          {branches
+                            .filter((b) => b.name.trim() !== "")
+                            .map((branch) => (
+                              <SelectItem key={branch.id} value={branch.id || ""}>
+                                {branch.name}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
                       <Label className="text-xs">部署</Label>
                       <Input
                         placeholder="営業部"
@@ -415,6 +630,9 @@ export function AccountForm({ account, isEdit = false, industries }: AccountForm
                         }
                       />
                     </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div>
                       <Label className="text-xs">メール</Label>
                       <Input
