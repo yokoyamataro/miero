@@ -200,3 +200,114 @@ export async function getEmployees() {
 
   return data;
 }
+
+// 新規法人を作成（簡易版）
+export interface QuickAccountData {
+  company_name: string;
+  contact_last_name?: string;
+  contact_first_name?: string;
+}
+
+export async function createQuickAccount(data: QuickAccountData): Promise<{
+  success?: boolean;
+  error?: string;
+  account?: AccountWithContacts;
+}> {
+  const supabase = await createClient();
+
+  // 法人を作成
+  const { data: account, error: accountError } = await supabase
+    .from("accounts" as never)
+    .insert({
+      company_name: data.company_name,
+    } as never)
+    .select()
+    .single();
+
+  if (accountError) {
+    console.error("Error creating account:", accountError);
+    return { error: accountError.message };
+  }
+
+  const typedAccount = account as Account;
+  let contacts: CorporateContact[] = [];
+
+  // 担当者名が入力されていれば作成
+  if (data.contact_last_name && data.contact_first_name) {
+    const { data: contact, error: contactError } = await supabase
+      .from("contacts" as never)
+      .insert({
+        account_id: typedAccount.id,
+        last_name: data.contact_last_name,
+        first_name: data.contact_first_name,
+        is_primary: true,
+      } as never)
+      .select()
+      .single();
+
+    if (contactError) {
+      console.error("Error creating contact:", contactError);
+    } else {
+      const typedContact = contact as Contact;
+      contacts = [{
+        id: typedContact.id,
+        name: `${typedContact.last_name} ${typedContact.first_name}`,
+      }];
+    }
+  }
+
+  revalidatePath("/projects");
+  revalidatePath("/accounts");
+
+  return {
+    success: true,
+    account: {
+      id: typedAccount.id,
+      companyName: typedAccount.company_name,
+      contacts,
+    },
+  };
+}
+
+// 新規個人顧客を作成（簡易版）
+export interface QuickIndividualData {
+  last_name: string;
+  first_name: string;
+}
+
+export async function createQuickIndividual(data: QuickIndividualData): Promise<{
+  success?: boolean;
+  error?: string;
+  individual?: IndividualContact;
+}> {
+  const supabase = await createClient();
+
+  const { data: contact, error } = await supabase
+    .from("contacts" as never)
+    .insert({
+      account_id: null,
+      last_name: data.last_name,
+      first_name: data.first_name,
+      is_primary: false,
+    } as never)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error creating individual contact:", error);
+    return { error: error.message };
+  }
+
+  const typedContact = contact as Contact;
+
+  revalidatePath("/projects");
+  revalidatePath("/contacts");
+
+  return {
+    success: true,
+    individual: {
+      id: typedContact.id,
+      name: `${typedContact.last_name} ${typedContact.first_name}`,
+    },
+  };
+}
