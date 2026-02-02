@@ -25,6 +25,7 @@ import {
 import { ArrowLeft, Loader2, Plus } from "lucide-react";
 import {
   PROJECT_CATEGORY_LABELS,
+  PROJECT_AREA_GROUPS,
   type ProjectCategory,
   type ProjectStatus,
 } from "@/types/database";
@@ -59,6 +60,7 @@ export function ProjectForm({ customerData, employees }: ProjectFormProps) {
   const [selectedAccountId, setSelectedAccountId] = useState<string>("");
   const [contactId, setContactId] = useState<string>("");
   const [managerId, setManagerId] = useState<string>("");
+  const [location, setLocation] = useState<string>("");
 
   // カテゴリ変更時に業務コードを自動生成
   const handleCategoryChange = async (val: ProjectCategory) => {
@@ -192,7 +194,7 @@ export function ProjectForm({ customerData, employees }: ProjectFormProps) {
       fee_tax_excluded: formData.get("fee_tax_excluded")
         ? parseInt(formData.get("fee_tax_excluded") as string, 10)
         : null,
-      location: (formData.get("location") as string) || null,
+      location: location || null,
       details: details,
       monthly_allocations: monthlyAllocations,
     };
@@ -465,11 +467,25 @@ export function ProjectForm({ customerData, employees }: ProjectFormProps) {
 
             <div>
               <Label htmlFor="location">所在地・エリア</Label>
-              <Input
-                id="location"
-                name="location"
-                placeholder="例: 北海道網走郡美幌町"
-              />
+              <Select value={location} onValueChange={setLocation}>
+                <SelectTrigger id="location">
+                  <SelectValue placeholder="エリアを選択" />
+                </SelectTrigger>
+                <SelectContent>
+                  {PROJECT_AREA_GROUPS.map((group) => (
+                    <SelectGroup key={group.name}>
+                      <SelectLabel className="font-bold text-muted-foreground">
+                        {group.name}
+                      </SelectLabel>
+                      {group.areas.map((area) => (
+                        <SelectItem key={area} value={area}>
+                          {area}
+                        </SelectItem>
+                      ))}
+                    </SelectGroup>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </CardContent>
         </Card>

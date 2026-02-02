@@ -518,3 +518,67 @@ export interface CalendarEventWithParticipants extends CalendarEvent {
   task?: Task | null;
   eventCategory?: EventCategory | null; // 区分マスタ情報
 }
+
+// ============================================
+// 業務エリア（市町村）
+// ============================================
+export interface AreaGroup {
+  name: string;
+  areas: string[];
+}
+
+export const PROJECT_AREA_GROUPS: AreaGroup[] = [
+  {
+    name: "オホーツク",
+    areas: [
+      "斜里町",
+      "清里町",
+      "小清水町",
+      "北見市",
+      "網走市",
+      "紋別市",
+      "美幌町",
+      "津別町",
+      "訓子府町",
+      "置戸町",
+      "佐呂間町",
+      "遠軽町",
+      "湧別町",
+    ],
+  },
+  {
+    name: "根室",
+    areas: [
+      "根室市",
+      "別海町",
+      "中標津町",
+      "標津町",
+      "羅臼町",
+    ],
+  },
+  {
+    name: "釧路",
+    areas: [
+      "釧路市",
+      "釧路町",
+      "厚岸町",
+      "浜中町",
+      "標茶町",
+      "弟子屈町",
+      "鶴居村",
+      "白糠町",
+    ],
+  },
+  {
+    name: "その他",
+    areas: [
+      "北海道内",
+      "北海道外",
+    ],
+  },
+];
+
+// フラットな市町村リスト（選択肢用）
+export const PROJECT_AREAS: string[] = PROJECT_AREA_GROUPS.flatMap(
+  (group) => group.areas
+);
