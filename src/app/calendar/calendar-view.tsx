@@ -460,28 +460,28 @@ export function CalendarView({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">
-                  <div className="flex items-center gap-2">
+                  <span className="flex items-center gap-2">
                     <UsersRound className="h-4 w-4" />
                     全員の予定
-                  </div>
+                  </span>
                 </SelectItem>
                 {currentEmployeeId && (
                   <SelectItem value="me">
-                    <div className="flex items-center gap-2">
+                    <span className="flex items-center gap-2">
                       <User className="h-4 w-4" />
                       自分の予定
-                    </div>
+                    </span>
                   </SelectItem>
                 )}
                 {sortedEmployees.map((emp) => (
                   <SelectItem key={emp.id} value={emp.id}>
-                    <div className="flex items-center gap-2">
+                    <span className="flex items-center gap-2">
                       <User className="h-4 w-4 opacity-50" />
                       {emp.name}
                       {emp.id === currentEmployeeId && (
                         <span className="text-xs text-muted-foreground">(自分)</span>
                       )}
-                    </div>
+                    </span>
                   </SelectItem>
                 ))}
               </SelectContent>
