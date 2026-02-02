@@ -7,6 +7,36 @@ const config: Config = {
     "./src/components/**/*.{js,ts,jsx,tsx,mdx}",
     "./src/app/**/*.{js,ts,jsx,tsx,mdx}",
   ],
+  // カレンダーイベント区分で使用する動的な背景色クラスをsafelistに追加
+  safelist: [
+    // 青系
+    "bg-blue-500",
+    "bg-blue-300",
+    "bg-indigo-500",
+    "bg-sky-500",
+    // 緑系
+    "bg-green-500",
+    "bg-green-300",
+    "bg-teal-500",
+    "bg-emerald-500",
+    // 暖色系
+    "bg-yellow-500",
+    "bg-orange-500",
+    "bg-red-500",
+    "bg-pink-500",
+    // 紫系
+    "bg-purple-500",
+    "bg-violet-500",
+    "bg-fuchsia-500",
+    // その他
+    "bg-cyan-500",
+    "bg-rose-500",
+    "bg-amber-500",
+    "bg-gray-500",
+    "bg-gray-400",
+    "bg-slate-500",
+    "bg-slate-400",
+  ],
   theme: {
     extend: {
       colors: {
