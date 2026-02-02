@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -31,6 +31,7 @@ interface EventModalProps {
   selectedDate: Date | null;
   event: CalendarEventWithParticipants | null;
   onSaved: () => void;
+  currentEmployeeId: string | null;
 }
 
 // 時間オプション (0-23)
@@ -60,9 +61,20 @@ export function EventModal({
   selectedDate,
   event,
   onSaved,
+  currentEmployeeId,
 }: EventModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // 社員リストをソート（ログインユーザーを先頭に）
+  const sortedEmployees = useMemo(() => {
+    if (!currentEmployeeId) return employees;
+    return [...employees].sort((a, b) => {
+      if (a.id === currentEmployeeId) return -1;
+      if (b.id === currentEmployeeId) return 1;
+      return 0; // 他は登録順のまま
+    });
+  }, [employees, currentEmployeeId]);
 
   // フォーム状態
   const [title, setTitle] = useState("");
@@ -510,7 +522,7 @@ export function EventModal({
           <div className="space-y-2">
             <Label>参加者</Label>
             <div className="border rounded-md p-3 max-h-32 overflow-y-auto space-y-2">
-              {employees.map((emp) => (
+              {sortedEmployees.map((emp) => (
                 <div key={emp.id} className="flex items-center gap-2">
                   <Checkbox
                     id={`participant-${emp.id}`}
@@ -522,6 +534,9 @@ export function EventModal({
                     className="cursor-pointer font-normal"
                   >
                     {emp.name}
+                    {emp.id === currentEmployeeId && (
+                      <span className="text-xs text-muted-foreground ml-1">(自分)</span>
+                    )}
                   </Label>
                 </div>
               ))}

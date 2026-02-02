@@ -88,6 +88,16 @@ export function CalendarView({
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [employeeFilter, setEmployeeFilter] = useState<EmployeeFilter>("all");
 
+  // 社員リストをソート（ログインユーザーを先頭に）
+  const sortedEmployees = useMemo(() => {
+    if (!currentEmployeeId) return employees;
+    return [...employees].sort((a, b) => {
+      if (a.id === currentEmployeeId) return -1;
+      if (b.id === currentEmployeeId) return 1;
+      return 0; // 他は登録順のまま
+    });
+  }, [employees, currentEmployeeId]);
+
   // フィルタリングされたイベント
   const filteredEvents = useMemo(() => {
     if (employeeFilter === "all") {
@@ -443,11 +453,14 @@ export function CalendarView({
                     </div>
                   </SelectItem>
                 )}
-                {employees.map((emp) => (
+                {sortedEmployees.map((emp) => (
                   <SelectItem key={emp.id} value={emp.id}>
                     <div className="flex items-center gap-2">
                       <User className="h-4 w-4 opacity-50" />
                       {emp.name}
+                      {emp.id === currentEmployeeId && (
+                        <span className="text-xs text-muted-foreground">(自分)</span>
+                      )}
                     </div>
                   </SelectItem>
                 ))}
@@ -519,6 +532,7 @@ export function CalendarView({
         selectedDate={selectedDate}
         event={selectedEvent}
         onSaved={handleEventUpdated}
+        currentEmployeeId={currentEmployeeId}
       />
 
       {/* イベント詳細モーダル */}
