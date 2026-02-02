@@ -5,6 +5,54 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { ProjectCategory, ProjectStatus, Contact, Account } from "@/types/database";
 
+// カテゴリからプレフィックス文字を取得
+const CATEGORY_PREFIX: Record<ProjectCategory, string> = {
+  A_Survey: "A",
+  B_Boundary: "B",
+  C_Registration: "C",
+  D_Inheritance: "D",
+  E_Corporate: "E",
+  F_Drone: "F",
+  N_Farmland: "N",
+};
+
+// 次の業務コードを取得
+export async function getNextProjectCode(category: ProjectCategory): Promise<string> {
+  const supabase = await createClient();
+  const prefix = CATEGORY_PREFIX[category];
+
+  // 当該カテゴリの最大コードを取得
+  const { data: projects, error } = await supabase
+    .from("projects")
+    .select("code")
+    .like("code", `${prefix}%`)
+    .order("code", { ascending: false })
+    .limit(1);
+
+  if (error) {
+    console.error("Error fetching max code:", error);
+  }
+
+  // 現在の年（西暦下2桁）
+  const currentYear = new Date().getFullYear() % 100;
+
+  if (!projects || projects.length === 0) {
+    // 該当カテゴリに業務がない場合、年度の初番号
+    return `${prefix}${currentYear}0001`;
+  }
+
+  const maxCode = projects[0].code;
+  // コードから数字部分を取得（例: A250080 -> 250080）
+  const numPart = maxCode.slice(1);
+  const numValue = parseInt(numPart, 10);
+
+  // 次の番号
+  const nextNum = numValue + 1;
+
+  // 7桁でゼロパディング
+  return `${prefix}${String(nextNum).padStart(7, "0")}`;
+}
+
 export interface CreateProjectData {
   code: string;
   category: ProjectCategory;

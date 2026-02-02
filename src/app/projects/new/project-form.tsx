@@ -32,6 +32,7 @@ import {
   createProject,
   createQuickAccount,
   createQuickIndividual,
+  getNextProjectCode,
   type CreateProjectData,
   type CustomerData,
   type AccountWithContacts,
@@ -52,10 +53,30 @@ export function ProjectForm({ customerData, employees }: ProjectFormProps) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [category, setCategory] = useState<ProjectCategory | "">("");
+  const [projectCode, setProjectCode] = useState<string>("");
+  const [isLoadingCode, setIsLoadingCode] = useState(false);
   const [status, setStatus] = useState<ProjectStatus>("受注");
   const [selectedAccountId, setSelectedAccountId] = useState<string>("");
   const [contactId, setContactId] = useState<string>("");
   const [managerId, setManagerId] = useState<string>("");
+
+  // カテゴリ変更時に業務コードを自動生成
+  const handleCategoryChange = async (val: ProjectCategory) => {
+    setCategory(val);
+    setDetails({});
+    setMonthlyAllocations({});
+
+    // 業務コードを取得
+    setIsLoadingCode(true);
+    try {
+      const nextCode = await getNextProjectCode(val);
+      setProjectCode(nextCode);
+    } catch (err) {
+      console.error("Error fetching next code:", err);
+    } finally {
+      setIsLoadingCode(false);
+    }
+  };
 
   // 顧客データを状態で管理（新規追加時に更新するため）
   const [accounts, setAccounts] = useState(customerData.accounts);
@@ -154,8 +175,13 @@ export function ProjectForm({ customerData, employees }: ProjectFormProps) {
       return;
     }
 
+    if (!projectCode.trim()) {
+      setError("業務コードを入力してください");
+      return;
+    }
+
     const data: CreateProjectData = {
-      code: formData.get("code") as string,
+      code: projectCode.trim(),
       category: category as ProjectCategory,
       name: formData.get("name") as string,
       status: status,
@@ -247,23 +273,10 @@ export function ProjectForm({ customerData, employees }: ProjectFormProps) {
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="code">業務コード *</Label>
-                <Input
-                  id="code"
-                  name="code"
-                  placeholder="例: A240001"
-                  required
-                />
-              </div>
-              <div>
                 <Label htmlFor="category">カテゴリ *</Label>
                 <Select
                   value={category}
-                  onValueChange={(val) => {
-                    setCategory(val as ProjectCategory);
-                    setDetails({});
-                    setMonthlyAllocations({});
-                  }}
+                  onValueChange={(val) => handleCategoryChange(val as ProjectCategory)}
                 >
                   <SelectTrigger id="category">
                     <SelectValue placeholder="カテゴリを選択" />
@@ -278,6 +291,23 @@ export function ProjectForm({ customerData, employees }: ProjectFormProps) {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              <div>
+                <Label htmlFor="code">業務コード *</Label>
+                <div className="relative">
+                  <Input
+                    id="code"
+                    name="code"
+                    placeholder={category ? "自動生成中..." : "カテゴリを先に選択"}
+                    value={projectCode}
+                    onChange={(e) => setProjectCode(e.target.value)}
+                    required
+                    disabled={isLoadingCode}
+                  />
+                  {isLoadingCode && (
+                    <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+                  )}
+                </div>
               </div>
             </div>
 
