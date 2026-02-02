@@ -582,3 +582,37 @@ export const PROJECT_AREA_GROUPS: AreaGroup[] = [
 export const PROJECT_AREAS: string[] = PROJECT_AREA_GROUPS.flatMap(
   (group) => group.areas
 );
+
+// ============================================
+// 業種マスタ（Industry）
+// ============================================
+export interface Industry {
+  id: string;
+  name: string;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IndustryInsert {
+  id?: string;
+  name: string;
+  sort_order?: number;
+}
+
+// デフォルトの業種リスト
+export const DEFAULT_INDUSTRIES = [
+  "官公署",
+  "建設業",
+  "ハウスメーカー",
+  "金融機関",
+  "不動産業",
+  "農協",
+  "漁協",
+  "農業",
+  "漁業",
+  "測量業",
+  "土地家屋調査士",
+  "司法書士",
+  "その他",
+];

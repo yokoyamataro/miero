@@ -2,7 +2,8 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import type { AccountInsert, ContactInsert, AccountWithContacts } from "@/types/database";
+import type { AccountInsert, ContactInsert, AccountWithContacts, Industry, IndustryInsert } from "@/types/database";
+import { DEFAULT_INDUSTRIES } from "@/types/database";
 
 export interface AccountFormData {
   company_name: string;
@@ -212,4 +213,107 @@ export async function deleteAccount(id: string) {
 
   revalidatePath("/accounts");
   return { success: true };
+}
+
+// ============================================
+// 業種マスタ
+// ============================================
+
+// 業種一覧を取得
+export async function getIndustries(): Promise<Industry[]> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("industries")
+    .select("*")
+    .order("sort_order", { ascending: true });
+
+  if (error) {
+    console.error("Error fetching industries:", error);
+    // テーブルがない場合はデフォルト値を返す
+    return DEFAULT_INDUSTRIES.map((name, index) => ({
+      id: `default-${index}`,
+      name,
+      sort_order: index,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }));
+  }
+
+  // データがない場合はデフォルト値を返す
+  if (!data || data.length === 0) {
+    return DEFAULT_INDUSTRIES.map((name, index) => ({
+      id: `default-${index}`,
+      name,
+      sort_order: index,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }));
+  }
+
+  return data as Industry[];
+}
+
+// 業種を追加
+export async function createIndustry(name: string): Promise<{
+  success?: boolean;
+  error?: string;
+  industry?: Industry;
+}> {
+  const supabase = await createClient();
+
+  // 最大のsort_orderを取得
+  const { data: maxOrder } = await supabase
+    .from("industries")
+    .select("sort_order")
+    .order("sort_order", { ascending: false })
+    .limit(1)
+    .single();
+
+  const newSortOrder = (maxOrder?.sort_order ?? DEFAULT_INDUSTRIES.length - 1) + 1;
+
+  const { data, error } = await supabase
+    .from("industries")
+    .insert({
+      name,
+      sort_order: newSortOrder,
+    } as never)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error creating industry:", error);
+    if (error.code === "23505") {
+      return { error: "同じ名前の業種が既に存在します" };
+    }
+    return { error: "業種の追加に失敗しました" };
+  }
+
+  revalidatePath("/accounts");
+  return { success: true, industry: data as Industry };
+}
+
+// デフォルト業種を初期化（テーブルが空の場合）
+export async function initializeDefaultIndustries(): Promise<void> {
+  const supabase = await createClient();
+
+  // 既存データを確認
+  const { data: existing } = await supabase
+    .from("industries")
+    .select("id")
+    .limit(1);
+
+  if (existing && existing.length > 0) {
+    return; // 既にデータがある
+  }
+
+  // デフォルト業種を挿入
+  const industriesToInsert = DEFAULT_INDUSTRIES.map((name, index) => ({
+    name,
+    sort_order: index,
+  }));
+
+  await supabase
+    .from("industries")
+    .insert(industriesToInsert as never);
 }

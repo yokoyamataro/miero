@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, Loader2, Trash2, Plus, X, Star } from "lucide-react";
-import type { AccountWithContacts } from "@/types/database";
+import type { AccountWithContacts, Industry } from "@/types/database";
 import {
   createAccount,
   updateAccount,
@@ -16,16 +16,19 @@ import {
   type AccountFormData,
   type ContactFormData,
 } from "./actions";
+import { IndustrySelect } from "./industry-select";
 
 interface AccountFormProps {
   account?: AccountWithContacts;
   isEdit?: boolean;
+  industries: Industry[];
 }
 
-export function AccountForm({ account, isEdit = false }: AccountFormProps) {
+export function AccountForm({ account, isEdit = false, industries }: AccountFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [industry, setIndustry] = useState<string>(account?.industry || "");
   const [contacts, setContacts] = useState<ContactFormData[]>(
     account?.contacts?.map((c) => ({
       id: c.id,
@@ -94,7 +97,7 @@ export function AccountForm({ account, isEdit = false }: AccountFormProps) {
       city: (formData.get("city") as string) || null,
       street: (formData.get("street") as string) || null,
       building: (formData.get("building") as string) || null,
-      industry: (formData.get("industry") as string) || null,
+      industry: industry || null,
       notes: (formData.get("notes") as string) || null,
     };
 
@@ -200,11 +203,10 @@ export function AccountForm({ account, isEdit = false }: AccountFormProps) {
               </div>
               <div>
                 <Label htmlFor="industry">業種</Label>
-                <Input
-                  id="industry"
-                  name="industry"
-                  placeholder="例: 建設業"
-                  defaultValue={account?.industry || ""}
+                <IndustrySelect
+                  industries={industries}
+                  value={industry}
+                  onChange={setIndustry}
                 />
               </div>
             </div>
