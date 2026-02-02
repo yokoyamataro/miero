@@ -16,9 +16,6 @@ export default async function Home() {
 
       <header className="mb-8">
         <h1 className="text-3xl font-bold text-primary">ダッシュボード</h1>
-        <p className="text-muted-foreground mt-2">
-          測量・登記・行政書士業務・ドローン事業を一元管理
-        </p>
       </header>
 
       <section className="mt-12">
