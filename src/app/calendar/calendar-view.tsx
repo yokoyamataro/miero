@@ -253,12 +253,14 @@ export function CalendarView({
       return (
         <div
           key={event.id}
-          className={`text-xs truncate px-1 py-0.5 rounded ${categoryColor} cursor-pointer hover:opacity-80`}
+          className="text-xs truncate cursor-pointer hover:opacity-80 flex items-center gap-1"
           onClick={(e) => handleEventClick(event, e)}
           title={event.title}
         >
-          {categoryName && <span className="text-white font-medium mr-1">[{categoryName}]</span>}
-          <span className="text-black">{timeStr && `${timeStr} `}{event.title}</span>
+          {categoryName && (
+            <span className={`${categoryColor} text-white px-1 rounded text-[10px] flex-shrink-0`}>{categoryName}</span>
+          )}
+          <span className="text-black truncate">{timeStr && `${timeStr} `}{event.title}</span>
         </div>
       );
     }
@@ -266,32 +268,34 @@ export function CalendarView({
     return (
       <div
         key={event.id}
-        className={`p-2 rounded ${categoryColor} cursor-pointer hover:opacity-80 mb-1`}
+        className="border rounded cursor-pointer hover:bg-muted/50 mb-1 overflow-hidden"
         onClick={(e) => handleEventClick(event, e)}
       >
         {categoryName && (
-          <div className="text-white text-xs font-medium mb-1">[{categoryName}]</div>
+          <div className={`${categoryColor} text-white text-xs font-medium px-2 py-0.5`}>{categoryName}</div>
         )}
-        <div className="font-medium text-black">{event.title}</div>
-        {event.start_time && (
-          <div className="text-sm flex items-center gap-1 mt-1 text-black">
-            <Clock className="h-3 w-3" />
-            {event.start_time.slice(0, 5)}
-            {event.end_time && ` - ${event.end_time.slice(0, 5)}`}
-          </div>
-        )}
-        {event.location && (
-          <div className="text-sm flex items-center gap-1 mt-1 text-black">
-            <MapPin className="h-3 w-3" />
-            <span className="truncate">{event.location}</span>
-          </div>
-        )}
-        {event.participants.length > 0 && (
-          <div className="text-sm flex items-center gap-1 mt-1 text-black">
-            <Users className="h-3 w-3" />
-            {event.participants.map((p) => p.name).join(", ")}
-          </div>
-        )}
+        <div className="p-2 bg-white">
+          <div className="font-medium text-black">{event.title}</div>
+          {event.start_time && (
+            <div className="text-sm flex items-center gap-1 mt-1 text-black">
+              <Clock className="h-3 w-3" />
+              {event.start_time.slice(0, 5)}
+              {event.end_time && ` - ${event.end_time.slice(0, 5)}`}
+            </div>
+          )}
+          {event.location && (
+            <div className="text-sm flex items-center gap-1 mt-1 text-black">
+              <MapPin className="h-3 w-3" />
+              <span className="truncate">{event.location}</span>
+            </div>
+          )}
+          {event.participants.length > 0 && (
+            <div className="text-sm flex items-center gap-1 mt-1 text-black">
+              <Users className="h-3 w-3" />
+              {event.participants.map((p) => p.name).join(", ")}
+            </div>
+          )}
+        </div>
       </div>
     );
   };
