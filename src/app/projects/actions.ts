@@ -359,3 +359,295 @@ export async function createQuickIndividual(data: QuickIndividualData): Promise<
     },
   };
 }
+
+// ============================================
+// CSVエクスポート・インポート
+// ============================================
+
+// CSVエクスポート用のデータ取得
+export async function getProjectsForExport(): Promise<{
+  success: boolean;
+  data?: string;
+  error?: string;
+}> {
+  const supabase = await createClient();
+
+  // 業務データを取得
+  const { data: projects, error } = await supabase
+    .from("projects")
+    .select("*")
+    .order("code", { ascending: true });
+
+  if (error) {
+    console.error("Error fetching projects for export:", error);
+    return { success: false, error: error.message };
+  }
+
+  // 連絡先を取得
+  const { data: contacts } = await supabase
+    .from("contacts" as never)
+    .select("*")
+    .is("deleted_at", null);
+
+  // 法人を取得
+  const { data: accountsData } = await supabase
+    .from("accounts" as never)
+    .select("*")
+    .is("deleted_at", null);
+
+  // 担当者を取得
+  const { data: employeesData } = await supabase
+    .from("employees")
+    .select("id, name");
+
+  type ContactType = { id: string; last_name: string; first_name: string; account_id: string | null };
+  type AccountType = { id: string; company_name: string };
+  type EmployeeType = { id: string; name: string };
+
+  const contactMap = ((contacts as ContactType[]) || []).reduce((acc, c) => {
+    acc[c.id] = c;
+    return acc;
+  }, {} as Record<string, ContactType>);
+
+  const accountMap = ((accountsData as AccountType[]) || []).reduce((acc, a) => {
+    acc[a.id] = a;
+    return acc;
+  }, {} as Record<string, AccountType>);
+
+  const employeeMap = ((employeesData as EmployeeType[]) || []).reduce((acc, e) => {
+    acc[e.id] = e;
+    return acc;
+  }, {} as Record<string, EmployeeType>);
+
+  // ヘルパー関数
+  const getContactName = (contactId: string | null) => {
+    if (!contactId) return "";
+    const contact = contactMap[contactId];
+    if (!contact) return "";
+    return `${contact.last_name} ${contact.first_name}`;
+  };
+
+  const getCompanyName = (contactId: string | null) => {
+    if (!contactId) return "";
+    const contact = contactMap[contactId];
+    if (!contact || !contact.account_id) return "";
+    const account = accountMap[contact.account_id];
+    return account?.company_name || "";
+  };
+
+  const getEmployeeName = (employeeId: string | null) => {
+    if (!employeeId) return "";
+    return employeeMap[employeeId]?.name || "";
+  };
+
+  // CSVヘッダー
+  const headers = [
+    "業務コード",
+    "カテゴリ",
+    "業務名",
+    "ステータス",
+    "法人名",
+    "顧客名",
+    "担当者",
+    "着手日",
+    "完了予定日",
+    "税抜報酬額",
+    "エリア",
+  ];
+
+  // CSVデータ行
+  const rows = (projects || []).map((project) => {
+    return [
+      project.code || "",
+      project.category || "",
+      project.name || "",
+      project.status || "",
+      getCompanyName(project.contact_id),
+      getContactName(project.contact_id),
+      getEmployeeName(project.manager_id),
+      project.start_date || "",
+      project.end_date || "",
+      project.fee_tax_excluded?.toString() || "",
+      project.location || "",
+    ];
+  });
+
+  // CSV文字列を生成
+  const escapeCSV = (value: string) => {
+    if (value.includes(",") || value.includes('"') || value.includes("\n")) {
+      return `"${value.replace(/"/g, '""')}"`;
+    }
+    return value;
+  };
+
+  const csvContent = [
+    headers.map(escapeCSV).join(","),
+    ...rows.map((row) => row.map(escapeCSV).join(",")),
+  ].join("\n");
+
+  return { success: true, data: csvContent };
+}
+
+// カテゴリ名からカテゴリコードへの変換マップ
+const CATEGORY_NAME_TO_CODE: Record<string, ProjectCategory> = {
+  "A_Survey": "A_Survey",
+  "B_Boundary": "B_Boundary",
+  "C_Registration": "C_Registration",
+  "D_Inheritance": "D_Inheritance",
+  "E_Corporate": "E_Corporate",
+  "F_Drone": "F_Drone",
+  "N_Farmland": "N_Farmland",
+};
+
+// ステータスの有効値
+const VALID_STATUSES: ProjectStatus[] = ["受注", "着手", "進行中", "完了", "請求済"];
+
+// CSVインポート
+export async function importProjectsFromCSV(csvContent: string): Promise<{
+  success: boolean;
+  imported: number;
+  errors: string[];
+}> {
+  const supabase = await createClient();
+  const errors: string[] = [];
+  let imported = 0;
+
+  // CSVをパース
+  const lines = csvContent.split("\n").filter((line) => line.trim());
+  if (lines.length < 2) {
+    return { success: false, imported: 0, errors: ["CSVにデータがありません"] };
+  }
+
+  // ヘッダー行をスキップしてデータ行を処理
+  const dataLines = lines.slice(1);
+
+  // 担当者マップを作成（名前 → ID）
+  const { data: employeesData } = await supabase.from("employees").select("id, name");
+  const employeeNameToId = ((employeesData as { id: string; name: string }[]) || []).reduce(
+    (acc, e) => {
+      acc[e.name] = e.id;
+      return acc;
+    },
+    {} as Record<string, string>
+  );
+
+  for (let i = 0; i < dataLines.length; i++) {
+    const lineNum = i + 2; // 1行目はヘッダーなので+2
+    const line = dataLines[i];
+
+    // CSVをパース（カンマ区切り、クォート対応）
+    const values: string[] = [];
+    let current = "";
+    let inQuotes = false;
+
+    for (let j = 0; j < line.length; j++) {
+      const char = line[j];
+      if (char === '"') {
+        if (inQuotes && line[j + 1] === '"') {
+          current += '"';
+          j++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (char === "," && !inQuotes) {
+        values.push(current.trim());
+        current = "";
+      } else {
+        current += char;
+      }
+    }
+    values.push(current.trim());
+
+    // 必須フィールドのチェック
+    const [code, category, name, status, , , managerName, startDate, endDate, fee, location] = values;
+
+    if (!code || !category || !name) {
+      errors.push(`${lineNum}行目: 業務コード、カテゴリ、業務名は必須です`);
+      continue;
+    }
+
+    // カテゴリの検証
+    const categoryCode = CATEGORY_NAME_TO_CODE[category];
+    if (!categoryCode) {
+      errors.push(`${lineNum}行目: 無効なカテゴリ「${category}」`);
+      continue;
+    }
+
+    // ステータスの検証
+    const validStatus = status && VALID_STATUSES.includes(status as ProjectStatus)
+      ? (status as ProjectStatus)
+      : "受注";
+
+    // 担当者のID取得
+    const managerId = managerName ? employeeNameToId[managerName] || null : null;
+
+    // 日付の検証
+    const isValidDate = (dateStr: string) => {
+      if (!dateStr) return true;
+      const date = new Date(dateStr);
+      return !isNaN(date.getTime());
+    };
+
+    if (!isValidDate(startDate)) {
+      errors.push(`${lineNum}行目: 無効な着手日「${startDate}」`);
+      continue;
+    }
+
+    if (!isValidDate(endDate)) {
+      errors.push(`${lineNum}行目: 無効な完了予定日「${endDate}」`);
+      continue;
+    }
+
+    // 金額の検証
+    const feeNumber = fee ? parseInt(fee, 10) : null;
+    if (fee && isNaN(feeNumber as number)) {
+      errors.push(`${lineNum}行目: 無効な報酬額「${fee}」`);
+      continue;
+    }
+
+    // 既存の業務コードをチェック（重複防止）
+    const { data: existing } = await supabase
+      .from("projects")
+      .select("id")
+      .eq("code", code)
+      .single();
+
+    if (existing) {
+      errors.push(`${lineNum}行目: 業務コード「${code}」は既に存在します`);
+      continue;
+    }
+
+    // データベースに挿入
+    const { error: insertError } = await supabase.from("projects").insert({
+      code,
+      category: categoryCode,
+      name,
+      status: validStatus,
+      contact_id: null,
+      manager_id: managerId,
+      start_date: startDate || null,
+      end_date: endDate || null,
+      fee_tax_excluded: feeNumber || 0,
+      location: location || null,
+      details: {},
+      monthly_allocations: {},
+    });
+
+    if (insertError) {
+      errors.push(`${lineNum}行目: ${insertError.message}`);
+      continue;
+    }
+
+    imported++;
+  }
+
+  if (imported > 0) {
+    revalidatePath("/projects");
+  }
+
+  return {
+    success: errors.length === 0,
+    imported,
+    errors,
+  };
+}

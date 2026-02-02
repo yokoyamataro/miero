@@ -11,6 +11,7 @@ import {
   type ProjectStatus,
 } from "@/types/database";
 import { ProjectFilters } from "./project-filters";
+import { CSVActions } from "./csv-actions";
 
 // 日付フォーマット
 function formatDate(dateStr: string | null): string {
@@ -101,12 +102,15 @@ export default async function ProjectsPage() {
           <h1 className="text-2xl font-bold">業務一覧</h1>
           <p className="text-muted-foreground">全業務の検索・閲覧・登録</p>
         </div>
-        <Link href="/projects/new">
-          <Button>
-            <Plus className="h-4 w-4 mr-2" />
-            新規登録
-          </Button>
-        </Link>
+        <div className="flex items-center gap-2">
+          <CSVActions />
+          <Link href="/projects/new">
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              新規登録
+            </Button>
+          </Link>
+        </div>
       </header>
 
       {/* フィルター */}
