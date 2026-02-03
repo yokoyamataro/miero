@@ -130,13 +130,18 @@ export function CSVActions() {
           <div className="space-y-4 py-4">
             {/* 説明 */}
             <div className="text-sm text-muted-foreground space-y-2">
-              <p>CSVファイルの形式:</p>
-              <ul className="list-disc list-inside space-y-1 ml-2">
-                <li>1行目: ヘッダー行（スキップされます）</li>
-                <li>必須列: 業務コード, カテゴリ, 業務名</li>
-                <li>カテゴリ: A_Survey, B_Boundary, C_Registration, D_Inheritance, E_Corporate, F_Drone, N_Farmland</li>
-                <li>ステータス: 受注, 着手, 進行中, 完了, 請求済</li>
-              </ul>
+              <p>以下のCSV形式に対応しています:</p>
+              <div className="space-y-2 ml-2">
+                <div>
+                  <p className="font-medium">業務管理CSV（自動判定）</p>
+                  <p className="text-xs">ID, 顧客, 業務名, 業務担当者, 進捗状況, 着手, 完了, 税抜報酬, 業務の区分, エリア</p>
+                </div>
+                <div>
+                  <p className="font-medium">標準CSV</p>
+                  <p className="text-xs">業務コード, カテゴリ, 業務名, ステータス, 法人名, 顧客名, 担当者, 着手日, 完了予定日, 税抜報酬額, エリア</p>
+                </div>
+              </div>
+              <p className="text-xs">※ 既存の業務コードと重複する行はスキップされます</p>
             </div>
 
             {/* ファイル選択 */}

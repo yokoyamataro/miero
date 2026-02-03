@@ -27,6 +27,50 @@ import {
 import { IndustrySelect } from "./industry-select";
 import { estimatePostalCode } from "@/lib/ai/postal-code";
 
+// 法人格のカナパターン（前方・後方どちらにも対応）
+const CORPORATE_TITLE_KANA = [
+  "カブシキガイシャ",
+  "カブシキ ガイシャ",
+  "ユウゲンガイシャ",
+  "ユウゲン ガイシャ",
+  "ゴウドウガイシャ",
+  "ゴウドウ ガイシャ",
+  "ゴウシガイシャ",
+  "ゴウシ ガイシャ",
+  "ゴウメイガイシャ",
+  "ゴウメイ ガイシャ",
+  "トクテイヒエイリカツドウホウジン",
+  "イッパンシャダンホウジン",
+  "コウエキシャダンホウジン",
+  "イッパンザイダンホウジン",
+  "コウエキザイダンホウジン",
+  "シャカイフクシホウジン",
+  "ガッコウホウジン",
+  "イリョウホウジン",
+  "ノウジクミアイホウジン",
+  "キョウドウクミアイ",
+  // カッコ付き略称
+  "（カ）",
+  "（ユ）",
+  "（ド）",
+  "(カ)",
+  "(ユ)",
+  "(ド)",
+];
+
+function stripCorporateTitleKana(value: string): string {
+  let result = value.trim();
+  for (const title of CORPORATE_TITLE_KANA) {
+    if (result.startsWith(title)) {
+      result = result.slice(title.length).trim();
+    }
+    if (result.endsWith(title)) {
+      result = result.slice(0, -title.length).trim();
+    }
+  }
+  return result;
+}
+
 interface AccountFormProps {
   account?: AccountWithContacts;
   isEdit?: boolean;
@@ -304,9 +348,15 @@ export function AccountForm({ account, isEdit = false, industries }: AccountForm
                 <Input
                   id="company_name_kana"
                   name="company_name_kana"
-                  placeholder="例: カブシキガイシャエービーシーケンセツ"
+                  placeholder="例: エービーシーケンセツ"
                   defaultValue={account?.company_name_kana || ""}
+                  onBlur={(e) => {
+                    e.target.value = stripCorporateTitleKana(e.target.value);
+                  }}
                 />
+                <p className="text-xs text-muted-foreground mt-1">
+                  ※ 法人格（カブシキガイシャ等）は除いて入力してください
+                </p>
               </div>
             </div>
 
