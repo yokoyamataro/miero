@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(npx next build)",
-      "Bash(taskkill:*)"
+      "Bash(taskkill:*)",
+      "Bash(git push:*)"
     ]
   }
 }

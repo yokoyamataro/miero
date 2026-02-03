@@ -2,10 +2,6 @@
 
 import Anthropic from "@anthropic-ai/sdk";
 
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
-
 export interface PostalCodeResult {
   postalCode: string | null;
   confidence: "high" | "medium" | "low";
@@ -21,7 +17,10 @@ export async function estimatePostalCode(
   city: string,
   street?: string
 ): Promise<PostalCodeResult> {
-  if (!process.env.ANTHROPIC_API_KEY) {
+  const apiKey = process.env.ANTHROPIC_API_KEY;
+
+  if (!apiKey) {
+    console.error("ANTHROPIC_API_KEY is not set. Available env vars:", Object.keys(process.env).filter(k => k.includes("ANTHROPIC") || k.includes("API")));
     return {
       postalCode: null,
       confidence: "low",
@@ -40,6 +39,11 @@ export async function estimatePostalCode(
   const address = [prefecture, city, street].filter(Boolean).join("");
 
   try {
+    // クライアントを関数内で初期化（環境変数の遅延読み込み対応）
+    const client = new Anthropic({
+      apiKey: apiKey,
+    });
+
     const message = await client.messages.create({
       model: "claude-3-5-haiku-20241022",
       max_tokens: 100,
