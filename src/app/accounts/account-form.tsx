@@ -312,13 +312,13 @@ export function AccountForm({ account, isEdit = false, industries }: AccountForm
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="corporate_number">会社法人等番号（12桁）</Label>
+                <Label htmlFor="corporate_number">法人番号（13桁）</Label>
                 <Input
                   id="corporate_number"
                   name="corporate_number"
-                  placeholder="例: 123456789012"
-                  maxLength={12}
-                  pattern="\d{12}"
+                  placeholder="例: 1234567890123"
+                  maxLength={13}
+                  pattern="\d{13}"
                   defaultValue={account?.corporate_number || ""}
                 />
               </div>
