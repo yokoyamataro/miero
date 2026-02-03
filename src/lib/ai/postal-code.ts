@@ -64,6 +64,8 @@ export async function estimatePostalCode(
     const responseText =
       message.content[0].type === "text" ? message.content[0].text.trim() : "";
 
+    console.log("Postal code estimation - Address:", address, "Response:", responseText);
+
     // 7桁の数字を抽出
     const postalCodeMatch = responseText.match(/\d{7}/);
 
@@ -77,7 +79,7 @@ export async function estimatePostalCode(
     return {
       postalCode: null,
       confidence: "low",
-      error: "郵便番号を特定できませんでした",
+      error: `郵便番号を特定できませんでした（住所: ${address}、応答: ${responseText}）`,
     };
   } catch (error) {
     console.error("Error estimating postal code:", error);
