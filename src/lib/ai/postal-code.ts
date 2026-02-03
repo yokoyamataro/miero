@@ -81,10 +81,11 @@ export async function estimatePostalCode(
     };
   } catch (error) {
     console.error("Error estimating postal code:", error);
+    const errorMessage = error instanceof Error ? error.message : String(error);
     return {
       postalCode: null,
       confidence: "low",
-      error: "API呼び出しに失敗しました",
+      error: `API呼び出しに失敗しました: ${errorMessage}`,
     };
   }
 }
