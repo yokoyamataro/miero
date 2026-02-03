@@ -45,19 +45,21 @@ export async function estimatePostalCode(
       apiKey: apiKey,
     });
 
+    const prompt = `以下の日本の住所の郵便番号を答えてください。
+郵便番号のみを7桁の数字（ハイフンなし）で回答してください。
+わからない場合は「不明」と回答してください。
+${companyName ? `\n会社名: ${companyName}` : ""}
+住所: ${address}
+
+郵便番号:`;
+
     const message = await client.messages.create({
       model: "claude-sonnet-4-20250514",
       max_tokens: 100,
       messages: [
         {
           role: "user",
-          content: `以下の日本の住所の郵便番号を答えてください。
-郵便番号のみを7桁の数字（ハイフンなし）で回答してください。
-わからない場合は「不明」と回答してください。
-${companyName ? `\n会社名: ${companyName}` : ""}
-住所: ${address}
-
-郵便番号:`,
+          content: prompt,
         },
       ],
     });
@@ -71,13 +73,13 @@ ${companyName ? `\n会社名: ${companyName}` : ""}
 
     if (postalCodeMatch && postalCodeMatch.length === 7) {
       const postalCode = postalCodeMatch;
-      return { postalCode, confidence: "medium" };
+      return { postalCode, confidence: "medium", error: `[デバッグ] プロンプト: ${prompt} | 応答: ${responseText}` };
     }
 
     return {
       postalCode: null,
       confidence: "low",
-      error: "郵便番号を特定できませんでした",
+      error: `郵便番号を特定できませんでした [デバッグ] プロンプト: ${prompt} | 応答: ${responseText}`,
     };
   } catch (error) {
     console.error("Error estimating postal code:", error);

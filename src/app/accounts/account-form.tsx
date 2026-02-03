@@ -229,7 +229,7 @@ export function AccountForm({ account, isEdit = false, industries }: AccountForm
           const formatted = result.postalCode.slice(0, 3) + "-" + result.postalCode.slice(3);
           postalCodeInput.value = formatted;
         }
-        setError("AIによる推定です。正確でない場合があるため確認してください。");
+        setError(result.error || "AIによる推定です。正確でない場合があるため確認してください。");
       } else {
         setError(result.error || "郵便番号を特定できませんでした");
       }
