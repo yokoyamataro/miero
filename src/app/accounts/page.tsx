@@ -21,6 +21,7 @@ export default async function AccountsPage() {
     .from("accounts" as never)
     .select("*")
     .is("deleted_at", null)
+    .order("company_name_kana", { ascending: true, nullsFirst: false })
     .order("company_name");
 
   const { data: allContacts } = await supabase
@@ -78,6 +79,7 @@ export default async function AccountsPage() {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-[40px]"></TableHead>
                 <TableHead>法人名</TableHead>
                 <TableHead>業種</TableHead>
                 <TableHead>主担当者</TableHead>
@@ -89,7 +91,7 @@ export default async function AccountsPage() {
             <TableBody>
               {accounts && (accounts as Account[]).length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                     法人データがありません。新規登録してください。
                   </TableCell>
                 </TableRow>
@@ -99,9 +101,15 @@ export default async function AccountsPage() {
                   const contacts = contactsByAccount[account.id] || [];
                   const primaryContact = contacts.find((c) => c.is_primary);
                   const contactCount = contacts.length;
+                  const initial = account.company_name_kana
+                    ? account.company_name_kana.charAt(0)
+                    : account.company_name.charAt(0);
 
                   return (
                     <TableRow key={account.id}>
+                      <TableCell className="text-center text-sm text-muted-foreground">
+                        {initial}
+                      </TableCell>
                       <TableCell className="font-medium">
                         {account.company_name}
                       </TableCell>
