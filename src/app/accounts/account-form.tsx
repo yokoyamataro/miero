@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Loader2, Trash2, Plus, X, Star, Building, Sparkles } from "lucide-react";
+import { ArrowLeft, Loader2, Trash2, Plus, X, Star, Building, Search } from "lucide-react";
 import type { AccountWithContacts, Industry } from "@/types/database";
 import {
   createAccount,
@@ -229,7 +229,7 @@ export function AccountForm({ account, isEdit = false, industries }: AccountForm
           const formatted = result.postalCode.slice(0, 3) + "-" + result.postalCode.slice(3);
           postalCodeInput.value = formatted;
         }
-        setError(result.error || "AIによる推定です。正確でない場合があるため確認してください。");
+        setError(null);
       } else {
         setError(result.error || "郵便番号を特定できませんでした");
       }
@@ -361,12 +361,12 @@ export function AccountForm({ account, isEdit = false, industries }: AccountForm
                     size="icon"
                     onClick={handleEstimatePostalCode}
                     disabled={estimatingPostalCode}
-                    title="住所から郵便番号を推定（AI）"
+                    title="住所から郵便番号を検索"
                   >
                     {estimatingPostalCode ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
-                      <Sparkles className="h-4 w-4" />
+                      <Search className="h-4 w-4" />
                     )}
                   </Button>
                 </div>
