@@ -10,7 +10,7 @@ export interface PostalCodeResult {
 
 /**
  * 住所から郵便番号を推定する
- * Claude Haikuを使用して低コストで実行
+ * Claude Sonnetを使用
  */
 export async function estimatePostalCode(
   prefecture: string,
@@ -46,7 +46,7 @@ export async function estimatePostalCode(
     });
 
     const message = await client.messages.create({
-      model: "claude-3-haiku-20240307",
+      model: "claude-sonnet-4-20250514",
       max_tokens: 100,
       messages: [
         {
