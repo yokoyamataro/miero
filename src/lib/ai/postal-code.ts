@@ -64,22 +64,19 @@ export async function estimatePostalCode(
     const responseText =
       message.content[0].type === "text" ? message.content[0].text.trim() : "";
 
-    console.log("Postal code estimation - Address:", address, "Response:", responseText);
+    // 7桁連続 or ハイフン付き（XXX-XXXX）の郵便番号を抽出
+    const postalCodeMatch = responseText.match(/(\d{7})/)?.[1]
+      || responseText.match(/(\d{3})-?(\d{4})/)?.[0]?.replace("-", "");
 
-    // 7桁の数字を抽出
-    const postalCodeMatch = responseText.match(/\d{7}/);
-
-    if (postalCodeMatch) {
-      const postalCode = postalCodeMatch[0];
-      // 番地まで入力されていれば高信頼度、市区町村までなら中信頼度
-      const confidence = street ? "high" : "medium";
-      return { postalCode, confidence };
+    if (postalCodeMatch && postalCodeMatch.length === 7) {
+      const postalCode = postalCodeMatch;
+      return { postalCode, confidence: "medium" };
     }
 
     return {
       postalCode: null,
       confidence: "low",
-      error: `郵便番号を特定できませんでした（住所: ${address}、応答: ${responseText}）`,
+      error: "郵便番号を特定できませんでした",
     };
   } catch (error) {
     console.error("Error estimating postal code:", error);

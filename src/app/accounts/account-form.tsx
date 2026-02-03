@@ -228,9 +228,7 @@ export function AccountForm({ account, isEdit = false, industries }: AccountForm
           const formatted = result.postalCode.slice(0, 3) + "-" + result.postalCode.slice(3);
           postalCodeInput.value = formatted;
         }
-        if (result.confidence === "medium") {
-          setError("郵便番号を推定しました（信頼度: 中）。番地まで入力するとより正確になります。");
-        }
+        setError("AIによる推定です。正確でない場合があるため確認してください。");
       } else {
         setError(result.error || "郵便番号を特定できませんでした");
       }
