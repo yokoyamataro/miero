@@ -1,7 +1,15 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { Plus, Pencil } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import type { EmployeeRole } from "@/types/database";
@@ -53,44 +61,48 @@ export default async function EmployeesPage() {
         </Card>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {employees && employees.length === 0 && (
-          <Card className="md:col-span-2 lg:col-span-3">
-            <CardContent className="pt-6">
-              <p className="text-center text-muted-foreground py-8">
-                社員データがありません。新規登録してください。
-              </p>
-            </CardContent>
-          </Card>
-        )}
-
-        {employees &&
-          employees.map((employee) => (
-            <Card key={employee.id} className="hover:shadow-md transition-shadow">
-              <CardHeader className="pb-2">
-                <div className="flex justify-between items-start">
-                  <CardTitle className="text-lg">{employee.name}</CardTitle>
-                  <Badge className={ROLE_COLORS[employee.role as EmployeeRole]}>
-                    {ROLE_LABELS[employee.role as EmployeeRole]}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <p className="text-sm text-muted-foreground mb-4">
-                  {employee.email}
-                </p>
-                <div className="flex justify-end">
-                  <Link href={`/employees/${employee.id}/edit`}>
-                    <Button variant="outline" size="sm">
-                      <Pencil className="h-4 w-4 mr-2" />
-                      編集
-                    </Button>
-                  </Link>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-      </div>
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>氏名</TableHead>
+                <TableHead>メールアドレス</TableHead>
+                <TableHead>権限</TableHead>
+                <TableHead className="w-[80px]"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {employees && employees.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                    社員データがありません。新規登録してください。
+                  </TableCell>
+                </TableRow>
+              )}
+              {employees &&
+                employees.map((employee) => (
+                  <TableRow key={employee.id}>
+                    <TableCell className="font-medium">{employee.name}</TableCell>
+                    <TableCell className="text-muted-foreground">{employee.email}</TableCell>
+                    <TableCell>
+                      <Badge className={ROLE_COLORS[employee.role as EmployeeRole]}>
+                        {ROLE_LABELS[employee.role as EmployeeRole]}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Link href={`/employees/${employee.id}/edit`}>
+                        <Button variant="ghost" size="sm">
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      </Link>
+                    </TableCell>
+                  </TableRow>
+                ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </main>
   );
 }

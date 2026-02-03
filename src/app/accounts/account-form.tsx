@@ -166,6 +166,7 @@ export function AccountForm({ account, isEdit = false, industries }: AccountForm
     const data: AccountFormData = {
       company_name: formData.get("company_name") as string,
       company_name_kana: (formData.get("company_name_kana") as string) || null,
+      corporate_number: (formData.get("corporate_number") as string) || null,
       main_phone: (formData.get("main_phone") as string) || null,
       postal_code: (formData.get("postal_code") as string) || null,
       prefecture: (formData.get("prefecture") as string) || null,
@@ -270,6 +271,17 @@ export function AccountForm({ account, isEdit = false, industries }: AccountForm
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
+                <Label htmlFor="corporate_number">会社法人等番号（12桁）</Label>
+                <Input
+                  id="corporate_number"
+                  name="corporate_number"
+                  placeholder="例: 123456789012"
+                  maxLength={12}
+                  pattern="\d{12}"
+                  defaultValue={account?.corporate_number || ""}
+                />
+              </div>
+              <div>
                 <Label htmlFor="main_phone">代表電話番号</Label>
                 <Input
                   id="main_phone"
@@ -278,6 +290,9 @@ export function AccountForm({ account, isEdit = false, industries }: AccountForm
                   defaultValue={account?.main_phone || ""}
                 />
               </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="industry">業種</Label>
                 <IndustrySelect

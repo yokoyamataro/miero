@@ -8,6 +8,7 @@ import { DEFAULT_INDUSTRIES } from "@/types/database";
 export interface AccountFormData {
   company_name: string;
   company_name_kana: string | null;
+  corporate_number: string | null;
   main_phone: string | null;
   postal_code: string | null;
   prefecture: string | null;
@@ -98,6 +99,7 @@ export async function createAccount(
   const accountInsert: AccountInsert = {
     company_name: data.company_name,
     company_name_kana: data.company_name_kana || null,
+    corporate_number: data.corporate_number || null,
     main_phone: data.main_phone || null,
     postal_code: data.postal_code || null,
     prefecture: data.prefecture || null,
@@ -194,6 +196,7 @@ export async function updateAccount(
     .update({
       company_name: data.company_name,
       company_name_kana: data.company_name_kana || null,
+      corporate_number: data.corporate_number || null,
       main_phone: data.main_phone || null,
       postal_code: data.postal_code || null,
       prefecture: data.prefecture || null,

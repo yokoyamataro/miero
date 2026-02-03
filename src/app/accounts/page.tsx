@@ -1,8 +1,16 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Plus, Pencil, Phone, MapPin, User, Users, Building2 } from "lucide-react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Plus, Pencil } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import type { Account, Contact } from "@/types/database";
 
@@ -65,102 +73,81 @@ export default async function AccountsPage() {
         </Card>
       )}
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {accounts && (accounts as Account[]).length === 0 && (
-          <Card className="md:col-span-2 lg:col-span-3">
-            <CardContent className="pt-6">
-              <p className="text-center text-muted-foreground py-8">
-                法人データがありません。新規登録してください。
-              </p>
-            </CardContent>
-          </Card>
-        )}
+      <Card>
+        <CardContent className="p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>法人名</TableHead>
+                <TableHead>業種</TableHead>
+                <TableHead>主担当者</TableHead>
+                <TableHead>電話番号</TableHead>
+                <TableHead>担当者数</TableHead>
+                <TableHead className="w-[80px]"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {accounts && (accounts as Account[]).length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                    法人データがありません。新規登録してください。
+                  </TableCell>
+                </TableRow>
+              )}
+              {accounts &&
+                (accounts as Account[]).map((account) => {
+                  const contacts = contactsByAccount[account.id] || [];
+                  const primaryContact = contacts.find((c) => c.is_primary);
+                  const contactCount = contacts.length;
 
-        {accounts &&
-          (accounts as Account[]).map((account) => {
-            const contacts = contactsByAccount[account.id] || [];
-            const primaryContact = contacts.find((c) => c.is_primary);
-            const contactCount = contacts.length;
-
-            const addressParts = [
-              account.prefecture,
-              account.city,
-              account.street,
-            ].filter(Boolean);
-            const address = addressParts.join("");
-
-            return (
-              <Card
-                key={account.id}
-                className="hover:shadow-md transition-shadow"
-              >
-                <CardHeader className="pb-2">
-                  <div className="flex justify-between items-start">
-                    <div className="flex items-center gap-2">
-                      <Building2 className="h-5 w-5 text-muted-foreground" />
-                      <CardTitle className="text-lg">
+                  return (
+                    <TableRow key={account.id}>
+                      <TableCell className="font-medium">
                         {account.company_name}
-                      </CardTitle>
-                    </div>
-                    {contactCount > 0 && (
-                      <Badge variant="secondary" className="text-xs">
-                        <Users className="h-3 w-3 mr-1" />
-                        {contactCount}名
-                      </Badge>
-                    )}
-                  </div>
-                  {account.industry && (
-                    <p className="text-xs text-muted-foreground">
-                      {account.industry}
-                    </p>
-                  )}
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-2 text-sm text-muted-foreground mb-4">
-                    {primaryContact && (
-                      <div className="flex items-center gap-2">
-                        <User className="h-4 w-4" />
-                        <span>
-                          {primaryContact.last_name} {primaryContact.first_name}
-                          {primaryContact.department && (
-                            <span className="text-xs ml-1">
-                              ({primaryContact.department})
-                            </span>
-                          )}
-                        </span>
-                      </div>
-                    )}
-                    {(primaryContact?.phone || account.main_phone) && (
-                      <div className="flex items-center gap-2">
-                        <Phone className="h-4 w-4" />
-                        <span>{primaryContact?.phone || account.main_phone}</span>
-                      </div>
-                    )}
-                    {address && (
-                      <div className="flex items-center gap-2">
-                        <MapPin className="h-4 w-4" />
-                        <span className="truncate">{address}</span>
-                      </div>
-                    )}
-                  </div>
-                  {account.notes && (
-                    <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
-                      {account.notes}
-                    </p>
-                  )}
-                  <div className="flex justify-end">
-                    <Link href={`/accounts/${account.id}/edit`}>
-                      <Button variant="outline" size="sm">
-                        <Pencil className="h-4 w-4 mr-2" />
-                        編集
-                      </Button>
-                    </Link>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-      </div>
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {account.industry || "-"}
+                      </TableCell>
+                      <TableCell>
+                        {primaryContact ? (
+                          <span>
+                            {primaryContact.last_name} {primaryContact.first_name}
+                            {primaryContact.department && (
+                              <span className="text-xs text-muted-foreground ml-1">
+                                ({primaryContact.department})
+                              </span>
+                            )}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {primaryContact?.phone || account.main_phone || "-"}
+                      </TableCell>
+                      <TableCell>
+                        {contactCount > 0 ? (
+                          <Badge variant="secondary" className="text-xs">
+                            {contactCount}名
+                          </Badge>
+                        ) : (
+                          <span className="text-muted-foreground">-</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        <Link href={`/accounts/${account.id}/edit`}>
+                          <Button variant="ghost" size="sm">
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        </Link>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
     </main>
   );
 }
