@@ -635,6 +635,53 @@ export interface IndustryInsert {
   sort_order?: number;
 }
 
+// ============================================
+// Stakeholder Tag (関係者タグマスタ)
+// ============================================
+export interface StakeholderTag {
+  id: string;
+  name: string;
+  color: string;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface StakeholderTagInsert {
+  id?: string;
+  name: string;
+  color: string;
+  sort_order?: number;
+}
+
+// ============================================
+// Project Stakeholder (業務の関係者)
+// ============================================
+export interface ProjectStakeholder {
+  id: string;
+  project_id: string;
+  contact_id: string;
+  tag_id: string;
+  note: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProjectStakeholderInsert {
+  id?: string;
+  project_id: string;
+  contact_id: string;
+  tag_id: string;
+  note?: string | null;
+}
+
+// 関係者（連絡先・法人・タグ情報付き）
+export interface ProjectStakeholderWithDetails extends ProjectStakeholder {
+  contact: Contact;
+  account: Account | null;
+  tag: StakeholderTag;
+}
+
 // デフォルトの業種リスト
 export const DEFAULT_INDUSTRIES = [
   "官公署",

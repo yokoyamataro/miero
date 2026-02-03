@@ -11,11 +11,14 @@ import {
   type Task,
   type Comment,
   type CommentAcknowledgement,
+  type StakeholderTag,
+  type ProjectStakeholderWithDetails,
 } from "@/types/database";
 import { TaskList } from "./task-list";
 import { CommentSection } from "./comment-section";
 import { ProjectInfo, type CustomerData, type CorporateContact } from "./project-info";
-import { getCurrentEmployeeId } from "./actions";
+import { StakeholderSection } from "./stakeholder-section";
+import { getCurrentEmployeeId, getStakeholderTags, getProjectStakeholders } from "./actions";
 
 
 
@@ -50,6 +53,8 @@ export default async function ProjectDetailPage({
     { data: allContacts },
     { data: allAccounts },
     currentEmployeeId,
+    stakeholderTags,
+    projectStakeholders,
   ] = await Promise.all([
     project.contact_id
       ? supabase.from("contacts" as never).select("*").eq("id", project.contact_id).single()
@@ -89,6 +94,8 @@ export default async function ProjectDetailPage({
     // 顧客選択用：全法人を取得
     supabase.from("accounts" as never).select("*").is("deleted_at", null),
     getCurrentEmployeeId(),
+    getStakeholderTags(),
+    getProjectStakeholders(id),
   ]);
 
   const typedProject = project as Project;
@@ -166,13 +173,19 @@ export default async function ProjectDetailPage({
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* 左カラム: 基本情報（インライン編集可能） */}
-        <div className="lg:col-span-1">
+        <div className="lg:col-span-1 space-y-6">
           <ProjectInfo
             project={typedProject}
             contact={typedContact}
             account={typedAccount}
             manager={typedManager}
             employees={typedEmployees}
+            customerData={customerData}
+          />
+          <StakeholderSection
+            projectId={id}
+            stakeholders={projectStakeholders}
+            tags={stakeholderTags}
             customerData={customerData}
           />
         </div>
