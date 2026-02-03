@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Loader2, Trash2, Plus, X, Star, Building } from "lucide-react";
+import { ArrowLeft, Loader2, Trash2, Plus, X, Star, Building, Sparkles } from "lucide-react";
 import type { AccountWithContacts, Industry } from "@/types/database";
 import {
   createAccount,
@@ -25,6 +25,7 @@ import {
   type BranchFormData,
 } from "./actions";
 import { IndustrySelect } from "./industry-select";
+import { estimatePostalCode } from "@/lib/ai/postal-code";
 
 interface AccountFormProps {
   account?: AccountWithContacts;
@@ -37,6 +38,7 @@ export function AccountForm({ account, isEdit = false, industries }: AccountForm
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [industry, setIndustry] = useState<string>(account?.industry || "");
+  const [estimatingPostalCode, setEstimatingPostalCode] = useState(false);
 
   // 支店の状態管理
   const [branches, setBranches] = useState<BranchFormData[]>(
@@ -199,6 +201,46 @@ export function AccountForm({ account, isEdit = false, industries }: AccountForm
     });
   };
 
+  // 住所から郵便番号を推定
+  const handleEstimatePostalCode = async () => {
+    const form = document.querySelector("form") as HTMLFormElement;
+    if (!form) return;
+
+    const formData = new FormData(form);
+    const prefecture = formData.get("prefecture") as string;
+    const city = formData.get("city") as string;
+    const street = formData.get("street") as string;
+
+    if (!prefecture || !city) {
+      setError("都道府県と市区町村を入力してください");
+      return;
+    }
+
+    setEstimatingPostalCode(true);
+    setError(null);
+
+    try {
+      const result = await estimatePostalCode(prefecture, city, street);
+      if (result.postalCode) {
+        const postalCodeInput = document.getElementById("postal_code") as HTMLInputElement;
+        if (postalCodeInput) {
+          // 郵便番号をフォーマット（XXX-XXXX）
+          const formatted = result.postalCode.slice(0, 3) + "-" + result.postalCode.slice(3);
+          postalCodeInput.value = formatted;
+        }
+        if (result.confidence === "medium") {
+          setError("郵便番号を推定しました（信頼度: 中）。番地まで入力するとより正確になります。");
+        }
+      } else {
+        setError(result.error || "郵便番号を特定できませんでした");
+      }
+    } catch {
+      setError("郵便番号の推定に失敗しました");
+    } finally {
+      setEstimatingPostalCode(false);
+    }
+  };
+
   const handleDelete = async () => {
     if (!account) return;
     if (
@@ -306,12 +348,29 @@ export function AccountForm({ account, isEdit = false, industries }: AccountForm
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
                 <Label htmlFor="postal_code">郵便番号</Label>
-                <Input
-                  id="postal_code"
-                  name="postal_code"
-                  placeholder="060-0001"
-                  defaultValue={account?.postal_code || ""}
-                />
+                <div className="flex gap-2">
+                  <Input
+                    id="postal_code"
+                    name="postal_code"
+                    placeholder="060-0001"
+                    defaultValue={account?.postal_code || ""}
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={handleEstimatePostalCode}
+                    disabled={estimatingPostalCode}
+                    title="住所から郵便番号を推定（AI）"
+                  >
+                    {estimatingPostalCode ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Sparkles className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
               </div>
               <div>
                 <Label htmlFor="prefecture">都道府県</Label>
