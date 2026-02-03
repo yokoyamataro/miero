@@ -15,7 +15,8 @@ export interface PostalCodeResult {
 export async function estimatePostalCode(
   prefecture: string,
   city: string,
-  street?: string
+  street?: string,
+  companyName?: string
 ): Promise<PostalCodeResult> {
   const apiKey = process.env.ANTHROPIC_API_KEY;
 
@@ -53,7 +54,7 @@ export async function estimatePostalCode(
           content: `以下の日本の住所の郵便番号を答えてください。
 郵便番号のみを7桁の数字（ハイフンなし）で回答してください。
 わからない場合は「不明」と回答してください。
-
+${companyName ? `\n会社名: ${companyName}` : ""}
 住所: ${address}
 
 郵便番号:`,

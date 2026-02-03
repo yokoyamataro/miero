@@ -207,6 +207,7 @@ export function AccountForm({ account, isEdit = false, industries }: AccountForm
     if (!form) return;
 
     const formData = new FormData(form);
+    const companyName = formData.get("company_name") as string;
     const prefecture = formData.get("prefecture") as string;
     const city = formData.get("city") as string;
     const street = formData.get("street") as string;
@@ -220,7 +221,7 @@ export function AccountForm({ account, isEdit = false, industries }: AccountForm
     setError(null);
 
     try {
-      const result = await estimatePostalCode(prefecture, city, street);
+      const result = await estimatePostalCode(prefecture, city, street, companyName);
       if (result.postalCode) {
         const postalCodeInput = document.getElementById("postal_code") as HTMLInputElement;
         if (postalCodeInput) {
