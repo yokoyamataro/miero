@@ -2,15 +2,22 @@
 -- カレンダーイベントのRLSポリシー修正
 -- ============================================
 
--- 既存のポリシーを削除
+-- 既存のポリシーを全て削除（新旧両方の名前に対応）
 DROP POLICY IF EXISTS "Everyone can view calendar events" ON calendar_events;
 DROP POLICY IF EXISTS "Authenticated users can create calendar events" ON calendar_events;
 DROP POLICY IF EXISTS "Creator can update their events" ON calendar_events;
 DROP POLICY IF EXISTS "Creator can delete their events" ON calendar_events;
+DROP POLICY IF EXISTS "calendar_events_select" ON calendar_events;
+DROP POLICY IF EXISTS "calendar_events_insert" ON calendar_events;
+DROP POLICY IF EXISTS "calendar_events_update" ON calendar_events;
+DROP POLICY IF EXISTS "calendar_events_delete" ON calendar_events;
 
 DROP POLICY IF EXISTS "Everyone can view event participants" ON calendar_event_participants;
 DROP POLICY IF EXISTS "Event creator can manage participants" ON calendar_event_participants;
 DROP POLICY IF EXISTS "Event creator can delete participants" ON calendar_event_participants;
+DROP POLICY IF EXISTS "calendar_event_participants_select" ON calendar_event_participants;
+DROP POLICY IF EXISTS "calendar_event_participants_insert" ON calendar_event_participants;
+DROP POLICY IF EXISTS "calendar_event_participants_delete" ON calendar_event_participants;
 
 -- RLSを一度無効化して再有効化
 ALTER TABLE calendar_events DISABLE ROW LEVEL SECURITY;

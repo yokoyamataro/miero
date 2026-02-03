@@ -15,14 +15,25 @@ import {
 
 // 現在のユーザーの社員IDを取得（内部用）
 async function getCurrentEmployeeIdInternal(supabase: Awaited<ReturnType<typeof createClient>>) {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError) {
+    console.error("Auth error:", authError);
+    return null;
+  }
+  if (!user) {
+    console.error("No user found");
+    return null;
+  }
 
-  const { data: employee } = await supabase
+  const { data: employee, error: empError } = await supabase
     .from("employees")
     .select("id")
     .eq("auth_id", user.id)
     .single();
+
+  if (empError) {
+    console.error("Employee lookup error:", empError, "auth_id:", user.id);
+  }
 
   return employee?.id || null;
 }
@@ -150,7 +161,7 @@ export async function createEvent(
 
   if (error) {
     console.error("Error creating event:", error);
-    return { error: "イベントの作成に失敗しました" };
+    return { error: `イベントの作成に失敗しました: ${error.message}` };
   }
 
   // 参加者を追加
