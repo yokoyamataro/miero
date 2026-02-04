@@ -10,7 +10,7 @@ import {
   type ProjectCategory,
   type ProjectStatus,
 } from "@/types/database";
-import { ProjectFilters, type FilterState } from "./project-filters";
+import { ProjectFilters, type FilterState, NULL_MARKER } from "./project-filters";
 
 interface ProjectData {
   id: string;
@@ -67,8 +67,10 @@ export function ProjectList({ projects, employees, contactDisplayMap, employeeMa
       }
 
       // カテゴリフィルタ（何も選択されていなければ全表示）
-      if (filters.categories.size > 0 && !filters.categories.has(p.category as ProjectCategory)) {
-        return false;
+      if (filters.categories.size > 0) {
+        const matchCategory = filters.categories.has(p.category as ProjectCategory);
+        const matchNull = !p.category && filters.categories.has(NULL_MARKER);
+        if (!matchCategory && !matchNull) return false;
       }
 
       // ステータスフィルタ（何も選択されていなければ全表示）
@@ -77,8 +79,10 @@ export function ProjectList({ projects, employees, contactDisplayMap, employeeMa
       }
 
       // 担当者フィルタ（何も選択されていなければ全表示）
-      if (filters.managerIds.size > 0 && (!p.manager_id || !filters.managerIds.has(p.manager_id))) {
-        return false;
+      if (filters.managerIds.size > 0) {
+        const matchManager = p.manager_id && filters.managerIds.has(p.manager_id);
+        const matchNull = !p.manager_id && filters.managerIds.has(NULL_MARKER);
+        if (!matchManager && !matchNull) return false;
       }
 
       return true;

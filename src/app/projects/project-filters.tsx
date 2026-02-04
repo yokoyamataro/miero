@@ -15,9 +15,11 @@ interface Employee {
   name: string;
 }
 
+export const NULL_MARKER = "__null__";
+
 export interface FilterState {
   search: string;
-  categories: Set<ProjectCategory>;
+  categories: Set<ProjectCategory | typeof NULL_MARKER>;
   statuses: Set<ProjectStatus>;
   managerIds: Set<string>;
 }
@@ -31,8 +33,12 @@ interface ProjectFiltersProps {
 const ALL_CATEGORIES = Object.keys(PROJECT_CATEGORY_LABELS) as ProjectCategory[];
 const ALL_STATUSES = Object.keys(PROJECT_STATUS_COLORS) as ProjectStatus[];
 
+const BTN_ACTIVE = "bg-foreground text-background border-foreground";
+const BTN_INACTIVE = "bg-background text-muted-foreground border-border hover:border-foreground/30";
+
 export function ProjectFilters({ employees, filters, onFiltersChange }: ProjectFiltersProps) {
-  const toggleCategory = (cat: ProjectCategory) => {
+  // カテゴリ
+  const toggleCategory = (cat: ProjectCategory | typeof NULL_MARKER) => {
     const next = new Set(filters.categories);
     if (next.has(cat)) {
       next.delete(cat);
@@ -42,6 +48,16 @@ export function ProjectFilters({ employees, filters, onFiltersChange }: ProjectF
     onFiltersChange({ ...filters, categories: next });
   };
 
+  const toggleAllCategories = () => {
+    const allItems = [...ALL_CATEGORIES, NULL_MARKER] as (ProjectCategory | typeof NULL_MARKER)[];
+    if (filters.categories.size === allItems.length) {
+      onFiltersChange({ ...filters, categories: new Set() });
+    } else {
+      onFiltersChange({ ...filters, categories: new Set(allItems) });
+    }
+  };
+
+  // ステータス
   const toggleStatus = (status: ProjectStatus) => {
     const next = new Set(filters.statuses);
     if (next.has(status)) {
@@ -52,6 +68,15 @@ export function ProjectFilters({ employees, filters, onFiltersChange }: ProjectF
     onFiltersChange({ ...filters, statuses: next });
   };
 
+  const toggleAllStatuses = () => {
+    if (filters.statuses.size === ALL_STATUSES.length) {
+      onFiltersChange({ ...filters, statuses: new Set() });
+    } else {
+      onFiltersChange({ ...filters, statuses: new Set(ALL_STATUSES) });
+    }
+  };
+
+  // 担当者
   const toggleManager = (id: string) => {
     const next = new Set(filters.managerIds);
     if (next.has(id)) {
@@ -62,9 +87,22 @@ export function ProjectFilters({ employees, filters, onFiltersChange }: ProjectF
     onFiltersChange({ ...filters, managerIds: next });
   };
 
+  const toggleAllManagers = () => {
+    const allIds = [...employees.map((e) => e.id), NULL_MARKER];
+    if (filters.managerIds.size === allIds.length) {
+      onFiltersChange({ ...filters, managerIds: new Set() });
+    } else {
+      onFiltersChange({ ...filters, managerIds: new Set(allIds) });
+    }
+  };
+
   const setSearch = (search: string) => {
     onFiltersChange({ ...filters, search });
   };
+
+  const allCategoriesSelected = filters.categories.size === ALL_CATEGORIES.length + 1;
+  const allStatusesSelected = filters.statuses.size === ALL_STATUSES.length;
+  const allManagersSelected = filters.managerIds.size === employees.length + 1;
 
   return (
     <Card className="mb-6">
@@ -84,6 +122,15 @@ export function ProjectFilters({ employees, filters, onFiltersChange }: ProjectF
         <div>
           <p className="text-xs text-muted-foreground mb-2">カテゴリ</p>
           <div className="flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={toggleAllCategories}
+              className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                allCategoriesSelected ? BTN_ACTIVE : BTN_INACTIVE
+              }`}
+            >
+              全て
+            </button>
             {ALL_CATEGORIES.map((cat) => {
               const active = filters.categories.has(cat);
               return (
@@ -92,15 +139,22 @@ export function ProjectFilters({ employees, filters, onFiltersChange }: ProjectF
                   type="button"
                   onClick={() => toggleCategory(cat)}
                   className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                    active
-                      ? "bg-blue-600 text-white border-blue-600"
-                      : "bg-background text-muted-foreground border-border hover:border-foreground/30"
+                    active ? BTN_ACTIVE : BTN_INACTIVE
                   }`}
                 >
                   {PROJECT_CATEGORY_LABELS[cat]}
                 </button>
               );
             })}
+            <button
+              type="button"
+              onClick={() => toggleCategory(NULL_MARKER)}
+              className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                filters.categories.has(NULL_MARKER) ? BTN_ACTIVE : BTN_INACTIVE
+              }`}
+            >
+              指定なし
+            </button>
           </div>
         </div>
 
@@ -108,18 +162,24 @@ export function ProjectFilters({ employees, filters, onFiltersChange }: ProjectF
         <div>
           <p className="text-xs text-muted-foreground mb-2">ステータス</p>
           <div className="flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={toggleAllStatuses}
+              className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                allStatusesSelected ? BTN_ACTIVE : BTN_INACTIVE
+              }`}
+            >
+              全て
+            </button>
             {ALL_STATUSES.map((status) => {
               const active = filters.statuses.has(status);
-              const colorClass = PROJECT_STATUS_COLORS[status];
               return (
                 <button
                   key={status}
                   type="button"
                   onClick={() => toggleStatus(status)}
                   className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                    active
-                      ? `${colorClass} border-transparent`
-                      : "bg-background text-muted-foreground border-border hover:border-foreground/30"
+                    active ? BTN_ACTIVE : BTN_INACTIVE
                   }`}
                 >
                   {status}
@@ -133,6 +193,15 @@ export function ProjectFilters({ employees, filters, onFiltersChange }: ProjectF
         <div>
           <p className="text-xs text-muted-foreground mb-2">担当者</p>
           <div className="flex flex-wrap gap-1.5">
+            <button
+              type="button"
+              onClick={toggleAllManagers}
+              className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                allManagersSelected ? BTN_ACTIVE : BTN_INACTIVE
+              }`}
+            >
+              全て
+            </button>
             {employees.map((emp) => {
               const active = filters.managerIds.has(emp.id);
               return (
@@ -141,15 +210,22 @@ export function ProjectFilters({ employees, filters, onFiltersChange }: ProjectF
                   type="button"
                   onClick={() => toggleManager(emp.id)}
                   className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                    active
-                      ? "bg-foreground text-background border-foreground"
-                      : "bg-background text-muted-foreground border-border hover:border-foreground/30"
+                    active ? BTN_ACTIVE : BTN_INACTIVE
                   }`}
                 >
                   {emp.name}
                 </button>
               );
             })}
+            <button
+              type="button"
+              onClick={() => toggleManager(NULL_MARKER)}
+              className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                filters.managerIds.has(NULL_MARKER) ? BTN_ACTIVE : BTN_INACTIVE
+              }`}
+            >
+              指定なし
+            </button>
           </div>
         </div>
       </CardContent>
