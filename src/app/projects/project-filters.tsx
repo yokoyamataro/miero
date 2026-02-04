@@ -20,7 +20,7 @@ export const NULL_MARKER = "__null__";
 export interface FilterState {
   search: string;
   categories: Set<ProjectCategory | typeof NULL_MARKER>;
-  statuses: Set<ProjectStatus>;
+  statuses: Set<ProjectStatus | typeof NULL_MARKER>;
   managerIds: Set<string>;
 }
 
@@ -58,7 +58,7 @@ export function ProjectFilters({ employees, filters, onFiltersChange }: ProjectF
   };
 
   // ステータス
-  const toggleStatus = (status: ProjectStatus) => {
+  const toggleStatus = (status: ProjectStatus | typeof NULL_MARKER) => {
     const next = new Set(filters.statuses);
     if (next.has(status)) {
       next.delete(status);
@@ -69,10 +69,11 @@ export function ProjectFilters({ employees, filters, onFiltersChange }: ProjectF
   };
 
   const toggleAllStatuses = () => {
-    if (filters.statuses.size === ALL_STATUSES.length) {
+    const allItems = [...ALL_STATUSES, NULL_MARKER] as (ProjectStatus | typeof NULL_MARKER)[];
+    if (filters.statuses.size === allItems.length) {
       onFiltersChange({ ...filters, statuses: new Set() });
     } else {
-      onFiltersChange({ ...filters, statuses: new Set(ALL_STATUSES) });
+      onFiltersChange({ ...filters, statuses: new Set(allItems) });
     }
   };
 
@@ -101,7 +102,7 @@ export function ProjectFilters({ employees, filters, onFiltersChange }: ProjectF
   };
 
   const allCategoriesSelected = filters.categories.size === ALL_CATEGORIES.length + 1;
-  const allStatusesSelected = filters.statuses.size === ALL_STATUSES.length;
+  const allStatusesSelected = filters.statuses.size === ALL_STATUSES.length + 1;
   const allManagersSelected = filters.managerIds.size === employees.length + 1;
 
   return (
@@ -186,6 +187,15 @@ export function ProjectFilters({ employees, filters, onFiltersChange }: ProjectF
                 </button>
               );
             })}
+            <button
+              type="button"
+              onClick={() => toggleStatus(NULL_MARKER)}
+              className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
+                filters.statuses.has(NULL_MARKER) ? BTN_ACTIVE : BTN_INACTIVE
+              }`}
+            >
+              指定なし
+            </button>
           </div>
         </div>
 

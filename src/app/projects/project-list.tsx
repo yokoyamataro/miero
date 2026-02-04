@@ -74,8 +74,10 @@ export function ProjectList({ projects, employees, contactDisplayMap, employeeMa
       }
 
       // ステータスフィルタ（何も選択されていなければ全表示）
-      if (filters.statuses.size > 0 && !filters.statuses.has(p.status as ProjectStatus)) {
-        return false;
+      if (filters.statuses.size > 0) {
+        const matchStatus = filters.statuses.has(p.status as ProjectStatus);
+        const matchNull = !p.status && filters.statuses.has(NULL_MARKER);
+        if (!matchStatus && !matchNull) return false;
       }
 
       // 担当者フィルタ（何も選択されていなければ全表示）
