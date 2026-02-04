@@ -66,8 +66,6 @@ export function ProjectForm({ customerData, employees }: ProjectFormProps) {
   const handleCategoryChange = async (val: ProjectCategory) => {
     setCategory(val);
     setDetails({});
-    setMonthlyAllocations({});
-
     // 業務コードを取得
     setIsLoadingCode(true);
     try {
@@ -103,14 +101,8 @@ export function ProjectForm({ customerData, employees }: ProjectFormProps) {
 
   // カテゴリ別詳細データ
   const [details, setDetails] = useState<Record<string, unknown>>({});
-  const [monthlyAllocations, setMonthlyAllocations] = useState<Record<string, number>>({});
-
   const updateDetails = (key: string, value: unknown) => {
     setDetails((prev) => ({ ...prev, [key]: value }));
-  };
-
-  const updateMonthlyAllocation = (month: string, value: number) => {
-    setMonthlyAllocations((prev) => ({ ...prev, [month]: value }));
   };
 
   // 新規法人追加
@@ -196,7 +188,6 @@ export function ProjectForm({ customerData, employees }: ProjectFormProps) {
         : null,
       location: location || null,
       details: details,
-      monthly_allocations: monthlyAllocations,
     };
 
     startTransition(async () => {
@@ -211,15 +202,7 @@ export function ProjectForm({ customerData, employees }: ProjectFormProps) {
   const renderCategoryFields = () => {
     switch (category) {
       case "A_Survey":
-        return (
-          <>
-            <SurveyFields details={details} updateDetails={updateDetails} />
-            <MonthlyAllocationFields
-              allocations={monthlyAllocations}
-              updateAllocation={updateMonthlyAllocation}
-            />
-          </>
-        );
+        return <SurveyFields details={details} updateDetails={updateDetails} />;
       case "B_Boundary":
         return <BoundaryFields details={details} updateDetails={updateDetails} />;
       case "C_Registration":
@@ -229,15 +212,7 @@ export function ProjectForm({ customerData, employees }: ProjectFormProps) {
       case "E_Corporate":
         return <CorporateFields details={details} updateDetails={updateDetails} />;
       case "F_Drone":
-        return (
-          <>
-            <DroneFields details={details} updateDetails={updateDetails} />
-            <MonthlyAllocationFields
-              allocations={monthlyAllocations}
-              updateAllocation={updateMonthlyAllocation}
-            />
-          </>
-        );
+        return <DroneFields details={details} updateDetails={updateDetails} />;
       case "N_Farmland":
         return <FarmlandFields details={details} updateDetails={updateDetails} />;
       default:
@@ -951,53 +926,3 @@ function FarmlandFields({ details, updateDetails }: FieldProps) {
   );
 }
 
-// 月次売上配分
-interface MonthlyAllocationFieldsProps {
-  allocations: Record<string, number>;
-  updateAllocation: (month: string, value: number) => void;
-}
-
-function MonthlyAllocationFields({
-  allocations,
-  updateAllocation,
-}: MonthlyAllocationFieldsProps) {
-  const currentYear = new Date().getFullYear();
-  const fiscalYear = new Date().getMonth() < 3 ? currentYear - 1 : currentYear;
-
-  const months = [
-    { key: `${fiscalYear}-04`, label: "4月" },
-    { key: `${fiscalYear}-05`, label: "5月" },
-    { key: `${fiscalYear}-06`, label: "6月" },
-    { key: `${fiscalYear}-07`, label: "7月" },
-    { key: `${fiscalYear}-08`, label: "8月" },
-    { key: `${fiscalYear}-09`, label: "9月" },
-    { key: `${fiscalYear}-10`, label: "10月" },
-    { key: `${fiscalYear}-11`, label: "11月" },
-    { key: `${fiscalYear}-12`, label: "12月" },
-    { key: `${fiscalYear + 1}-01`, label: "1月" },
-    { key: `${fiscalYear + 1}-02`, label: "2月" },
-    { key: `${fiscalYear + 1}-03`, label: "3月" },
-  ];
-
-  return (
-    <div className="space-y-4 mt-6">
-      <Label>月次売上配分（{fiscalYear}年度）</Label>
-      <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2">
-        {months.map((month) => (
-          <div key={month.key}>
-            <Label className="text-xs text-muted-foreground">{month.label}</Label>
-            <Input
-              type="number"
-              placeholder="0"
-              className="h-8 text-sm"
-              value={allocations[month.key] || ""}
-              onChange={(e) =>
-                updateAllocation(month.key, parseInt(e.target.value, 10) || 0)
-              }
-            />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}

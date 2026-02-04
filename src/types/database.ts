@@ -107,9 +107,6 @@ export type ProjectDetails =
   | DroneDetails
   | FarmlandDetails;
 
-// 月次売上配分
-export type MonthlyAllocations = Record<string, number>;
-
 // ============================================
 // Account (法人・組織)
 // ============================================
@@ -287,7 +284,6 @@ export interface Project {
   fee_tax_excluded: number | null;
   location: string | null;
   details: ProjectDetails;
-  monthly_allocations: MonthlyAllocations;
   created_at: string;
   updated_at: string;
 }
@@ -305,7 +301,6 @@ export interface ProjectInsert {
   fee_tax_excluded?: number | null;
   location?: string | null;
   details?: ProjectDetails;
-  monthly_allocations?: MonthlyAllocations;
 }
 
 // プロジェクト一覧用（JOINした結果）

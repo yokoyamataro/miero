@@ -77,7 +77,6 @@ CREATE TABLE projects (
   fee_tax_excluded INTEGER DEFAULT 0,
   location TEXT,
   details JSONB DEFAULT '{}',
-  monthly_allocations JSONB DEFAULT '{}',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -97,7 +96,6 @@ CREATE INDEX idx_projects_code ON projects(code);
 
 -- JSONB検索用インデックス
 CREATE INDEX idx_projects_details ON projects USING GIN (details);
-CREATE INDEX idx_projects_monthly_allocations ON projects USING GIN (monthly_allocations);
 
 -- 顧客テーブルのインデックス
 CREATE INDEX idx_customers_name ON customers(name);
@@ -198,7 +196,7 @@ INSERT INTO customers (name, representative, phone, address, notes) VALUES
   ('個人 - 山本様', '山本 四郎', '090-xxxx-xxxx', '北海道網走市xxx', NULL);
 
 -- サンプル業務
-INSERT INTO projects (code, category, name, status, customer_id, manager_id, start_date, end_date, fee_tax_excluded, location, details, monthly_allocations)
+INSERT INTO projects (code, category, name, status, customer_id, manager_id, start_date, end_date, fee_tax_excluded, location, details)
 SELECT
   'A240001',
   'A_Survey',
@@ -210,8 +208,7 @@ SELECT
   '2024-06-30',
   500000,
   '北海道網走郡美幌町',
-  '{"survey_type": "工事測量", "jv_name": null}'::jsonb,
-  '{"2024-04": 250000, "2024-05": 150000, "2024-06": 100000}'::jsonb
+  '{"survey_type": "工事測量", "jv_name": null}'::jsonb
 FROM customers c, employees e
 WHERE c.name = '株式会社ABC建設' AND e.email = 'yamada@example.com';
 

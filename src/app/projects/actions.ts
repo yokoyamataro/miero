@@ -65,7 +65,6 @@ export interface CreateProjectData {
   fee_tax_excluded: number | null;
   location: string | null;
   details: Record<string, unknown>;
-  monthly_allocations: Record<string, number>;
 }
 
 export async function createProject(data: CreateProjectData) {
@@ -83,7 +82,6 @@ export async function createProject(data: CreateProjectData) {
     fee_tax_excluded: data.fee_tax_excluded || 0,
     location: data.location || null,
     details: data.details,
-    monthly_allocations: data.monthly_allocations,
   });
 
   if (error) {
@@ -745,7 +743,6 @@ export async function importProjectsFromCSV(csvContent: string): Promise<{
         fee_tax_excluded: feeNumber || 0,
         location: area?.trim() || null,
         details,
-        monthly_allocations: {},
       });
 
       if (insertError) {
@@ -817,7 +814,6 @@ export async function importProjectsFromCSV(csvContent: string): Promise<{
         fee_tax_excluded: feeNumber || 0,
         location: location || null,
         details: {},
-        monthly_allocations: {},
       });
 
       if (insertError) {
