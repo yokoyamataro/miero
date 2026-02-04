@@ -6,6 +6,8 @@ import { createClient } from "@/lib/supabase/server";
 import { CSVActions } from "./csv-actions";
 import { ProjectList } from "./project-list";
 
+export const dynamic = "force-dynamic";
+
 export default async function ProjectsPage() {
   const supabase = await createClient();
 
