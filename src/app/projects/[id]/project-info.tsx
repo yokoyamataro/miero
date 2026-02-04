@@ -9,7 +9,9 @@ import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
+  SelectGroup,
   SelectItem,
+  SelectLabel,
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
@@ -33,6 +35,8 @@ import {
 import {
   PROJECT_CATEGORY_LABELS,
   PROJECT_STATUS_COLORS,
+  PROJECT_AREA_GROUPS,
+  type AreaGroup,
   type ProjectStatus,
   type Project,
   type Contact,
@@ -354,6 +358,7 @@ function EditableField({
   type = "text",
   onSave,
   options,
+  optionGroups,
   placeholder,
 }: {
   label: string;
@@ -363,6 +368,7 @@ function EditableField({
   type?: "text" | "date" | "number" | "select";
   onSave: (value: string) => void;
   options?: { value: string; label: string }[];
+  optionGroups?: { name: string; items: { value: string; label: string }[] }[];
   placeholder?: string;
 }) {
   const [isEditing, setIsEditing] = useState(false);
@@ -384,31 +390,47 @@ function EditableField({
     }
   };
 
+  const handleSelectChange = (val: string) => {
+    const resolved = val === "none" ? "" : val;
+    setInputValue(resolved);
+    onSave(resolved);
+    setIsEditing(false);
+  };
+
   return (
     <div className="flex items-start gap-3">
       <Icon className="h-5 w-5 text-muted-foreground mt-0.5" />
       <div className="flex-1">
         <div className="text-sm text-muted-foreground">{label}</div>
         {isEditing ? (
-          type === "select" && options ? (
+          type === "select" && (options || optionGroups) ? (
             <Select
-              value={inputValue}
-              onValueChange={(val) => {
-                setInputValue(val);
-                onSave(val);
-                setIsEditing(false);
-              }}
+              value={inputValue || "none"}
+              onValueChange={handleSelectChange}
             >
               <SelectTrigger className="h-8 mt-1">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">未選択</SelectItem>
-                {options.map((opt) => (
-                  <SelectItem key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </SelectItem>
-                ))}
+                {optionGroups
+                  ? optionGroups.map((group) => (
+                      <SelectGroup key={group.name}>
+                        <SelectLabel className="font-bold text-muted-foreground">
+                          {group.name}
+                        </SelectLabel>
+                        {group.items.map((item) => (
+                          <SelectItem key={item.value} value={item.value}>
+                            {item.label}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    ))
+                  : options?.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
               </SelectContent>
             </Select>
           ) : (
@@ -461,6 +483,8 @@ export function ProjectInfo({
       } else if (field === "manager_id" && value === "none") {
         updateValue = null;
       } else if ((field === "start_date" || field === "end_date") && !value) {
+        updateValue = null;
+      } else if ((field === "location" || field === "location_detail") && !value) {
         updateValue = null;
       }
 
@@ -580,8 +604,20 @@ export function ProjectInfo({
             label="所在地"
             value={project.location || ""}
             icon={MapPin}
+            type="select"
             onSave={(val) => handleUpdate("location", val)}
-            placeholder="所在地を入力"
+            optionGroups={PROJECT_AREA_GROUPS.map((group) => ({
+              name: group.name,
+              items: group.areas.map((area) => ({ value: area, label: area })),
+            }))}
+          />
+
+          <EditableField
+            label="字・町名以下"
+            value={project.location_detail || ""}
+            icon={MapPin}
+            onSave={(val) => handleUpdate("location_detail", val)}
+            placeholder="字・町名以下を入力"
           />
         </CardContent>
       </Card>

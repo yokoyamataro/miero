@@ -30,6 +30,7 @@ export async function updateProject(
     end_date?: string | null;
     fee_tax_excluded?: number | null;
     location?: string | null;
+    location_detail?: string | null;
   }
 ) {
   const supabase = await createClient();

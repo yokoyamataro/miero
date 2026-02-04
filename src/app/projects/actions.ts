@@ -64,6 +64,7 @@ export interface CreateProjectData {
   end_date: string | null;
   fee_tax_excluded: number | null;
   location: string | null;
+  location_detail: string | null;
   details: Record<string, unknown>;
 }
 
@@ -81,6 +82,7 @@ export async function createProject(data: CreateProjectData) {
     end_date: data.end_date || null,
     fee_tax_excluded: data.fee_tax_excluded || 0,
     location: data.location || null,
+    location_detail: data.location_detail || null,
     details: data.details,
   });
 
@@ -742,6 +744,7 @@ export async function importProjectsFromCSV(csvContent: string): Promise<{
         end_date: endDate,
         fee_tax_excluded: feeNumber || 0,
         location: area?.trim() || null,
+        location_detail: null,
         details,
       });
 
@@ -813,6 +816,7 @@ export async function importProjectsFromCSV(csvContent: string): Promise<{
         end_date: normalizedEnd,
         fee_tax_excluded: feeNumber || 0,
         location: location || null,
+        location_detail: null,
         details: {},
       });
 

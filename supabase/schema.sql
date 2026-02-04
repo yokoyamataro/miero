@@ -76,6 +76,7 @@ CREATE TABLE projects (
   end_date DATE,
   fee_tax_excluded INTEGER DEFAULT 0,
   location TEXT,
+  location_detail TEXT,
   details JSONB DEFAULT '{}',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

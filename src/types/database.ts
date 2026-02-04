@@ -283,6 +283,7 @@ export interface Project {
   end_date: string | null;
   fee_tax_excluded: number | null;
   location: string | null;
+  location_detail: string | null;
   details: ProjectDetails;
   created_at: string;
   updated_at: string;
@@ -300,6 +301,7 @@ export interface ProjectInsert {
   end_date?: string | null;
   fee_tax_excluded?: number | null;
   location?: string | null;
+  location_detail?: string | null;
   details?: ProjectDetails;
 }
 

@@ -61,6 +61,7 @@ export function ProjectForm({ customerData, employees }: ProjectFormProps) {
   const [contactId, setContactId] = useState<string>("");
   const [managerId, setManagerId] = useState<string>("");
   const [location, setLocation] = useState<string>("");
+  const [locationDetail, setLocationDetail] = useState<string>("");
 
   // カテゴリ変更時に業務コードを自動生成
   const handleCategoryChange = async (val: ProjectCategory) => {
@@ -187,6 +188,7 @@ export function ProjectForm({ customerData, employees }: ProjectFormProps) {
         ? parseInt(formData.get("fee_tax_excluded") as string, 10)
         : null,
       location: location || null,
+      location_detail: locationDetail || null,
       details: details,
     };
 
@@ -440,27 +442,38 @@ export function ProjectForm({ customerData, employees }: ProjectFormProps) {
               </div>
             </div>
 
-            <div>
-              <Label htmlFor="location">所在地・エリア</Label>
-              <Select value={location} onValueChange={setLocation}>
-                <SelectTrigger id="location">
-                  <SelectValue placeholder="エリアを選択" />
-                </SelectTrigger>
-                <SelectContent>
-                  {PROJECT_AREA_GROUPS.map((group) => (
-                    <SelectGroup key={group.name}>
-                      <SelectLabel className="font-bold text-muted-foreground">
-                        {group.name}
-                      </SelectLabel>
-                      {group.areas.map((area) => (
-                        <SelectItem key={area} value={area}>
-                          {area}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  ))}
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <Label htmlFor="location">所在地・エリア</Label>
+                <Select value={location} onValueChange={setLocation}>
+                  <SelectTrigger id="location">
+                    <SelectValue placeholder="エリアを選択" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PROJECT_AREA_GROUPS.map((group) => (
+                      <SelectGroup key={group.name}>
+                        <SelectLabel className="font-bold text-muted-foreground">
+                          {group.name}
+                        </SelectLabel>
+                        {group.areas.map((area) => (
+                          <SelectItem key={area} value={area}>
+                            {area}
+                          </SelectItem>
+                        ))}
+                      </SelectGroup>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div>
+                <Label htmlFor="location_detail">字・町名以下</Label>
+                <Input
+                  id="location_detail"
+                  placeholder="例: 朱円1番地"
+                  value={locationDetail}
+                  onChange={(e) => setLocationDetail(e.target.value)}
+                />
+              </div>
             </div>
           </CardContent>
         </Card>
