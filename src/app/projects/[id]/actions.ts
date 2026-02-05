@@ -12,8 +12,10 @@ import {
   type ProjectStakeholderWithDetails,
   type Contact,
   type Account,
-  type TaskTemplate,
-  type TaskTemplateInsert,
+  type TaskTemplateSet,
+  type TaskTemplateItem,
+  type TaskTemplateSetWithItems,
+  type Task,
 } from "@/types/database";
 
 // ============================================
@@ -164,97 +166,150 @@ export async function reorderTasks(
 }
 
 // ============================================
-// Task Template Actions
+// Task Template Set Actions
 // ============================================
 
-// テンプレート一覧取得
-export async function getTaskTemplates(): Promise<TaskTemplate[]> {
+// テンプレートセット一覧取得（アイテム含む）
+export async function getTaskTemplateSets(): Promise<TaskTemplateSetWithItems[]> {
   const supabase = await createClient();
 
-  const { data, error } = await supabase
-    .from("task_templates" as never)
+  // セット一覧を取得
+  const { data: sets, error: setsError } = await supabase
+    .from("task_template_sets" as never)
     .select("*")
-    .order("sort_order", { ascending: true });
+    .order("created_at", { ascending: false });
 
-  if (error) {
-    console.error("Error fetching task templates:", error);
+  if (setsError || !sets) {
+    console.error("Error fetching task template sets:", setsError);
     return [];
   }
 
-  return (data as TaskTemplate[]) || [];
+  // 各セットのアイテムを取得
+  const setIds = (sets as TaskTemplateSet[]).map((s) => s.id);
+  const { data: items, error: itemsError } = await supabase
+    .from("task_template_items" as never)
+    .select("*")
+    .in("set_id", setIds)
+    .order("sort_order", { ascending: true });
+
+  if (itemsError) {
+    console.error("Error fetching task template items:", itemsError);
+    return [];
+  }
+
+  // セットにアイテムを紐付け
+  const itemsBySetId = (items as TaskTemplateItem[] || []).reduce((acc, item) => {
+    if (!acc[item.set_id]) acc[item.set_id] = [];
+    acc[item.set_id].push(item);
+    return acc;
+  }, {} as Record<string, TaskTemplateItem[]>);
+
+  return (sets as TaskTemplateSet[]).map((set) => ({
+    ...set,
+    items: itemsBySetId[set.id] || [],
+  }));
 }
 
-// テンプレート作成（タスクからテンプレートを作成）
-export async function createTaskTemplate(
-  title: string,
-  estimatedMinutes: number | null
+// テンプレートセット作成（プロジェクトの全タスクから）
+export async function createTaskTemplateSetFromProject(
+  projectId: string,
+  setName: string
 ): Promise<{ success?: boolean; error?: string; id?: string }> {
   const supabase = await createClient();
 
-  // 最大のsort_orderを取得
-  const { data: maxOrder } = await supabase
-    .from("task_templates" as never)
-    .select("sort_order")
-    .order("sort_order", { ascending: false })
-    .limit(1)
-    .single();
+  // プロジェクトのタスクを取得
+  const { data: tasks, error: tasksError } = await supabase
+    .from("tasks" as never)
+    .select("*")
+    .eq("project_id", projectId)
+    .order("sort_order", { ascending: true });
 
-  const newSortOrder = ((maxOrder as { sort_order: number } | null)?.sort_order ?? -1) + 1;
+  if (tasksError) {
+    console.error("Error fetching tasks:", tasksError);
+    return { error: "タスクの取得に失敗しました" };
+  }
 
-  const { data: template, error } = await supabase
-    .from("task_templates" as never)
-    .insert({
-      title,
-      estimated_minutes: estimatedMinutes,
-      sort_order: newSortOrder,
-    } as never)
+  if (!tasks || (tasks as Task[]).length === 0) {
+    return { error: "保存するタスクがありません" };
+  }
+
+  // セットを作成
+  const { data: set, error: setError } = await supabase
+    .from("task_template_sets" as never)
+    .insert({ name: setName } as never)
     .select("id")
     .single();
 
-  if (error) {
-    console.error("Error creating task template:", error);
-    return { error: "テンプレートの作成に失敗しました" };
+  if (setError || !set) {
+    console.error("Error creating task template set:", setError);
+    return { error: "テンプレートセットの作成に失敗しました" };
   }
 
-  return { success: true, id: (template as { id: string }).id };
+  const setId = (set as { id: string }).id;
+
+  // アイテムを作成
+  const itemsToInsert = (tasks as Task[]).map((task, index) => ({
+    set_id: setId,
+    title: task.title,
+    estimated_minutes: task.estimated_minutes,
+    sort_order: index,
+  }));
+
+  const { error: itemsError } = await supabase
+    .from("task_template_items" as never)
+    .insert(itemsToInsert as never);
+
+  if (itemsError) {
+    console.error("Error creating task template items:", itemsError);
+    // セットを削除してロールバック
+    await supabase.from("task_template_sets" as never).delete().eq("id", setId);
+    return { error: "テンプレートアイテムの作成に失敗しました" };
+  }
+
+  return { success: true, id: setId };
 }
 
-// テンプレート削除
-export async function deleteTaskTemplate(
-  templateId: string
+// テンプレートセット削除
+export async function deleteTaskTemplateSet(
+  setId: string
 ): Promise<{ success?: boolean; error?: string }> {
   const supabase = await createClient();
 
+  // ON DELETE CASCADEでアイテムも自動削除される
   const { error } = await supabase
-    .from("task_templates" as never)
+    .from("task_template_sets" as never)
     .delete()
-    .eq("id", templateId);
+    .eq("id", setId);
 
   if (error) {
-    console.error("Error deleting task template:", error);
-    return { error: "テンプレートの削除に失敗しました" };
+    console.error("Error deleting task template set:", error);
+    return { error: "テンプレートセットの削除に失敗しました" };
   }
 
   return { success: true };
 }
 
-// テンプレートから複数タスクを一括作成
-export async function createTasksFromTemplates(
+// テンプレートセットからタスクを一括作成
+export async function createTasksFromTemplateSet(
   projectId: string,
-  templateIds: string[]
+  setId: string
 ): Promise<{ success?: boolean; error?: string; created?: number }> {
   const supabase = await createClient();
 
-  // 選択されたテンプレートを取得
-  const { data: templates, error: fetchError } = await supabase
-    .from("task_templates" as never)
+  // テンプレートアイテムを取得
+  const { data: items, error: fetchError } = await supabase
+    .from("task_template_items" as never)
     .select("*")
-    .in("id", templateIds)
+    .eq("set_id", setId)
     .order("sort_order", { ascending: true });
 
-  if (fetchError || !templates) {
-    console.error("Error fetching templates:", fetchError);
+  if (fetchError || !items) {
+    console.error("Error fetching template items:", fetchError);
     return { error: "テンプレートの取得に失敗しました" };
+  }
+
+  if ((items as TaskTemplateItem[]).length === 0) {
+    return { error: "テンプレートにタスクがありません" };
   }
 
   // 現在の最大sort_orderを取得
@@ -269,10 +324,10 @@ export async function createTasksFromTemplates(
   let currentSortOrder = ((maxOrder as { sort_order: number } | null)?.sort_order ?? -1) + 1;
 
   // タスクを作成
-  const tasksToInsert = (templates as TaskTemplate[]).map((template) => ({
+  const tasksToInsert = (items as TaskTemplateItem[]).map((item) => ({
     project_id: projectId,
-    title: template.title,
-    estimated_minutes: template.estimated_minutes,
+    title: item.title,
+    estimated_minutes: item.estimated_minutes,
     status: "未完了",
     sort_order: currentSortOrder++,
   }));
@@ -282,7 +337,7 @@ export async function createTasksFromTemplates(
     .insert(tasksToInsert as never);
 
   if (insertError) {
-    console.error("Error creating tasks from templates:", insertError);
+    console.error("Error creating tasks from template set:", insertError);
     return { error: "タスクの作成に失敗しました" };
   }
 

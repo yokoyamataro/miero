@@ -346,22 +346,40 @@ export interface TaskInsert {
 }
 
 // ============================================
-// Task Template (タスクテンプレート)
+// Task Template Set (タスクテンプレートセット)
 // ============================================
-export interface TaskTemplate {
+export interface TaskTemplateSet {
   id: string;
-  title: string;
-  estimated_minutes: number | null;
-  sort_order: number;
+  name: string;
   created_at: string;
   updated_at: string;
 }
 
-export interface TaskTemplateInsert {
+export interface TaskTemplateSetInsert {
   id?: string;
+  name: string;
+}
+
+export interface TaskTemplateItem {
+  id: string;
+  set_id: string;
+  title: string;
+  estimated_minutes: number | null;
+  sort_order: number;
+  created_at: string;
+}
+
+export interface TaskTemplateItemInsert {
+  id?: string;
+  set_id: string;
   title: string;
   estimated_minutes?: number | null;
   sort_order?: number;
+}
+
+// セット + アイテム一覧を含む型
+export interface TaskTemplateSetWithItems extends TaskTemplateSet {
+  items: TaskTemplateItem[];
 }
 
 

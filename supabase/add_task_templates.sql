@@ -1,15 +1,23 @@
--- タスクテンプレートテーブル
-CREATE TABLE IF NOT EXISTS task_templates (
+-- タスクテンプレートセットテーブル（テンプレートのグループ）
+CREATE TABLE IF NOT EXISTS task_template_sets (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  title TEXT NOT NULL,
-  estimated_minutes INTEGER,
-  sort_order INTEGER NOT NULL DEFAULT 0,
+  name TEXT NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- タスクテンプレートアイテムテーブル（セット内の個別タスク）
+CREATE TABLE IF NOT EXISTS task_template_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  set_id UUID NOT NULL REFERENCES task_template_sets(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  estimated_minutes INTEGER,
+  sort_order INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
 -- 更新日時の自動更新トリガー
-CREATE OR REPLACE FUNCTION update_task_templates_updated_at()
+CREATE OR REPLACE FUNCTION update_task_template_sets_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
   NEW.updated_at = NOW();
@@ -17,39 +25,66 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS task_templates_updated_at ON task_templates;
-CREATE TRIGGER task_templates_updated_at
-  BEFORE UPDATE ON task_templates
+DROP TRIGGER IF EXISTS task_template_sets_updated_at ON task_template_sets;
+CREATE TRIGGER task_template_sets_updated_at
+  BEFORE UPDATE ON task_template_sets
   FOR EACH ROW
-  EXECUTE FUNCTION update_task_templates_updated_at();
+  EXECUTE FUNCTION update_task_template_sets_updated_at();
 
 -- RLSを有効化
-ALTER TABLE task_templates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE task_template_sets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE task_template_items ENABLE ROW LEVEL SECURITY;
 
--- RLSポリシー（認証済みユーザーは全操作可能）
-CREATE POLICY "Authenticated users can read task_templates"
-  ON task_templates FOR SELECT
+-- RLSポリシー（task_template_sets）
+CREATE POLICY "Authenticated users can read task_template_sets"
+  ON task_template_sets FOR SELECT
   TO authenticated
   USING (true);
 
-CREATE POLICY "Authenticated users can insert task_templates"
-  ON task_templates FOR INSERT
+CREATE POLICY "Authenticated users can insert task_template_sets"
+  ON task_template_sets FOR INSERT
   TO authenticated
   WITH CHECK (true);
 
-CREATE POLICY "Authenticated users can update task_templates"
-  ON task_templates FOR UPDATE
+CREATE POLICY "Authenticated users can update task_template_sets"
+  ON task_template_sets FOR UPDATE
   TO authenticated
   USING (true)
   WITH CHECK (true);
 
-CREATE POLICY "Authenticated users can delete task_templates"
-  ON task_templates FOR DELETE
+CREATE POLICY "Authenticated users can delete task_template_sets"
+  ON task_template_sets FOR DELETE
+  TO authenticated
+  USING (true);
+
+-- RLSポリシー（task_template_items）
+CREATE POLICY "Authenticated users can read task_template_items"
+  ON task_template_items FOR SELECT
+  TO authenticated
+  USING (true);
+
+CREATE POLICY "Authenticated users can insert task_template_items"
+  ON task_template_items FOR INSERT
+  TO authenticated
+  WITH CHECK (true);
+
+CREATE POLICY "Authenticated users can update task_template_items"
+  ON task_template_items FOR UPDATE
+  TO authenticated
+  USING (true)
+  WITH CHECK (true);
+
+CREATE POLICY "Authenticated users can delete task_template_items"
+  ON task_template_items FOR DELETE
   TO authenticated
   USING (true);
 
 -- インデックス
-CREATE INDEX IF NOT EXISTS idx_task_templates_sort_order ON task_templates(sort_order);
+CREATE INDEX IF NOT EXISTS idx_task_template_items_set_id ON task_template_items(set_id);
+CREATE INDEX IF NOT EXISTS idx_task_template_items_sort_order ON task_template_items(sort_order);
+
+-- 旧テーブルが存在する場合は削除（新規作成の場合は不要）
+DROP TABLE IF EXISTS task_templates;
 
 -- tasksテーブルからstarted_at, completed_atカラムを削除（存在する場合）
 -- 注: 本番環境では既存データのバックアップを取ってから実行してください

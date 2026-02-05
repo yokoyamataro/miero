@@ -51,17 +51,17 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   type Task,
   type Employee,
-  type TaskTemplate,
+  type TaskTemplateSetWithItems,
 } from "@/types/database";
 import {
   createTask,
   updateTask,
   deleteTask,
   reorderTasks,
-  getTaskTemplates,
-  createTaskTemplate,
-  deleteTaskTemplate,
-  createTasksFromTemplates,
+  getTaskTemplateSets,
+  createTaskTemplateSetFromProject,
+  deleteTaskTemplateSet,
+  createTasksFromTemplateSet,
 } from "./actions";
 
 interface TaskListProps {
@@ -83,11 +83,9 @@ function formatMinutes(minutes: number | null): string {
 function SortableTaskItem({
   task,
   employees,
-  onSaveAsTemplate,
 }: {
   task: Task;
   employees: Employee[];
-  onSaveAsTemplate: (task: Task) => void;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -223,17 +221,6 @@ function SortableTaskItem({
             ) : null}
           </div>
         )}
-
-        {/* テンプレート保存ボタン */}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => onSaveAsTemplate(task)}
-          className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
-          title="テンプレートとして保存"
-        >
-          <Save className="h-4 w-4" />
-        </Button>
 
         {/* 期限 */}
         <div className="flex items-center gap-1 flex-shrink-0">
@@ -379,7 +366,7 @@ function CompleteTaskModal({
   );
 }
 
-// テンプレート選択モーダル
+// テンプレートセット選択モーダル
 function TemplateModal({
   projectId,
   open,
@@ -391,48 +378,37 @@ function TemplateModal({
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [templates, setTemplates] = useState<TaskTemplate[]>([]);
-  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [templateSets, setTemplateSets] = useState<TaskTemplateSetWithItems[]>([]);
   const [loading, setLoading] = useState(false);
+  const [expandedSetId, setExpandedSetId] = useState<string | null>(null);
 
   useEffect(() => {
     if (open) {
       setLoading(true);
-      getTaskTemplates().then((data) => {
-        setTemplates(data);
+      getTaskTemplateSets().then((data) => {
+        setTemplateSets(data);
         setLoading(false);
       });
-      setSelectedIds(new Set());
     }
   }, [open]);
 
-  const toggleSelect = (id: string) => {
-    setSelectedIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  };
-
-  const handleAddTasks = () => {
-    if (selectedIds.size === 0) return;
-
+  const handleLoadSet = (setId: string) => {
     startTransition(async () => {
-      await createTasksFromTemplates(projectId, Array.from(selectedIds));
-      router.refresh();
-      onOpenChange(false);
+      const result = await createTasksFromTemplateSet(projectId, setId);
+      if (result.success) {
+        router.refresh();
+        onOpenChange(false);
+      } else {
+        alert(result.error || "エラーが発生しました");
+      }
     });
   };
 
-  const handleDeleteTemplate = (templateId: string) => {
-    if (confirm("このテンプレートを削除しますか？")) {
+  const handleDeleteSet = (setId: string) => {
+    if (confirm("このテンプレートセットを削除しますか？")) {
       startTransition(async () => {
-        await deleteTaskTemplate(templateId);
-        setTemplates((prev) => prev.filter((t) => t.id !== templateId));
+        await deleteTaskTemplateSet(setId);
+        setTemplateSets((prev) => prev.filter((s) => s.id !== setId));
       });
     }
   };
@@ -441,41 +417,59 @@ function TemplateModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>テンプレートからタスクを追加</DialogTitle>
+          <DialogTitle>テンプレートからタスクを読み込み</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-2 max-h-64 overflow-y-auto">
+        <div className="space-y-2 max-h-80 overflow-y-auto">
           {loading ? (
             <p className="text-center text-muted-foreground py-4">読み込み中...</p>
-          ) : templates.length === 0 ? (
+          ) : templateSets.length === 0 ? (
             <p className="text-center text-muted-foreground py-4">
               テンプレートがありません。<br />
-              タスクの保存ボタンからテンプレートを作成できます。
+              「テンプレートとして保存」ボタンで現在のタスク一覧を保存できます。
             </p>
           ) : (
-            templates.map((template) => (
-              <div
-                key={template.id}
-                className="flex items-center gap-2 p-2 border rounded hover:bg-muted/50"
-              >
-                <Checkbox
-                  checked={selectedIds.has(template.id)}
-                  onCheckedChange={() => toggleSelect(template.id)}
-                />
-                <span className="flex-1">{template.title}</span>
-                {template.estimated_minutes && (
-                  <span className="text-xs text-muted-foreground">
-                    {formatMinutes(template.estimated_minutes)}
-                  </span>
+            templateSets.map((set) => (
+              <div key={set.id} className="border rounded p-2">
+                <div className="flex items-center gap-2">
+                  <button
+                    className="flex-1 text-left font-medium hover:underline"
+                    onClick={() => setExpandedSetId(expandedSetId === set.id ? null : set.id)}
+                  >
+                    {set.name}
+                    <span className="text-xs text-muted-foreground ml-2">
+                      ({set.items.length}件)
+                    </span>
+                  </button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleLoadSet(set.id)}
+                    disabled={isPending}
+                  >
+                    読込
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleDeleteSet(set.id)}
+                    className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                  >
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+                {expandedSetId === set.id && (
+                  <div className="mt-2 pl-2 border-l-2 space-y-1">
+                    {set.items.map((item) => (
+                      <div key={item.id} className="text-sm text-muted-foreground flex justify-between">
+                        <span>{item.title}</span>
+                        {item.estimated_minutes && (
+                          <span className="text-xs">{formatMinutes(item.estimated_minutes)}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => handleDeleteTemplate(template.id)}
-                  className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
-                >
-                  <Trash2 className="h-3 w-3" />
-                </Button>
               </div>
             ))
           )}
@@ -483,13 +477,81 @@ function TemplateModal({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
+            閉じる
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// テンプレート保存モーダル
+function SaveTemplateModal({
+  projectId,
+  taskCount,
+  open,
+  onOpenChange,
+}: {
+  projectId: string;
+  taskCount: number;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const [isPending, startTransition] = useTransition();
+  const [setName, setSetName] = useState("");
+
+  useEffect(() => {
+    if (open) {
+      setSetName("");
+    }
+  }, [open]);
+
+  const handleSave = () => {
+    if (!setName.trim()) {
+      alert("テンプレート名を入力してください");
+      return;
+    }
+
+    startTransition(async () => {
+      const result = await createTaskTemplateSetFromProject(projectId, setName.trim());
+      if (result.success) {
+        alert("テンプレートとして保存しました");
+        onOpenChange(false);
+      } else {
+        alert(result.error || "エラーが発生しました");
+      }
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>テンプレートとして保存</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            現在の{taskCount}件のタスクをテンプレートとして保存します。
+          </p>
+
+          <div className="space-y-2">
+            <Label>テンプレート名</Label>
+            <Input
+              value={setName}
+              onChange={(e) => setSetName(e.target.value)}
+              placeholder="例: 役員変更登記"
+              autoFocus
+            />
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
             キャンセル
           </Button>
-          <Button
-            onClick={handleAddTasks}
-            disabled={isPending || selectedIds.size === 0}
-          >
-            追加 ({selectedIds.size})
+          <Button onClick={handleSave} disabled={isPending || !setName.trim()}>
+            保存
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -504,6 +566,7 @@ export function TaskList({ projectId, tasks, employees }: TaskListProps) {
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [localTasks, setLocalTasks] = useState(tasks);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [showSaveModal, setShowSaveModal] = useState(false);
 
   // tasksが更新されたらlocalTasksも更新
   useEffect(() => {
@@ -559,17 +622,6 @@ export function TaskList({ projectId, tasks, employees }: TaskListProps) {
     }
   };
 
-  const handleSaveAsTemplate = (task: Task) => {
-    startTransition(async () => {
-      const result = await createTaskTemplate(task.title, task.estimated_minutes);
-      if (result.success) {
-        alert("テンプレートとして保存しました");
-      } else {
-        alert(result.error || "エラーが発生しました");
-      }
-    });
-  };
-
   // 進捗計算
   const completedCount = localTasks.filter((t) => t.status === "完了").length;
   const totalCount = localTasks.length;
@@ -587,14 +639,26 @@ export function TaskList({ projectId, tasks, employees }: TaskListProps) {
               </Badge>
             )}
           </CardTitle>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setShowTemplateModal(true)}
-          >
-            <BookTemplate className="h-4 w-4 mr-1" />
-            テンプレート
-          </Button>
+          <div className="flex gap-2">
+            {totalCount > 0 && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowSaveModal(true)}
+              >
+                <Save className="h-4 w-4 mr-1" />
+                保存
+              </Button>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowTemplateModal(true)}
+            >
+              <BookTemplate className="h-4 w-4 mr-1" />
+              読込
+            </Button>
+          </div>
         </div>
         {totalCount > 0 && (
           <div className="w-full bg-muted rounded-full h-2 mt-2">
@@ -626,7 +690,6 @@ export function TaskList({ projectId, tasks, employees }: TaskListProps) {
                 key={task.id}
                 task={task}
                 employees={employees}
-                onSaveAsTemplate={handleSaveAsTemplate}
               />
             ))}
           </SortableContext>
@@ -673,6 +736,14 @@ export function TaskList({ projectId, tasks, employees }: TaskListProps) {
         projectId={projectId}
         open={showTemplateModal}
         onOpenChange={setShowTemplateModal}
+      />
+
+      {/* テンプレート保存モーダル */}
+      <SaveTemplateModal
+        projectId={projectId}
+        taskCount={totalCount}
+        open={showSaveModal}
+        onOpenChange={setShowSaveModal}
       />
     </Card>
   );
