@@ -70,14 +70,23 @@ interface TaskListProps {
   employees: Employee[];
 }
 
-// 分を「時間:分」形式にフォーマット
-function formatMinutes(minutes: number | null): string {
+// 分を小数時間に変換してフォーマット（例: 90分 → "1.5h"）
+function formatHours(minutes: number | null): string {
   if (minutes === null || minutes === 0) return "-";
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-  if (hours === 0) return `${mins}分`;
-  if (mins === 0) return `${hours}時間`;
-  return `${hours}時間${mins}分`;
+  const hours = minutes / 60;
+  // 小数点以下1桁まで表示
+  return `${hours.toFixed(1)}h`;
+}
+
+// 小数時間を分に変換
+function hoursToMinutes(hours: number): number {
+  return Math.round(hours * 60);
+}
+
+// 分を小数時間に変換
+function minutesToHours(minutes: number | null): number {
+  if (minutes === null || minutes === 0) return 0;
+  return minutes / 60;
 }
 
 function SortableTaskItem({
@@ -92,6 +101,7 @@ function SortableTaskItem({
   const [isEditing, setIsEditing] = useState(false);
   const [title, setTitle] = useState(task.title);
   const [showTimeModal, setShowTimeModal] = useState(false);
+  const [showEditTimeModal, setShowEditTimeModal] = useState(false);
 
   const {
     attributes,
@@ -210,17 +220,21 @@ function SortableTaskItem({
           )}
         </div>
 
-        {/* 時間表示（コンパクト） */}
-        {hasTimeInfo && (
-          <div className="flex items-center gap-1 text-xs text-muted-foreground flex-shrink-0">
-            <Timer className="h-3 w-3" />
-            {task.actual_minutes ? (
-              <span>{formatMinutes(task.actual_minutes)}</span>
-            ) : task.estimated_minutes ? (
-              <span className="text-blue-500">予{formatMinutes(task.estimated_minutes)}</span>
-            ) : null}
-          </div>
-        )}
+        {/* 時間表示（クリックで編集） */}
+        <button
+          onClick={() => setShowEditTimeModal(true)}
+          className="flex items-center gap-1 text-xs text-muted-foreground flex-shrink-0 hover:text-foreground"
+          title="時間を編集"
+        >
+          <Timer className="h-3 w-3" />
+          {task.actual_minutes ? (
+            <span>{formatHours(task.actual_minutes)}</span>
+          ) : task.estimated_minutes ? (
+            <span className="text-blue-500">{formatHours(task.estimated_minutes)}</span>
+          ) : (
+            <span className="text-muted-foreground/50">--</span>
+          )}
+        </button>
 
         {/* 期限 */}
         <div className="flex items-center gap-1 flex-shrink-0">
@@ -270,7 +284,89 @@ function SortableTaskItem({
         open={showTimeModal}
         onOpenChange={setShowTimeModal}
       />
+
+      {/* 時間編集モーダル */}
+      <EditTimeModal
+        task={task}
+        open={showEditTimeModal}
+        onOpenChange={setShowEditTimeModal}
+      />
     </>
+  );
+}
+
+// 時間編集モーダル（標準時間を編集）
+function EditTimeModal({
+  task,
+  open,
+  onOpenChange,
+}: {
+  task: Task;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [estimatedHours, setEstimatedHours] = useState(
+    minutesToHours(task.estimated_minutes).toString()
+  );
+
+  useEffect(() => {
+    if (open) {
+      setEstimatedHours(minutesToHours(task.estimated_minutes).toString());
+    }
+  }, [open, task.estimated_minutes]);
+
+  const handleSave = () => {
+    startTransition(async () => {
+      const hours = parseFloat(estimatedHours) || 0;
+      const minutes = hours > 0 ? hoursToMinutes(hours) : null;
+      await updateTask(task.id, { estimated_minutes: minutes });
+      router.refresh();
+      onOpenChange(false);
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-xs">
+        <DialogHeader>
+          <DialogTitle>標準時間を編集</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground">{task.title}</p>
+
+          <div className="space-y-2">
+            <Label>標準時間（時間）</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                min="0"
+                step="0.5"
+                value={estimatedHours}
+                onChange={(e) => setEstimatedHours(e.target.value)}
+                className="w-24"
+                autoFocus
+              />
+              <span className="text-sm text-muted-foreground">時間</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              例: 1.5 = 1時間30分
+            </p>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            キャンセル
+          </Button>
+          <Button onClick={handleSave} disabled={isPending}>
+            保存
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -287,26 +383,23 @@ function CompleteTaskModal({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [actualHours, setActualHours] = useState(
-    task.estimated_minutes ? Math.floor(task.estimated_minutes / 60) : 0
-  );
-  const [actualMins, setActualMins] = useState(
-    task.estimated_minutes ? task.estimated_minutes % 60 : 0
+    minutesToHours(task.estimated_minutes).toString()
   );
 
   // 標準時間をデフォルト値としてセット
   useEffect(() => {
-    if (open && task.estimated_minutes) {
-      setActualHours(Math.floor(task.estimated_minutes / 60));
-      setActualMins(task.estimated_minutes % 60);
+    if (open) {
+      setActualHours(minutesToHours(task.estimated_minutes).toString());
     }
   }, [open, task.estimated_minutes]);
 
   const handleComplete = () => {
     startTransition(async () => {
-      const actualMinutes = actualHours * 60 + actualMins;
+      const hours = parseFloat(actualHours) || 0;
+      const actualMinutes = hours > 0 ? hoursToMinutes(hours) : null;
       await updateTask(task.id, {
         status: "完了",
-        actual_minutes: actualMinutes > 0 ? actualMinutes : null,
+        actual_minutes: actualMinutes,
       });
       router.refresh();
       onOpenChange(false);
@@ -315,7 +408,7 @@ function CompleteTaskModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-sm">
+      <DialogContent className="max-w-xs">
         <DialogHeader>
           <DialogTitle>タスク完了</DialogTitle>
         </DialogHeader>
@@ -325,31 +418,27 @@ function CompleteTaskModal({
 
           {task.estimated_minutes && (
             <p className="text-sm text-muted-foreground">
-              標準時間: {formatMinutes(task.estimated_minutes)}
+              標準時間: {formatHours(task.estimated_minutes)}
             </p>
           )}
 
           <div className="space-y-2">
-            <Label>実時間</Label>
+            <Label>実時間（時間）</Label>
             <div className="flex items-center gap-2">
               <Input
                 type="number"
                 min="0"
+                step="0.5"
                 value={actualHours}
-                onChange={(e) => setActualHours(parseInt(e.target.value) || 0)}
-                className="w-20"
+                onChange={(e) => setActualHours(e.target.value)}
+                className="w-24"
+                autoFocus
               />
-              <span className="text-sm">時間</span>
-              <Input
-                type="number"
-                min="0"
-                max="59"
-                value={actualMins}
-                onChange={(e) => setActualMins(parseInt(e.target.value) || 0)}
-                className="w-20"
-              />
-              <span className="text-sm">分</span>
+              <span className="text-sm text-muted-foreground">時間</span>
             </div>
+            <p className="text-xs text-muted-foreground">
+              例: 1.5 = 1時間30分
+            </p>
           </div>
         </div>
 
@@ -464,7 +553,7 @@ function TemplateModal({
                       <div key={item.id} className="text-sm text-muted-foreground flex justify-between">
                         <span>{item.title}</span>
                         {item.estimated_minutes && (
-                          <span className="text-xs">{formatMinutes(item.estimated_minutes)}</span>
+                          <span className="text-xs">{formatHours(item.estimated_minutes)}</span>
                         )}
                       </div>
                     ))}
@@ -559,14 +648,105 @@ function SaveTemplateModal({
   );
 }
 
+// タスク追加モーダル
+function AddTaskModal({
+  projectId,
+  open,
+  onOpenChange,
+}: {
+  projectId: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [title, setTitle] = useState("");
+  const [estimatedHours, setEstimatedHours] = useState("");
+
+  useEffect(() => {
+    if (open) {
+      setTitle("");
+      setEstimatedHours("");
+    }
+  }, [open]);
+
+  const handleAdd = () => {
+    if (!title.trim()) {
+      alert("タスク名を入力してください");
+      return;
+    }
+
+    startTransition(async () => {
+      const hours = parseFloat(estimatedHours) || 0;
+      const estimatedMinutes = hours > 0 ? hoursToMinutes(hours) : null;
+      await createTask({
+        project_id: projectId,
+        title: title.trim(),
+        estimated_minutes: estimatedMinutes,
+      });
+      router.refresh();
+      onOpenChange(false);
+    });
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>タスクを追加</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <Label>タスク名</Label>
+            <Input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="タスク名を入力..."
+              autoFocus
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label>標準時間（時間）</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                min="0"
+                step="0.5"
+                value={estimatedHours}
+                onChange={(e) => setEstimatedHours(e.target.value)}
+                placeholder="0"
+                className="w-24"
+              />
+              <span className="text-sm text-muted-foreground">時間</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              例: 1.5 = 1時間30分（省略可）
+            </p>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            キャンセル
+          </Button>
+          <Button onClick={handleAdd} disabled={isPending || !title.trim()}>
+            追加
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export function TaskList({ projectId, tasks, employees }: TaskListProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [isAddingTask, setIsAddingTask] = useState(false);
-  const [newTaskTitle, setNewTaskTitle] = useState("");
   const [localTasks, setLocalTasks] = useState(tasks);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [showSaveModal, setShowSaveModal] = useState(false);
+  const [showAddModal, setShowAddModal] = useState(false);
 
   // tasksが更新されたらlocalTasksも更新
   useEffect(() => {
@@ -604,20 +784,6 @@ export function TaskList({ projectId, tasks, employees }: TaskListProps) {
         });
 
         return newItems;
-      });
-    }
-  };
-
-  const handleAddTask = () => {
-    if (newTaskTitle.trim()) {
-      startTransition(async () => {
-        await createTask({
-          project_id: projectId,
-          title: newTaskTitle.trim(),
-        });
-        setNewTaskTitle("");
-        setIsAddingTask(false);
-        router.refresh();
       });
     }
   };
@@ -670,7 +836,7 @@ export function TaskList({ projectId, tasks, employees }: TaskListProps) {
         )}
       </CardHeader>
       <CardContent className="space-y-2">
-        {localTasks.length === 0 && !isAddingTask && (
+        {localTasks.length === 0 && (
           <p className="text-center text-muted-foreground py-4">
             タスクがありません
           </p>
@@ -695,40 +861,14 @@ export function TaskList({ projectId, tasks, employees }: TaskListProps) {
           </SortableContext>
         </DndContext>
 
-        {isAddingTask ? (
-          <div className="flex items-center gap-2 p-2 border rounded-lg">
-            <Input
-              value={newTaskTitle}
-              onChange={(e) => setNewTaskTitle(e.target.value)}
-              placeholder="タスクを入力..."
-              onKeyDown={(e) => e.key === "Enter" && handleAddTask()}
-              autoFocus
-              className="flex-1"
-              disabled={isPending}
-            />
-            <Button onClick={handleAddTask} disabled={isPending}>
-              追加
-            </Button>
-            <Button
-              variant="ghost"
-              onClick={() => {
-                setIsAddingTask(false);
-                setNewTaskTitle("");
-              }}
-            >
-              キャンセル
-            </Button>
-          </div>
-        ) : (
-          <Button
-            variant="outline"
-            className="w-full"
-            onClick={() => setIsAddingTask(true)}
-          >
-            <Plus className="h-4 w-4 mr-2" />
-            タスクを追加
-          </Button>
-        )}
+        <Button
+          variant="outline"
+          className="w-full"
+          onClick={() => setShowAddModal(true)}
+        >
+          <Plus className="h-4 w-4 mr-2" />
+          タスクを追加
+        </Button>
       </CardContent>
 
       {/* テンプレート選択モーダル */}
@@ -744,6 +884,13 @@ export function TaskList({ projectId, tasks, employees }: TaskListProps) {
         taskCount={totalCount}
         open={showSaveModal}
         onOpenChange={setShowSaveModal}
+      />
+
+      {/* タスク追加モーダル */}
+      <AddTaskModal
+        projectId={projectId}
+        open={showAddModal}
+        onOpenChange={setShowAddModal}
       />
     </Card>
   );
