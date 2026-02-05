@@ -91,7 +91,7 @@ interface ProjectInfoProps {
   customerData: CustomerData;
 }
 
-const PROJECT_STATUSES: ProjectStatus[] = ["受注", "着手", "進行中", "完了", "請求済"];
+const PROJECT_STATUSES: ProjectStatus[] = ["進行中", "完了"];
 
 // 日付フォーマット
 function formatDate(dateStr: string | null): string {

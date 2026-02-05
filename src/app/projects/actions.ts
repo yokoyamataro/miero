@@ -511,7 +511,7 @@ const CODE_PREFIX_TO_CATEGORY: Record<string, ProjectCategory> = {
 };
 
 // ステータスの有効値
-const VALID_STATUSES: ProjectStatus[] = ["受注", "着手", "進行中", "完了", "請求済"];
+const VALID_STATUSES: ProjectStatus[] = ["進行中", "完了"];
 
 // CSV行をパースするヘルパー
 function parseCSVLine(line: string): string[] {
@@ -647,14 +647,16 @@ export async function importProjectsFromCSV(csvContent: string): Promise<{
         continue;
       }
 
-      // ステータスのマッピング
-      let validStatus: ProjectStatus = "受注";
+      // ステータスのマッピング（旧ステータスも対応）
+      let validStatus: ProjectStatus = "進行中";
       if (statusRaw) {
         const statusTrimmed = statusRaw.trim();
         if (VALID_STATUSES.includes(statusTrimmed as ProjectStatus)) {
           validStatus = statusTrimmed as ProjectStatus;
-        } else if (statusTrimmed === "中止") {
+        } else if (statusTrimmed === "完了" || statusTrimmed === "中止" || statusTrimmed === "請求済") {
           validStatus = "完了";
+        } else if (statusTrimmed === "受注" || statusTrimmed === "着手") {
+          validStatus = "進行中";
         }
       }
 
@@ -777,14 +779,16 @@ export async function importProjectsFromCSV(csvContent: string): Promise<{
         continue;
       }
 
-      // ステータスのマッピング
-      let validStatus: ProjectStatus = "受注";
+      // ステータスのマッピング（旧ステータスも対応）
+      let validStatus: ProjectStatus = "進行中";
       if (statusRaw) {
         const statusTrimmed = statusRaw.trim();
         if (VALID_STATUSES.includes(statusTrimmed as ProjectStatus)) {
           validStatus = statusTrimmed as ProjectStatus;
-        } else if (statusTrimmed === "中止") {
-          validStatus = "完了"; // 中止は完了として扱う
+        } else if (statusTrimmed === "完了" || statusTrimmed === "中止" || statusTrimmed === "請求済") {
+          validStatus = "完了";
+        } else if (statusTrimmed === "受注" || statusTrimmed === "着手") {
+          validStatus = "進行中";
         }
       }
 
@@ -903,9 +907,18 @@ export async function importProjectsFromCSV(csvContent: string): Promise<{
         continue;
       }
 
-      const validStatus = status && VALID_STATUSES.includes(status as ProjectStatus)
-        ? (status as ProjectStatus)
-        : "受注";
+      // ステータスのマッピング（旧ステータスも対応）
+      let validStatus: ProjectStatus = "進行中";
+      if (status) {
+        const statusTrimmed = status.trim();
+        if (VALID_STATUSES.includes(statusTrimmed as ProjectStatus)) {
+          validStatus = statusTrimmed as ProjectStatus;
+        } else if (statusTrimmed === "完了" || statusTrimmed === "中止" || statusTrimmed === "請求済") {
+          validStatus = "完了";
+        } else if (statusTrimmed === "受注" || statusTrimmed === "着手") {
+          validStatus = "進行中";
+        }
+      }
 
       const managerId = managerName ? employeeNameToId[managerName] || null : null;
 

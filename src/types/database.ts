@@ -17,7 +17,7 @@ export type ProjectCategory =
   | "N_Farmland";
 
 // 業務ステータス
-export type ProjectStatus = "受注" | "着手" | "進行中" | "完了" | "請求済";
+export type ProjectStatus = "進行中" | "完了";
 
 // 社員権限
 export type EmployeeRole = "admin" | "manager" | "staff";
@@ -35,11 +35,8 @@ export const PROJECT_CATEGORY_LABELS: Record<ProjectCategory, string> = {
 
 // ステータスバッジカラー
 export const PROJECT_STATUS_COLORS: Record<ProjectStatus, string> = {
-  受注: "bg-blue-100 text-blue-800",
-  着手: "bg-yellow-100 text-yellow-800",
   進行中: "bg-green-100 text-green-800",
   完了: "bg-gray-100 text-gray-800",
-  請求済: "bg-purple-100 text-purple-800",
 };
 
 // JSONB details 型定義

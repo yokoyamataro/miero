@@ -56,7 +56,7 @@ export function ProjectForm({ customerData, employees }: ProjectFormProps) {
   const [category, setCategory] = useState<ProjectCategory | "">("");
   const [projectCode, setProjectCode] = useState<string>("");
   const [isLoadingCode, setIsLoadingCode] = useState(false);
-  const [status, setStatus] = useState<ProjectStatus>("受注");
+  const [status, setStatus] = useState<ProjectStatus>("進行中");
   const [selectedAccountId, setSelectedAccountId] = useState<string>("");
   const [contactId, setContactId] = useState<string>("");
   const [managerId, setManagerId] = useState<string>("");
@@ -308,11 +308,8 @@ export function ProjectForm({ customerData, employees }: ProjectFormProps) {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="受注">受注</SelectItem>
-                    <SelectItem value="着手">着手</SelectItem>
                     <SelectItem value="進行中">進行中</SelectItem>
                     <SelectItem value="完了">完了</SelectItem>
-                    <SelectItem value="請求済">請求済</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
