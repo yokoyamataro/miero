@@ -302,12 +302,8 @@ export async function getEvent(eventId: string): Promise<CalendarEventWithPartic
 }
 
 // 進行中の業務とタスクを取得
-export type TaskWithChildren = Task & {
-  children: Task[];
-};
-
 export type ProjectWithTasks = Project & {
-  tasks: TaskWithChildren[];
+  tasks: Task[];
 };
 
 export async function getActiveProjectsWithTasks(): Promise<ProjectWithTasks[]> {
@@ -329,32 +325,23 @@ export async function getActiveProjectsWithTasks(): Promise<ProjectWithTasks[]> 
     return [];
   }
 
-  // 各業務のタスクを取得（未完了のもの、親タスクとサブタスク両方）
+  // 各業務のタスクを取得（未完了のもの）
   const projectIds = projects.map((p) => p.id);
   const { data: tasks, error: tasksError } = await supabase
     .from("tasks" as never)
     .select("*")
     .in("project_id", projectIds)
-    .in("status", ["未着手", "進行中"])
+    .eq("status", "未完了")
     .order("sort_order", { ascending: true });
 
-  // タスクを親子関係で整理
   const allTasks = (tasks as Task[]) || [];
-  const parentTasks = allTasks.filter((t) => !t.parent_id);
-  const childTasks = allTasks.filter((t) => t.parent_id);
-
-  // 親タスクにサブタスクを紐付け
-  const tasksWithChildren: TaskWithChildren[] = parentTasks.map((parent) => ({
-    ...parent,
-    children: childTasks.filter((child) => child.parent_id === parent.id),
-  }));
 
   // プロジェクトにタスクを紐付け
-  const tasksByProjectId = tasksWithChildren.reduce((acc, task) => {
+  const tasksByProjectId = allTasks.reduce((acc, task) => {
     if (!acc[task.project_id]) acc[task.project_id] = [];
     acc[task.project_id].push(task);
     return acc;
-  }, {} as Record<string, TaskWithChildren[]>);
+  }, {} as Record<string, Task[]>);
 
   return (projects as Project[]).map((project) => ({
     ...project,

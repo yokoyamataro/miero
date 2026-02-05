@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -14,17 +15,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
-  ChevronDown,
-  ChevronRight,
   Plus,
   Trash2,
   Calendar,
-  User,
-  CheckCircle2,
-  Circle,
-  Clock,
-  Play,
-  Square,
   Timer,
   Settings2,
   GripVertical,
@@ -55,27 +48,15 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import {
   type Task,
-  type TaskStatus,
   type Employee,
-  TASK_STATUS_COLORS,
 } from "@/types/database";
 import { createTask, updateTask, deleteTask, reorderTasks } from "./actions";
 
-interface TaskWithSubtasks extends Task {
-  subtasks: Task[];
-}
-
 interface TaskListProps {
   projectId: string;
-  tasks: TaskWithSubtasks[];
+  tasks: Task[];
   employees: Employee[];
 }
-
-const STATUS_ICONS: Record<TaskStatus, React.ReactNode> = {
-  未着手: <Circle className="h-4 w-4 text-gray-400" />,
-  進行中: <Clock className="h-4 w-4 text-blue-500" />,
-  完了: <CheckCircle2 className="h-4 w-4 text-green-500" />,
-};
 
 // 分を「時間:分」形式にフォーマット
 function formatMinutes(minutes: number | null): string {
@@ -99,16 +80,12 @@ function formatDateTime(dateStr: string | null): string {
   });
 }
 
-function TaskItem({
+function SortableTaskItem({
   task,
   employees,
-  projectId,
-  isSubtask = false,
 }: {
   task: Task;
   employees: Employee[];
-  projectId: string;
-  isSubtask?: boolean;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -116,16 +93,29 @@ function TaskItem({
   const [title, setTitle] = useState(task.title);
   const [showTimeModal, setShowTimeModal] = useState(false);
 
-  const handleStatusChange = (newStatus: TaskStatus) => {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: task.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  const isCompleted = task.status === "完了";
+
+  const handleToggleComplete = () => {
     startTransition(async () => {
-      // ステータス変更時に時間も自動更新
+      const newStatus = isCompleted ? "未完了" : "完了";
       const updates: Parameters<typeof updateTask>[1] = { status: newStatus };
 
-      if (newStatus === "進行中" && !task.started_at) {
-        // 進行中に変更時、開始時刻を自動設定
-        updates.started_at = new Date().toISOString();
-      } else if (newStatus === "完了" && !task.completed_at) {
-        // 完了に変更時、終了時刻と所要時間を自動設定
+      if (newStatus === "完了" && !task.completed_at) {
         updates.completed_at = new Date().toISOString();
         if (task.started_at) {
           const startedAt = new Date(task.started_at);
@@ -173,40 +163,9 @@ function TaskItem({
     });
   };
 
-  // 開始ボタン
-  const handleStart = () => {
-    startTransition(async () => {
-      await updateTask(task.id, {
-        status: "進行中",
-        started_at: new Date().toISOString(),
-      });
-      router.refresh();
-    });
-  };
-
-  // 完了ボタン
-  const handleComplete = () => {
-    startTransition(async () => {
-      const completedAt = new Date();
-      let actualMinutes: number | null = null;
-
-      if (task.started_at) {
-        const startedAt = new Date(task.started_at);
-        actualMinutes = Math.round((completedAt.getTime() - startedAt.getTime()) / 60000);
-      }
-
-      await updateTask(task.id, {
-        status: "完了",
-        completed_at: completedAt.toISOString(),
-        actual_minutes: actualMinutes,
-      });
-      router.refresh();
-    });
-  };
-
   const assignee = employees.find((e) => e.id === task.assigned_to);
   const isOverdue =
-    task.due_date && task.status !== "完了" && new Date(task.due_date) < new Date();
+    task.due_date && !isCompleted && new Date(task.due_date) < new Date();
 
   // 時間情報があるかどうか
   const hasTimeInfo = task.estimated_minutes || task.started_at || task.completed_at || task.actual_minutes;
@@ -214,23 +173,28 @@ function TaskItem({
   return (
     <>
       <div
-        className={`flex items-center gap-3 p-2 rounded hover:bg-muted/50 ${
-          isSubtask ? "ml-6 border-l-2 border-muted pl-4" : ""
-        } ${isPending ? "opacity-50" : ""}`}
+        ref={setNodeRef}
+        style={style}
+        className={`flex items-center gap-3 p-2 rounded border hover:bg-muted/50 ${
+          isPending ? "opacity-50" : ""
+        }`}
       >
-        {/* ステータスアイコン */}
+        {/* ドラッグハンドル */}
         <button
-          onClick={() => {
-            const statuses: TaskStatus[] = ["未着手", "進行中", "完了"];
-            const currentIdx = statuses.indexOf(task.status);
-            const nextStatus = statuses[(currentIdx + 1) % statuses.length];
-            handleStatusChange(nextStatus);
-          }}
-          className="flex-shrink-0"
-          title={`クリックでステータス変更（現在: ${task.status}）`}
+          {...attributes}
+          {...listeners}
+          className="flex-shrink-0 p-1 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
+          title="ドラッグして並び替え"
         >
-          {STATUS_ICONS[task.status]}
+          <GripVertical className="h-4 w-4" />
         </button>
+
+        {/* チェックボックス */}
+        <Checkbox
+          checked={isCompleted}
+          onCheckedChange={handleToggleComplete}
+          className="flex-shrink-0"
+        />
 
         {/* タイトル */}
         <div className="flex-1 min-w-0">
@@ -246,7 +210,7 @@ function TaskItem({
           ) : (
             <span
               onClick={() => setIsEditing(true)}
-              className={`cursor-pointer ${task.status === "完了" ? "line-through text-muted-foreground" : ""}`}
+              className={`cursor-pointer ${isCompleted ? "line-through text-muted-foreground" : ""}`}
             >
               {task.title}
             </span>
@@ -263,30 +227,6 @@ function TaskItem({
               <span>予{formatMinutes(task.estimated_minutes)}</span>
             ) : null}
           </div>
-        )}
-
-        {/* 開始/完了ボタン */}
-        {task.status === "未着手" && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleStart}
-            className="h-7 px-2 text-blue-500 hover:text-blue-700 hover:bg-blue-50"
-            title="開始"
-          >
-            <Play className="h-4 w-4" />
-          </Button>
-        )}
-        {task.status === "進行中" && (
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={handleComplete}
-            className="h-7 px-2 text-green-500 hover:text-green-700 hover:bg-green-50"
-            title="完了"
-          >
-            <Square className="h-4 w-4" />
-          </Button>
         )}
 
         {/* 時間設定ボタン */}
@@ -522,143 +462,6 @@ function TaskTimeModal({
   );
 }
 
-function SortableParentTaskItem({
-  task,
-  employees,
-  projectId,
-}: {
-  task: TaskWithSubtasks;
-  employees: Employee[];
-  projectId: string;
-}) {
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
-  const [expanded, setExpanded] = useState(true);
-  const [isAddingSubtask, setIsAddingSubtask] = useState(false);
-  const [newSubtaskTitle, setNewSubtaskTitle] = useState("");
-
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: task.id });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  };
-
-  const completedSubtasks = task.subtasks.filter((s) => s.status === "完了").length;
-  const totalSubtasks = task.subtasks.length;
-
-  const handleAddSubtask = () => {
-    if (newSubtaskTitle.trim()) {
-      startTransition(async () => {
-        await createTask({
-          project_id: projectId,
-          parent_id: task.id,
-          title: newSubtaskTitle.trim(),
-        });
-        setNewSubtaskTitle("");
-        setIsAddingSubtask(false);
-        router.refresh();
-      });
-    }
-  };
-
-  return (
-    <div ref={setNodeRef} style={style} className="border rounded-lg p-2">
-      <div className="flex items-center gap-2">
-        {/* ドラッグハンドル */}
-        <button
-          {...attributes}
-          {...listeners}
-          className="flex-shrink-0 p-1 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
-          title="ドラッグして並び替え"
-        >
-          <GripVertical className="h-4 w-4" />
-        </button>
-
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="flex-shrink-0 p-1"
-        >
-          {expanded ? (
-            <ChevronDown className="h-4 w-4" />
-          ) : (
-            <ChevronRight className="h-4 w-4" />
-          )}
-        </button>
-
-        <div className="flex-1">
-          <TaskItem task={task} employees={employees} projectId={projectId} />
-        </div>
-      </div>
-
-      {totalSubtasks > 0 && (
-        <div className="ml-8 mt-1">
-          <Badge variant="outline" className="text-xs">
-            {completedSubtasks}/{totalSubtasks} 完了
-          </Badge>
-        </div>
-      )}
-
-      {expanded && (
-        <div className="mt-2 space-y-1">
-          {task.subtasks.map((subtask) => (
-            <TaskItem
-              key={subtask.id}
-              task={subtask}
-              employees={employees}
-              projectId={projectId}
-              isSubtask
-            />
-          ))}
-
-          {isAddingSubtask ? (
-            <div className="ml-6 pl-4 border-l-2 border-muted flex items-center gap-2">
-              <Input
-                value={newSubtaskTitle}
-                onChange={(e) => setNewSubtaskTitle(e.target.value)}
-                placeholder="サブタスクを入力..."
-                onKeyDown={(e) => e.key === "Enter" && handleAddSubtask()}
-                autoFocus
-                className="flex-1 h-8"
-                disabled={isPending}
-              />
-              <Button size="sm" onClick={handleAddSubtask} disabled={isPending}>
-                追加
-              </Button>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => {
-                  setIsAddingSubtask(false);
-                  setNewSubtaskTitle("");
-                }}
-              >
-                キャンセル
-              </Button>
-            </div>
-          ) : (
-            <button
-              onClick={() => setIsAddingSubtask(true)}
-              className="ml-6 pl-4 border-l-2 border-muted text-sm text-muted-foreground hover:text-foreground flex items-center gap-1"
-            >
-              <Plus className="h-3 w-3" />
-              サブタスク追加
-            </button>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
-
 export function TaskList({ projectId, tasks, employees }: TaskListProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -721,9 +524,8 @@ export function TaskList({ projectId, tasks, employees }: TaskListProps) {
   };
 
   // 進捗計算
-  const allTasks = localTasks.flatMap((t) => [t, ...t.subtasks]);
-  const completedCount = allTasks.filter((t) => t.status === "完了").length;
-  const totalCount = allTasks.length;
+  const completedCount = localTasks.filter((t) => t.status === "完了").length;
+  const totalCount = localTasks.length;
   const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
   return (
@@ -765,11 +567,10 @@ export function TaskList({ projectId, tasks, employees }: TaskListProps) {
             strategy={verticalListSortingStrategy}
           >
             {localTasks.map((task) => (
-              <SortableParentTaskItem
+              <SortableTaskItem
                 key={task.id}
                 task={task}
                 employees={employees}
-                projectId={projectId}
               />
             ))}
           </SortableContext>

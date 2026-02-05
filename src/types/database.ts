@@ -313,18 +313,11 @@ export interface ProjectWithRelations extends Project {
 // ============================================
 // Task (タスク)
 // ============================================
-export type TaskStatus = "未着手" | "進行中" | "完了";
-
-export const TASK_STATUS_COLORS: Record<TaskStatus, string> = {
-  未着手: "bg-gray-100 text-gray-800",
-  進行中: "bg-blue-100 text-blue-800",
-  完了: "bg-green-100 text-green-800",
-};
+export type TaskStatus = "未完了" | "完了";
 
 export interface Task {
   id: string;
   project_id: string;
-  parent_id: string | null;
   title: string;
   description: string | null;
   status: TaskStatus;
@@ -343,7 +336,6 @@ export interface Task {
 export interface TaskInsert {
   id?: string;
   project_id: string;
-  parent_id?: string | null;
   title: string;
   description?: string | null;
   status?: TaskStatus;
@@ -357,11 +349,6 @@ export interface TaskInsert {
   actual_minutes?: number | null;
 }
 
-// サブタスクを含むタスク
-export interface TaskWithSubtasks extends Task {
-  subtasks: Task[];
-  assignee?: Employee | null;
-}
 
 // ============================================
 // Comment (コメント)

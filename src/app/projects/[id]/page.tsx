@@ -143,20 +143,6 @@ export default async function ProjectDetailPage({
     return acc;
   }, {} as Record<string, CommentAcknowledgement[]>);
 
-  // 親タスクとサブタスクを整理
-  const parentTasks = typedTasks.filter((t) => !t.parent_id);
-  const subtaskMap = typedTasks.reduce((acc, t) => {
-    if (t.parent_id) {
-      if (!acc[t.parent_id]) acc[t.parent_id] = [];
-      acc[t.parent_id].push(t);
-    }
-    return acc;
-  }, {} as Record<string, Task[]>);
-
-  const tasksWithSubtasks = parentTasks.map((t) => ({
-    ...t,
-    subtasks: subtaskMap[t.id] || [],
-  }));
 
   return (
     <main className="container mx-auto px-4 py-8">
@@ -194,7 +180,7 @@ export default async function ProjectDetailPage({
         <div className="lg:col-span-2 space-y-6">
           <TaskList
             projectId={id}
-            tasks={tasksWithSubtasks}
+            tasks={typedTasks}
             employees={typedEmployees}
           />
 
