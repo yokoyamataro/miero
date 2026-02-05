@@ -122,44 +122,44 @@ export function ProjectList({ projects, employees, contactDisplayMap, employeeMa
         <Card>
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead className="w-[100px]">コード</TableHead>
-                <TableHead>業務名</TableHead>
-                <TableHead className="w-[80px]">ステータス</TableHead>
-                <TableHead>顧客</TableHead>
-                <TableHead className="w-[80px]">担当</TableHead>
-                <TableHead className="w-[100px]">着手</TableHead>
-                <TableHead className="w-[100px] text-right">報酬</TableHead>
+              <TableRow className="h-8">
+                <TableHead className="w-[90px] py-1 text-xs">コード</TableHead>
+                <TableHead className="py-1 text-xs">業務名</TableHead>
+                <TableHead className="w-[90px] py-1 text-xs">ステータス</TableHead>
+                <TableHead className="py-1 text-xs">顧客</TableHead>
+                <TableHead className="w-[70px] py-1 text-xs">担当</TableHead>
+                <TableHead className="w-[90px] py-1 text-xs">着手</TableHead>
+                <TableHead className="w-[90px] py-1 text-xs text-right">報酬</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {filtered.map((project) => (
-                <TableRow key={project.id} className="cursor-pointer hover:bg-muted/50">
-                  <TableCell className="font-mono text-sm">
+                <TableRow key={project.id} className="cursor-pointer hover:bg-muted/50 h-8">
+                  <TableCell className="font-mono text-xs py-1">
                     <Link href={`/projects/${project.id}`} className="block">
                       {project.code}
                     </Link>
                   </TableCell>
-                  <TableCell>
-                    <Link href={`/projects/${project.id}`} className="block font-medium hover:underline">
+                  <TableCell className="py-1">
+                    <Link href={`/projects/${project.id}`} className="block text-sm hover:underline">
                       {project.name}
                     </Link>
                   </TableCell>
-                  <TableCell>
+                  <TableCell className="py-1">
                     <Badge className={`${PROJECT_STATUS_COLORS[project.status as ProjectStatus]} text-xs`}>
                       {project.status}
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-sm">
+                  <TableCell className="text-xs py-1">
                     {project.contact_id ? contactDisplayMap[project.contact_id] || "-" : "-"}
                   </TableCell>
-                  <TableCell className="text-sm">
+                  <TableCell className="text-xs py-1">
                     {project.manager_id ? employeeMap[project.manager_id] || "-" : "-"}
                   </TableCell>
-                  <TableCell className="text-sm">
+                  <TableCell className="text-xs py-1">
                     {formatDate(project.start_date)}
                   </TableCell>
-                  <TableCell className="text-sm text-right">
+                  <TableCell className="text-xs py-1 text-right">
                     {formatCurrency(project.fee_tax_excluded)}
                   </TableCell>
                 </TableRow>
