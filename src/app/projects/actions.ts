@@ -511,7 +511,7 @@ const CODE_PREFIX_TO_CATEGORY: Record<string, ProjectCategory> = {
 };
 
 // ステータスの有効値
-const VALID_STATUSES: ProjectStatus[] = ["進行中", "完了"];
+const VALID_STATUSES: ProjectStatus[] = ["未着手", "作業中", "完了", "中止"];
 
 // CSV行をパースするヘルパー
 function parseCSVLine(line: string): string[] {
@@ -648,15 +648,17 @@ export async function importProjectsFromCSV(csvContent: string): Promise<{
       }
 
       // ステータスのマッピング（旧ステータスも対応）
-      let validStatus: ProjectStatus = "進行中";
+      let validStatus: ProjectStatus = "未着手";
       if (statusRaw) {
         const statusTrimmed = statusRaw.trim();
         if (VALID_STATUSES.includes(statusTrimmed as ProjectStatus)) {
           validStatus = statusTrimmed as ProjectStatus;
-        } else if (statusTrimmed === "完了" || statusTrimmed === "中止" || statusTrimmed === "請求済") {
+        } else if (statusTrimmed === "請求済") {
           validStatus = "完了";
-        } else if (statusTrimmed === "受注" || statusTrimmed === "着手") {
-          validStatus = "進行中";
+        } else if (statusTrimmed === "受注") {
+          validStatus = "未着手";
+        } else if (statusTrimmed === "着手" || statusTrimmed === "進行中") {
+          validStatus = "作業中";
         }
       }
 
@@ -780,15 +782,17 @@ export async function importProjectsFromCSV(csvContent: string): Promise<{
       }
 
       // ステータスのマッピング（旧ステータスも対応）
-      let validStatus: ProjectStatus = "進行中";
+      let validStatus: ProjectStatus = "未着手";
       if (statusRaw) {
         const statusTrimmed = statusRaw.trim();
         if (VALID_STATUSES.includes(statusTrimmed as ProjectStatus)) {
           validStatus = statusTrimmed as ProjectStatus;
-        } else if (statusTrimmed === "完了" || statusTrimmed === "中止" || statusTrimmed === "請求済") {
+        } else if (statusTrimmed === "請求済") {
           validStatus = "完了";
-        } else if (statusTrimmed === "受注" || statusTrimmed === "着手") {
-          validStatus = "進行中";
+        } else if (statusTrimmed === "受注") {
+          validStatus = "未着手";
+        } else if (statusTrimmed === "着手" || statusTrimmed === "進行中") {
+          validStatus = "作業中";
         }
       }
 
@@ -908,15 +912,17 @@ export async function importProjectsFromCSV(csvContent: string): Promise<{
       }
 
       // ステータスのマッピング（旧ステータスも対応）
-      let validStatus: ProjectStatus = "進行中";
+      let validStatus: ProjectStatus = "未着手";
       if (status) {
         const statusTrimmed = status.trim();
         if (VALID_STATUSES.includes(statusTrimmed as ProjectStatus)) {
           validStatus = statusTrimmed as ProjectStatus;
-        } else if (statusTrimmed === "完了" || statusTrimmed === "中止" || statusTrimmed === "請求済") {
+        } else if (statusTrimmed === "請求済") {
           validStatus = "完了";
-        } else if (statusTrimmed === "受注" || statusTrimmed === "着手") {
-          validStatus = "進行中";
+        } else if (statusTrimmed === "受注") {
+          validStatus = "未着手";
+        } else if (statusTrimmed === "着手" || statusTrimmed === "進行中") {
+          validStatus = "作業中";
         }
       }
 
