@@ -43,15 +43,14 @@ export default async function ProjectsPage() {
     return acc;
   }, {} as Record<string, AccountType>);
 
-  // contact_id → 表示名のマップを作成
+  // contact_id → 表示名のマップを作成（法人名または個人名のみ）
   const contactDisplayMap: Record<string, string> = {};
   for (const [id, contact] of Object.entries(contactMap)) {
-    const name = `${contact.last_name} ${contact.first_name}`;
     if (contact.account_id) {
       const account = accountMap[contact.account_id];
-      contactDisplayMap[id] = account ? `${account.company_name} (${name})` : name;
+      contactDisplayMap[id] = account ? account.company_name : `${contact.last_name} ${contact.first_name}`;
     } else {
-      contactDisplayMap[id] = name;
+      contactDisplayMap[id] = `${contact.last_name} ${contact.first_name}`;
     }
   }
 

@@ -13,7 +13,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  PROJECT_CATEGORY_LABELS,
   PROJECT_STATUS_COLORS,
   type ProjectCategory,
   type ProjectStatus,
@@ -126,7 +125,6 @@ export function ProjectList({ projects, employees, contactDisplayMap, employeeMa
               <TableRow>
                 <TableHead className="w-[100px]">コード</TableHead>
                 <TableHead>業務名</TableHead>
-                <TableHead className="w-[100px]">カテゴリ</TableHead>
                 <TableHead className="w-[80px]">ステータス</TableHead>
                 <TableHead>顧客</TableHead>
                 <TableHead className="w-[80px]">担当</TableHead>
@@ -146,11 +144,6 @@ export function ProjectList({ projects, employees, contactDisplayMap, employeeMa
                     <Link href={`/projects/${project.id}`} className="block font-medium hover:underline">
                       {project.name}
                     </Link>
-                  </TableCell>
-                  <TableCell>
-                    <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 text-xs">
-                      {PROJECT_CATEGORY_LABELS[project.category as ProjectCategory]?.split(":")[0]}
-                    </Badge>
                   </TableCell>
                   <TableCell>
                     <Badge className={`${PROJECT_STATUS_COLORS[project.status as ProjectStatus]} text-xs`}>
