@@ -309,7 +309,7 @@ export function ProjectForm({ customerData, employees }: ProjectFormProps) {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="未着手">未着手</SelectItem>
-                    <SelectItem value="作業中">作業中</SelectItem>
+                    <SelectItem value="進行中">進行中</SelectItem>
                     <SelectItem value="完了">完了</SelectItem>
                     <SelectItem value="中止">中止</SelectItem>
                   </SelectContent>

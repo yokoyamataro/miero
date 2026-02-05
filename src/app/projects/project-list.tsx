@@ -52,7 +52,7 @@ export function ProjectList({ projects, employees, contactDisplayMap, employeeMa
   const [filters, setFilters] = useState<FilterState>({
     search: "",
     categories: new Set(),
-    statuses: new Set(["未着手", "作業中"] as ProjectStatus[]),
+    statuses: new Set(["未着手", "進行中"] as ProjectStatus[]),
     managerIds: new Set(),
   });
 
