@@ -343,7 +343,7 @@ function EditTimeModal({
               <Input
                 type="number"
                 min="0"
-                step="0.5"
+                step="0.25"
                 value={estimatedHours}
                 onChange={(e) => setEstimatedHours(e.target.value)}
                 className="w-24"
@@ -352,7 +352,7 @@ function EditTimeModal({
               <span className="text-sm text-muted-foreground">時間</span>
             </div>
             <p className="text-xs text-muted-foreground">
-              例: 1.5 = 1時間30分
+              例: 0.25=15分, 0.5=30分, 1.5=1時間30分
             </p>
           </div>
         </div>
@@ -428,7 +428,7 @@ function CompleteTaskModal({
               <Input
                 type="number"
                 min="0"
-                step="0.5"
+                step="0.25"
                 value={actualHours}
                 onChange={(e) => setActualHours(e.target.value)}
                 className="w-24"
@@ -437,7 +437,7 @@ function CompleteTaskModal({
               <span className="text-sm text-muted-foreground">時間</span>
             </div>
             <p className="text-xs text-muted-foreground">
-              例: 1.5 = 1時間30分
+              例: 0.25=15分, 0.5=30分, 1.5=1時間30分
             </p>
           </div>
         </div>
@@ -713,7 +713,7 @@ function AddTaskModal({
               <Input
                 type="number"
                 min="0"
-                step="0.5"
+                step="0.25"
                 value={estimatedHours}
                 onChange={(e) => setEstimatedHours(e.target.value)}
                 placeholder="0"
@@ -722,7 +722,7 @@ function AddTaskModal({
               <span className="text-sm text-muted-foreground">時間</span>
             </div>
             <p className="text-xs text-muted-foreground">
-              例: 1.5 = 1時間30分（省略可）
+              例: 0.25=15分, 0.5=30分（省略可）
             </p>
           </div>
         </div>
