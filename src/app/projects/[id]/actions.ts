@@ -12,6 +12,8 @@ import {
   type ProjectStakeholderWithDetails,
   type Contact,
   type Account,
+  type TaskTemplate,
+  type TaskTemplateInsert,
 } from "@/types/database";
 
 // ============================================
@@ -93,8 +95,6 @@ export async function updateTask(
     sort_order?: number;
     // 時間管理
     estimated_minutes?: number | null;
-    started_at?: string | null;
-    completed_at?: string | null;
     actual_minutes?: number | null;
   }
 ) {
@@ -161,6 +161,133 @@ export async function reorderTasks(
 
   revalidatePath(`/projects/${projectId}`);
   return { success: true };
+}
+
+// ============================================
+// Task Template Actions
+// ============================================
+
+// テンプレート一覧取得
+export async function getTaskTemplates(): Promise<TaskTemplate[]> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("task_templates" as never)
+    .select("*")
+    .order("sort_order", { ascending: true });
+
+  if (error) {
+    console.error("Error fetching task templates:", error);
+    return [];
+  }
+
+  return (data as TaskTemplate[]) || [];
+}
+
+// テンプレート作成（タスクからテンプレートを作成）
+export async function createTaskTemplate(
+  title: string,
+  estimatedMinutes: number | null
+): Promise<{ success?: boolean; error?: string; id?: string }> {
+  const supabase = await createClient();
+
+  // 最大のsort_orderを取得
+  const { data: maxOrder } = await supabase
+    .from("task_templates" as never)
+    .select("sort_order")
+    .order("sort_order", { ascending: false })
+    .limit(1)
+    .single();
+
+  const newSortOrder = ((maxOrder as { sort_order: number } | null)?.sort_order ?? -1) + 1;
+
+  const { data: template, error } = await supabase
+    .from("task_templates" as never)
+    .insert({
+      title,
+      estimated_minutes: estimatedMinutes,
+      sort_order: newSortOrder,
+    } as never)
+    .select("id")
+    .single();
+
+  if (error) {
+    console.error("Error creating task template:", error);
+    return { error: "テンプレートの作成に失敗しました" };
+  }
+
+  return { success: true, id: (template as { id: string }).id };
+}
+
+// テンプレート削除
+export async function deleteTaskTemplate(
+  templateId: string
+): Promise<{ success?: boolean; error?: string }> {
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("task_templates" as never)
+    .delete()
+    .eq("id", templateId);
+
+  if (error) {
+    console.error("Error deleting task template:", error);
+    return { error: "テンプレートの削除に失敗しました" };
+  }
+
+  return { success: true };
+}
+
+// テンプレートから複数タスクを一括作成
+export async function createTasksFromTemplates(
+  projectId: string,
+  templateIds: string[]
+): Promise<{ success?: boolean; error?: string; created?: number }> {
+  const supabase = await createClient();
+
+  // 選択されたテンプレートを取得
+  const { data: templates, error: fetchError } = await supabase
+    .from("task_templates" as never)
+    .select("*")
+    .in("id", templateIds)
+    .order("sort_order", { ascending: true });
+
+  if (fetchError || !templates) {
+    console.error("Error fetching templates:", fetchError);
+    return { error: "テンプレートの取得に失敗しました" };
+  }
+
+  // 現在の最大sort_orderを取得
+  const { data: maxOrder } = await supabase
+    .from("tasks" as never)
+    .select("sort_order")
+    .eq("project_id", projectId)
+    .order("sort_order", { ascending: false })
+    .limit(1)
+    .single();
+
+  let currentSortOrder = ((maxOrder as { sort_order: number } | null)?.sort_order ?? -1) + 1;
+
+  // タスクを作成
+  const tasksToInsert = (templates as TaskTemplate[]).map((template) => ({
+    project_id: projectId,
+    title: template.title,
+    estimated_minutes: template.estimated_minutes,
+    status: "未完了",
+    sort_order: currentSortOrder++,
+  }));
+
+  const { error: insertError } = await supabase
+    .from("tasks" as never)
+    .insert(tasksToInsert as never);
+
+  if (insertError) {
+    console.error("Error creating tasks from templates:", insertError);
+    return { error: "タスクの作成に失敗しました" };
+  }
+
+  revalidatePath(`/projects/${projectId}`);
+  return { success: true, created: tasksToInsert.length };
 }
 
 // ============================================

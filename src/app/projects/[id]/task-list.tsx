@@ -19,14 +19,16 @@ import {
   Trash2,
   Calendar,
   Timer,
-  Settings2,
   GripVertical,
+  BookTemplate,
+  Save,
 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import {
@@ -49,8 +51,18 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   type Task,
   type Employee,
+  type TaskTemplate,
 } from "@/types/database";
-import { createTask, updateTask, deleteTask, reorderTasks } from "./actions";
+import {
+  createTask,
+  updateTask,
+  deleteTask,
+  reorderTasks,
+  getTaskTemplates,
+  createTaskTemplate,
+  deleteTaskTemplate,
+  createTasksFromTemplates,
+} from "./actions";
 
 interface TaskListProps {
   projectId: string;
@@ -68,24 +80,14 @@ function formatMinutes(minutes: number | null): string {
   return `${hours}時間${mins}分`;
 }
 
-// 時刻をフォーマット
-function formatDateTime(dateStr: string | null): string {
-  if (!dateStr) return "-";
-  const date = new Date(dateStr);
-  return date.toLocaleString("ja-JP", {
-    month: "numeric",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
 function SortableTaskItem({
   task,
   employees,
+  onSaveAsTemplate,
 }: {
   task: Task;
   employees: Employee[];
+  onSaveAsTemplate: (task: Task) => void;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -111,23 +113,16 @@ function SortableTaskItem({
   const isCompleted = task.status === "完了";
 
   const handleToggleComplete = () => {
-    startTransition(async () => {
-      const newStatus = isCompleted ? "未完了" : "完了";
-      const updates: Parameters<typeof updateTask>[1] = { status: newStatus };
-
-      if (newStatus === "完了" && !task.completed_at) {
-        updates.completed_at = new Date().toISOString();
-        if (task.started_at) {
-          const startedAt = new Date(task.started_at);
-          const completedAt = new Date();
-          const actualMinutes = Math.round((completedAt.getTime() - startedAt.getTime()) / 60000);
-          updates.actual_minutes = actualMinutes;
-        }
-      }
-
-      await updateTask(task.id, updates);
-      router.refresh();
-    });
+    if (!isCompleted) {
+      // 完了にする際は実時間入力モーダルを表示
+      setShowTimeModal(true);
+    } else {
+      // 未完了に戻す
+      startTransition(async () => {
+        await updateTask(task.id, { status: "未完了", actual_minutes: null });
+        router.refresh();
+      });
+    }
   };
 
   const handleTitleSave = () => {
@@ -168,7 +163,7 @@ function SortableTaskItem({
     task.due_date && !isCompleted && new Date(task.due_date) < new Date();
 
   // 時間情報があるかどうか
-  const hasTimeInfo = task.estimated_minutes || task.started_at || task.completed_at || task.actual_minutes;
+  const hasTimeInfo = task.estimated_minutes || task.actual_minutes;
 
   return (
     <>
@@ -224,20 +219,20 @@ function SortableTaskItem({
             {task.actual_minutes ? (
               <span>{formatMinutes(task.actual_minutes)}</span>
             ) : task.estimated_minutes ? (
-              <span>予{formatMinutes(task.estimated_minutes)}</span>
+              <span className="text-blue-500">予{formatMinutes(task.estimated_minutes)}</span>
             ) : null}
           </div>
         )}
 
-        {/* 時間設定ボタン */}
+        {/* テンプレート保存ボタン */}
         <Button
           variant="ghost"
           size="sm"
-          onClick={() => setShowTimeModal(true)}
+          onClick={() => onSaveAsTemplate(task)}
           className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
-          title="時間設定"
+          title="テンプレートとして保存"
         >
-          <Settings2 className="h-4 w-4" />
+          <Save className="h-4 w-4" />
         </Button>
 
         {/* 期限 */}
@@ -282,8 +277,8 @@ function SortableTaskItem({
         </Button>
       </div>
 
-      {/* 時間設定モーダル */}
-      <TaskTimeModal
+      {/* 完了時の時間入力モーダル */}
+      <CompleteTaskModal
         task={task}
         open={showTimeModal}
         onOpenChange={setShowTimeModal}
@@ -292,8 +287,8 @@ function SortableTaskItem({
   );
 }
 
-// 時間設定モーダル
-function TaskTimeModal({
+// 完了時の時間入力モーダル
+function CompleteTaskModal({
   task,
   open,
   onOpenChange,
@@ -304,26 +299,26 @@ function TaskTimeModal({
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [estimatedHours, setEstimatedHours] = useState(
+  const [actualHours, setActualHours] = useState(
     task.estimated_minutes ? Math.floor(task.estimated_minutes / 60) : 0
   );
-  const [estimatedMins, setEstimatedMins] = useState(
+  const [actualMins, setActualMins] = useState(
     task.estimated_minutes ? task.estimated_minutes % 60 : 0
   );
-  const [actualHours, setActualHours] = useState(
-    task.actual_minutes ? Math.floor(task.actual_minutes / 60) : 0
-  );
-  const [actualMins, setActualMins] = useState(
-    task.actual_minutes ? task.actual_minutes % 60 : 0
-  );
 
-  const handleSave = () => {
+  // 標準時間をデフォルト値としてセット
+  useEffect(() => {
+    if (open && task.estimated_minutes) {
+      setActualHours(Math.floor(task.estimated_minutes / 60));
+      setActualMins(task.estimated_minutes % 60);
+    }
+  }, [open, task.estimated_minutes]);
+
+  const handleComplete = () => {
     startTransition(async () => {
-      const estimatedMinutes = estimatedHours * 60 + estimatedMins;
       const actualMinutes = actualHours * 60 + actualMins;
-
       await updateTask(task.id, {
-        estimated_minutes: estimatedMinutes > 0 ? estimatedMinutes : null,
+        status: "完了",
         actual_minutes: actualMinutes > 0 ? actualMinutes : null,
       });
       router.refresh();
@@ -331,95 +326,24 @@ function TaskTimeModal({
     });
   };
 
-  const handleClearStartTime = () => {
-    startTransition(async () => {
-      await updateTask(task.id, { started_at: null });
-      router.refresh();
-    });
-  };
-
-  const handleClearEndTime = () => {
-    startTransition(async () => {
-      await updateTask(task.id, { completed_at: null, actual_minutes: null });
-      router.refresh();
-    });
-  };
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-sm">
         <DialogHeader>
-          <DialogTitle>時間設定: {task.title}</DialogTitle>
+          <DialogTitle>タスク完了</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* 標準時間（見積もり） */}
-          <div className="space-y-2">
-            <Label>標準時間（見積もり）</Label>
-            <div className="flex items-center gap-2">
-              <Input
-                type="number"
-                min="0"
-                value={estimatedHours}
-                onChange={(e) => setEstimatedHours(parseInt(e.target.value) || 0)}
-                className="w-20"
-              />
-              <span className="text-sm">時間</span>
-              <Input
-                type="number"
-                min="0"
-                max="59"
-                value={estimatedMins}
-                onChange={(e) => setEstimatedMins(parseInt(e.target.value) || 0)}
-                className="w-20"
-              />
-              <span className="text-sm">分</span>
-            </div>
-          </div>
+          <p className="text-sm">{task.title}</p>
 
-          {/* 開始時刻 */}
-          <div className="space-y-2">
-            <Label>開始時刻</Label>
-            <div className="flex items-center gap-2">
-              <span className="text-sm flex-1">
-                {task.started_at ? formatDateTime(task.started_at) : "未開始"}
-              </span>
-              {task.started_at && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleClearStartTime}
-                  disabled={isPending}
-                >
-                  クリア
-                </Button>
-              )}
-            </div>
-          </div>
+          {task.estimated_minutes && (
+            <p className="text-sm text-muted-foreground">
+              標準時間: {formatMinutes(task.estimated_minutes)}
+            </p>
+          )}
 
-          {/* 終了時刻 */}
           <div className="space-y-2">
-            <Label>終了時刻</Label>
-            <div className="flex items-center gap-2">
-              <span className="text-sm flex-1">
-                {task.completed_at ? formatDateTime(task.completed_at) : "未完了"}
-              </span>
-              {task.completed_at && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleClearEndTime}
-                  disabled={isPending}
-                >
-                  クリア
-                </Button>
-              )}
-            </div>
-          </div>
-
-          {/* 所要時間（実績） */}
-          <div className="space-y-2">
-            <Label>所要時間（実績）</Label>
+            <Label>実時間</Label>
             <div className="flex items-center gap-2">
               <Input
                 type="number"
@@ -439,24 +363,135 @@ function TaskTimeModal({
               />
               <span className="text-sm">分</span>
             </div>
-            {task.started_at && task.completed_at && (
-              <p className="text-xs text-muted-foreground">
-                自動計算: {formatMinutes(
-                  Math.round((new Date(task.completed_at).getTime() - new Date(task.started_at).getTime()) / 60000)
-                )}
-              </p>
-            )}
-          </div>
-
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)}>
-              キャンセル
-            </Button>
-            <Button onClick={handleSave} disabled={isPending}>
-              保存
-            </Button>
           </div>
         </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            キャンセル
+          </Button>
+          <Button onClick={handleComplete} disabled={isPending}>
+            完了
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// テンプレート選択モーダル
+function TemplateModal({
+  projectId,
+  open,
+  onOpenChange,
+}: {
+  projectId: string;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+  const [templates, setTemplates] = useState<TaskTemplate[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (open) {
+      setLoading(true);
+      getTaskTemplates().then((data) => {
+        setTemplates(data);
+        setLoading(false);
+      });
+      setSelectedIds(new Set());
+    }
+  }, [open]);
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const handleAddTasks = () => {
+    if (selectedIds.size === 0) return;
+
+    startTransition(async () => {
+      await createTasksFromTemplates(projectId, Array.from(selectedIds));
+      router.refresh();
+      onOpenChange(false);
+    });
+  };
+
+  const handleDeleteTemplate = (templateId: string) => {
+    if (confirm("このテンプレートを削除しますか？")) {
+      startTransition(async () => {
+        await deleteTaskTemplate(templateId);
+        setTemplates((prev) => prev.filter((t) => t.id !== templateId));
+      });
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>テンプレートからタスクを追加</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-2 max-h-64 overflow-y-auto">
+          {loading ? (
+            <p className="text-center text-muted-foreground py-4">読み込み中...</p>
+          ) : templates.length === 0 ? (
+            <p className="text-center text-muted-foreground py-4">
+              テンプレートがありません。<br />
+              タスクの保存ボタンからテンプレートを作成できます。
+            </p>
+          ) : (
+            templates.map((template) => (
+              <div
+                key={template.id}
+                className="flex items-center gap-2 p-2 border rounded hover:bg-muted/50"
+              >
+                <Checkbox
+                  checked={selectedIds.has(template.id)}
+                  onCheckedChange={() => toggleSelect(template.id)}
+                />
+                <span className="flex-1">{template.title}</span>
+                {template.estimated_minutes && (
+                  <span className="text-xs text-muted-foreground">
+                    {formatMinutes(template.estimated_minutes)}
+                  </span>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleDeleteTemplate(template.id)}
+                  className="h-6 w-6 p-0 text-muted-foreground hover:text-destructive"
+                >
+                  <Trash2 className="h-3 w-3" />
+                </Button>
+              </div>
+            ))
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            キャンセル
+          </Button>
+          <Button
+            onClick={handleAddTasks}
+            disabled={isPending || selectedIds.size === 0}
+          >
+            追加 ({selectedIds.size})
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );
@@ -468,6 +503,7 @@ export function TaskList({ projectId, tasks, employees }: TaskListProps) {
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [localTasks, setLocalTasks] = useState(tasks);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
 
   // tasksが更新されたらlocalTasksも更新
   useEffect(() => {
@@ -523,6 +559,17 @@ export function TaskList({ projectId, tasks, employees }: TaskListProps) {
     }
   };
 
+  const handleSaveAsTemplate = (task: Task) => {
+    startTransition(async () => {
+      const result = await createTaskTemplate(task.title, task.estimated_minutes);
+      if (result.success) {
+        alert("テンプレートとして保存しました");
+      } else {
+        alert(result.error || "エラーが発生しました");
+      }
+    });
+  };
+
   // 進捗計算
   const completedCount = localTasks.filter((t) => t.status === "完了").length;
   const totalCount = localTasks.length;
@@ -540,6 +587,14 @@ export function TaskList({ projectId, tasks, employees }: TaskListProps) {
               </Badge>
             )}
           </CardTitle>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setShowTemplateModal(true)}
+          >
+            <BookTemplate className="h-4 w-4 mr-1" />
+            テンプレート
+          </Button>
         </div>
         {totalCount > 0 && (
           <div className="w-full bg-muted rounded-full h-2 mt-2">
@@ -571,6 +626,7 @@ export function TaskList({ projectId, tasks, employees }: TaskListProps) {
                 key={task.id}
                 task={task}
                 employees={employees}
+                onSaveAsTemplate={handleSaveAsTemplate}
               />
             ))}
           </SortableContext>
@@ -611,6 +667,13 @@ export function TaskList({ projectId, tasks, employees }: TaskListProps) {
           </Button>
         )}
       </CardContent>
+
+      {/* テンプレート選択モーダル */}
+      <TemplateModal
+        projectId={projectId}
+        open={showTemplateModal}
+        onOpenChange={setShowTemplateModal}
+      />
     </Card>
   );
 }

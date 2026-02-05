@@ -325,10 +325,8 @@ export interface Task {
   assigned_to: string | null;
   sort_order: number;
   // 時間管理
-  estimated_minutes: number | null;  // 標準時間（見積もり・分単位）
-  started_at: string | null;         // 開始時刻
-  completed_at: string | null;       // 終了時刻
-  actual_minutes: number | null;     // 所要時間（実績・分単位）
+  estimated_minutes: number | null;  // 標準時間（分単位）
+  actual_minutes: number | null;     // 実時間（分単位）
   created_at: string;
   updated_at: string;
 }
@@ -344,9 +342,26 @@ export interface TaskInsert {
   sort_order?: number;
   // 時間管理
   estimated_minutes?: number | null;
-  started_at?: string | null;
-  completed_at?: string | null;
   actual_minutes?: number | null;
+}
+
+// ============================================
+// Task Template (タスクテンプレート)
+// ============================================
+export interface TaskTemplate {
+  id: string;
+  title: string;
+  estimated_minutes: number | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TaskTemplateInsert {
+  id?: string;
+  title: string;
+  estimated_minutes?: number | null;
+  sort_order?: number;
 }
 
 
