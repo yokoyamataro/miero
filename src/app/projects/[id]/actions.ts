@@ -49,6 +49,22 @@ export async function updateProject(
   revalidatePath("/projects");
 }
 
+export async function deleteProject(projectId: string) {
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("projects")
+    .delete()
+    .eq("id", projectId);
+
+  if (error) {
+    console.error("Error deleting project:", error);
+    throw new Error("業務の削除に失敗しました");
+  }
+
+  revalidatePath("/projects");
+}
+
 // ============================================
 // Task Actions
 // ============================================

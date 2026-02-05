@@ -22,6 +22,17 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import {
   MapPin,
   User,
   Calendar,
@@ -31,6 +42,7 @@ import {
   X,
   ChevronLeft,
   ChevronRight,
+  Trash2,
 } from "lucide-react";
 import {
   PROJECT_CATEGORY_LABELS,
@@ -43,7 +55,7 @@ import {
   type Account,
   type Employee,
 } from "@/types/database";
-import { updateProject } from "./actions";
+import { updateProject, deleteProject } from "./actions";
 
 // 法人の担当者
 export interface CorporateContact {
@@ -500,6 +512,13 @@ export function ProjectInfo({
     });
   };
 
+  const handleDelete = () => {
+    startTransition(async () => {
+      await deleteProject(project.id);
+      router.push("/projects");
+    });
+  };
+
   // 顧客表示名
   const customerName = contact
     ? account
@@ -533,6 +552,32 @@ export function ProjectInfo({
               ))}
             </SelectContent>
           </Select>
+          <div className="flex-1" />
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10">
+                <Trash2 className="h-4 w-4 mr-1" />
+                削除
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>業務を削除しますか？</AlertDialogTitle>
+                <AlertDialogDescription>
+                  「{project.name}」を削除します。この操作は取り消せません。
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleDelete}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  削除する
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </div>
         <EditableTitle
           value={project.name}
