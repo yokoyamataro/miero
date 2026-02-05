@@ -2,8 +2,16 @@
 
 import { useState, useMemo } from "react";
 import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import {
   PROJECT_CATEGORY_LABELS,
   PROJECT_STATUS_COLORS,
@@ -99,67 +107,74 @@ export function ProjectList({ projects, employees, contactDisplayMap, employeeMa
         onFiltersChange={setFilters}
       />
 
-      <div className="space-y-4">
-        {filtered.length === 0 && (
-          <Card>
-            <CardContent className="pt-6">
-              <p className="text-center text-muted-foreground py-8">
-                該当する業務がありません。
-              </p>
-            </CardContent>
-          </Card>
-        )}
+      <p className="text-sm text-muted-foreground mb-2">
+        {filtered.length}件 / {projects.length}件
+      </p>
 
-        <p className="text-sm text-muted-foreground">
-          {filtered.length}件 / {projects.length}件
-        </p>
-
-        {filtered.map((project) => (
-          <Link key={project.id} href={`/projects/${project.id}`}>
-            <Card className="hover:shadow-md transition-shadow cursor-pointer">
-              <CardHeader className="pb-2">
-                <div className="flex flex-col sm:flex-row justify-between gap-2">
-                  <div className="flex items-center gap-3">
-                    <span className="font-mono text-sm text-muted-foreground">
+      {filtered.length === 0 ? (
+        <Card>
+          <CardContent className="pt-6">
+            <p className="text-center text-muted-foreground py-8">
+              該当する業務がありません。
+            </p>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-[100px]">コード</TableHead>
+                <TableHead>業務名</TableHead>
+                <TableHead className="w-[100px]">カテゴリ</TableHead>
+                <TableHead className="w-[80px]">ステータス</TableHead>
+                <TableHead>顧客</TableHead>
+                <TableHead className="w-[80px]">担当</TableHead>
+                <TableHead className="w-[100px]">着手</TableHead>
+                <TableHead className="w-[100px] text-right">報酬</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {filtered.map((project) => (
+                <TableRow key={project.id} className="cursor-pointer hover:bg-muted/50">
+                  <TableCell className="font-mono text-sm">
+                    <Link href={`/projects/${project.id}`} className="block">
                       {project.code}
-                    </span>
-                    <CardTitle className="text-lg">{project.name}</CardTitle>
-                  </div>
-                  <div className="flex gap-2">
-                    <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100">
-                      {PROJECT_CATEGORY_LABELS[project.category as ProjectCategory]}
+                    </Link>
+                  </TableCell>
+                  <TableCell>
+                    <Link href={`/projects/${project.id}`} className="block font-medium hover:underline">
+                      {project.name}
+                    </Link>
+                  </TableCell>
+                  <TableCell>
+                    <Badge className="bg-blue-100 text-blue-800 hover:bg-blue-100 text-xs">
+                      {PROJECT_CATEGORY_LABELS[project.category as ProjectCategory]?.split(":")[0]}
                     </Badge>
-                    <Badge className={PROJECT_STATUS_COLORS[project.status as ProjectStatus]}>
+                  </TableCell>
+                  <TableCell>
+                    <Badge className={`${PROJECT_STATUS_COLORS[project.status as ProjectStatus]} text-xs`}>
                       {project.status}
                     </Badge>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="grid gap-2 text-sm md:grid-cols-4">
-                  <div>
-                    <span className="text-muted-foreground">顧客: </span>
+                  </TableCell>
+                  <TableCell className="text-sm">
                     {project.contact_id ? contactDisplayMap[project.contact_id] || "-" : "-"}
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">担当: </span>
+                  </TableCell>
+                  <TableCell className="text-sm">
                     {project.manager_id ? employeeMap[project.manager_id] || "-" : "-"}
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">期間: </span>
+                  </TableCell>
+                  <TableCell className="text-sm">
                     {formatDate(project.start_date)}
-                    {project.end_date && ` 〜 ${formatDate(project.end_date)}`}
-                  </div>
-                  <div>
-                    <span className="text-muted-foreground">報酬: </span>
+                  </TableCell>
+                  <TableCell className="text-sm text-right">
                     {formatCurrency(project.fee_tax_excluded)}
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </Link>
-        ))}
-      </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
+      )}
     </>
   );
 }

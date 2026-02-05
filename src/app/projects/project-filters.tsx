@@ -120,10 +120,9 @@ export function ProjectFilters({ employees, filters, onFiltersChange }: ProjectF
         </div>
 
         {/* カテゴリ */}
-        <div>
-          <p className="text-xs text-muted-foreground mb-2">カテゴリ</p>
-          <div className="flex flex-wrap gap-1.5">
-            <button
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs text-muted-foreground mr-1">カテゴリ</span>
+          <button
               type="button"
               onClick={toggleAllCategories}
               className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
@@ -156,14 +155,12 @@ export function ProjectFilters({ employees, filters, onFiltersChange }: ProjectF
             >
               指定なし
             </button>
-          </div>
         </div>
 
         {/* ステータス */}
-        <div>
-          <p className="text-xs text-muted-foreground mb-2">ステータス</p>
-          <div className="flex flex-wrap gap-1.5">
-            <button
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs text-muted-foreground mr-1">ステータス</span>
+          <button
               type="button"
               onClick={toggleAllStatuses}
               className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
@@ -196,16 +193,14 @@ export function ProjectFilters({ employees, filters, onFiltersChange }: ProjectF
             >
               指定なし
             </button>
-          </div>
         </div>
 
         {/* 担当者 */}
-        <div>
-          <p className="text-xs text-muted-foreground mb-2">担当者</p>
-          <div className="flex flex-wrap gap-1.5">
-            <button
-              type="button"
-              onClick={toggleAllManagers}
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span className="text-xs text-muted-foreground mr-1">担当者</span>
+          <button
+            type="button"
+            onClick={toggleAllManagers}
               className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
                 allManagersSelected ? BTN_ACTIVE : BTN_INACTIVE
               }`}
@@ -236,7 +231,6 @@ export function ProjectFilters({ employees, filters, onFiltersChange }: ProjectF
             >
               指定なし
             </button>
-          </div>
         </div>
       </CardContent>
     </Card>
