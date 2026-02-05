@@ -133,6 +133,10 @@ export function CSVActions() {
               <p>以下のCSV形式に対応しています:</p>
               <div className="space-y-2 ml-2">
                 <div>
+                  <p className="font-medium">E_法人関係CSV（自動判定）</p>
+                  <p className="text-xs">ID, 顧客, 依頼の目的, 業務担当者, 進捗状況, 受託, 完了, 税抜報酬, 次期改選, エリア, コメント</p>
+                </div>
+                <div>
                   <p className="font-medium">業務管理CSV（自動判定）</p>
                   <p className="text-xs">ID, 顧客, 業務名, 業務担当者, 進捗状況, 着手, 完了, 税抜報酬, 業務の区分, エリア</p>
                 </div>

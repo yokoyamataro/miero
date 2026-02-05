@@ -550,11 +550,15 @@ function normalizeDate(dateStr: string): string | null {
 }
 
 // ヘッダーからCSV形式を判定
-type CSVFormat = "standard" | "business";
+type CSVFormat = "standard" | "business" | "corporate";
 
 function detectCSVFormat(headerValues: string[]): CSVFormat {
-  // 業務管理CSVのヘッダー: ID,顧客,業務名,業務担当者,進捗状況,着手,完了,税抜報酬,業務の区分,エリア
   const firstHeader = headerValues[0]?.trim();
+  // E_法人関係CSVのヘッダー: ID,顧客,依頼の目的,業務担当者,進捗状況,受託,完了,税抜報酬,次期改選,エリア,コメント
+  if (firstHeader === "ID" && headerValues.some((h) => h.trim() === "依頼の目的")) {
+    return "corporate";
+  }
+  // 業務管理CSVのヘッダー: ID,顧客,業務名,業務担当者,進捗状況,着手,完了,税抜報酬,業務の区分,エリア
   if (firstHeader === "ID" && headerValues.some((h) => h.trim() === "業務の区分")) {
     return "business";
   }
@@ -626,7 +630,137 @@ export async function importProjectsFromCSV(csvContent: string): Promise<{
     const lineNum = i + 2;
     const values = parseCSVLine(dataLines[i]);
 
-    if (format === "business") {
+    if (format === "corporate") {
+      // E_法人関係CSV形式: ID,顧客,依頼の目的,業務担当者,進捗状況,受託,完了,税抜報酬,次期改選,エリア,コメント
+      const [code, customerName, purpose, managerName, statusRaw, startDateRaw, endDateRaw, feeRaw, nextElection, area, comment] = values;
+
+      if (!code || !purpose) {
+        errors.push(`${lineNum}行目: 業務コードと依頼の目的は必須です`);
+        continue;
+      }
+
+      // 業務コードのプレフィックスからカテゴリを判定
+      const prefix = code.charAt(0).toUpperCase();
+      const categoryCode = CODE_PREFIX_TO_CATEGORY[prefix];
+      if (!categoryCode) {
+        errors.push(`${lineNum}行目: 業務コード「${code}」のプレフィックス「${prefix}」から有効なカテゴリを判定できません`);
+        continue;
+      }
+
+      // ステータスのマッピング
+      let validStatus: ProjectStatus = "受注";
+      if (statusRaw) {
+        const statusTrimmed = statusRaw.trim();
+        if (VALID_STATUSES.includes(statusTrimmed as ProjectStatus)) {
+          validStatus = statusTrimmed as ProjectStatus;
+        } else if (statusTrimmed === "中止") {
+          validStatus = "完了";
+        }
+      }
+
+      // 担当者
+      const managerId = managerName ? employeeNameToId[managerName.trim()] || null : null;
+
+      // 日付
+      const startDate = normalizeDate(startDateRaw);
+      const endDate = normalizeDate(endDateRaw);
+
+      if (startDateRaw && !startDate) {
+        errors.push(`${lineNum}行目: 無効な受託日「${startDateRaw}」`);
+        continue;
+      }
+      if (endDateRaw && !endDate) {
+        errors.push(`${lineNum}行目: 無効な完了日「${endDateRaw}」`);
+        continue;
+      }
+
+      // 金額
+      const feeClean = feeRaw ? feeRaw.replace(/,/g, "") : "";
+      const feeNumber = feeClean ? parseInt(feeClean, 10) : null;
+      if (feeClean && isNaN(feeNumber as number)) {
+        errors.push(`${lineNum}行目: 無効な報酬額「${feeRaw}」`);
+        continue;
+      }
+
+      // 顧客マッチング（法人名から）
+      let contactId: string | null = null;
+      if (customerName) {
+        const trimmedName = customerName.trim();
+        if (accountNameToContactId[trimmedName]) {
+          contactId = accountNameToContactId[trimmedName];
+        } else if (trimmedName) {
+          // 法人を新規作成
+          const { data: newAccount, error: accError } = await supabase
+            .from("accounts" as never)
+            .insert({ company_name: trimmedName } as never)
+            .select("id")
+            .single();
+
+          if (!accError && newAccount) {
+            const newAccountId = (newAccount as { id: string }).id;
+            const { data: newContact, error: contactError } = await supabase
+              .from("contacts" as never)
+              .insert({
+                account_id: newAccountId,
+                last_name: trimmedName,
+                first_name: "",
+                is_primary: true,
+              } as never)
+              .select("id")
+              .single();
+
+            if (!contactError && newContact) {
+              const newContactId = (newContact as { id: string }).id;
+              accountNameToContactId[trimmedName] = newContactId;
+              contactId = newContactId;
+            }
+          }
+        }
+      }
+
+      // 既存チェック
+      const { data: existing } = await supabase
+        .from("projects")
+        .select("id")
+        .eq("code", code)
+        .single();
+
+      if (existing) {
+        errors.push(`${lineNum}行目: 業務コード「${code}」は既に存在します`);
+        continue;
+      }
+
+      // details に次期改選とコメントを保存
+      const details: Record<string, string> = {};
+      if (nextElection) {
+        details.next_election = nextElection.trim();
+      }
+      if (comment) {
+        details.comment = comment.trim();
+      }
+
+      const { error: insertError } = await supabase.from("projects").insert({
+        code,
+        category: categoryCode,
+        name: purpose.trim(),
+        status: validStatus,
+        contact_id: contactId,
+        manager_id: managerId,
+        start_date: startDate,
+        end_date: endDate,
+        fee_tax_excluded: feeNumber || 0,
+        location: area?.trim() || null,
+        location_detail: null,
+        details,
+      });
+
+      if (insertError) {
+        errors.push(`${lineNum}行目: ${insertError.message}`);
+        continue;
+      }
+
+      imported++;
+    } else if (format === "business") {
       // 業務管理CSV形式: ID,顧客,業務名,業務担当者,進捗状況,着手,完了,税抜報酬,業務の区分,エリア
       const [code, customerName, name, managerName, statusRaw, startDateRaw, endDateRaw, feeRaw, surveyType, area] = values;
 
