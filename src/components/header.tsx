@@ -42,7 +42,10 @@ export async function Header() {
   const { data: { user } } = await supabase.auth.getUser();
 
   let employeeName = "";
-  let lastUpdated = new Date();
+  // ビルド時刻を取得（日本時間で表示）
+  const buildTime = process.env.NEXT_PUBLIC_BUILD_TIME
+    ? new Date(process.env.NEXT_PUBLIC_BUILD_TIME)
+    : new Date();
   if (user) {
     // RLSをバイパスして社員名を取得
     const adminClient = createAdminClient();
@@ -87,7 +90,7 @@ export async function Header() {
               <div className="hidden sm:flex items-center gap-4">
                 <span className="text-xs text-muted-foreground flex items-center gap-1">
                   <RefreshCw className="h-3 w-3" />
-                  {format(lastUpdated, "M/d HH:mm", { locale: ja })}
+                  {format(buildTime, "M/d HH:mm", { locale: ja })}
                 </span>
                 <span className="text-sm text-muted-foreground">
                   {employeeName}さん
@@ -118,7 +121,7 @@ export async function Header() {
                       <DropdownMenuSeparator />
                       <div className="px-2 py-1.5 text-xs text-muted-foreground flex items-center gap-1">
                         <RefreshCw className="h-3 w-3" />
-                        {format(lastUpdated, "M/d HH:mm", { locale: ja })}
+                        {format(buildTime, "M/d HH:mm", { locale: ja })}
                       </div>
                       <div className="px-2 py-1.5 text-sm text-muted-foreground">
                         {employeeName}さん
