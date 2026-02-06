@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getIndividualContactById } from "../../actions";
+import { getIndividualContactById, getRelatedProjectsForContact } from "../../actions";
 import { ContactForm } from "../../contact-form";
 
 interface EditContactPageProps {
@@ -8,7 +8,10 @@ interface EditContactPageProps {
 
 export default async function EditContactPage({ params }: EditContactPageProps) {
   const { id } = await params;
-  const contact = await getIndividualContactById(id);
+  const [contact, relatedProjects] = await Promise.all([
+    getIndividualContactById(id),
+    getRelatedProjectsForContact(id),
+  ]);
 
   if (!contact) {
     notFound();
@@ -16,7 +19,7 @@ export default async function EditContactPage({ params }: EditContactPageProps) 
 
   return (
     <main className="container mx-auto px-4 py-8 max-w-2xl">
-      <ContactForm contact={contact} isEdit />
+      <ContactForm contact={contact} isEdit relatedProjects={relatedProjects} />
     </main>
   );
 }

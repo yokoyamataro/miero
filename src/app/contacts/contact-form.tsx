@@ -14,14 +14,17 @@ import {
   updateIndividualContact,
   deleteIndividualContact,
   type IndividualContactFormData,
+  type RelatedProject,
 } from "./actions";
+import { RelatedProjectsSection } from "@/components/related-projects-section";
 
 interface ContactFormProps {
   contact?: Contact;
   isEdit?: boolean;
+  relatedProjects?: RelatedProject[];
 }
 
-export function ContactForm({ contact, isEdit = false }: ContactFormProps) {
+export function ContactForm({ contact, isEdit = false, relatedProjects = [] }: ContactFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -104,6 +107,13 @@ export function ContactForm({ contact, isEdit = false }: ContactFormProps) {
             <p className="text-destructive">{error}</p>
           </CardContent>
         </Card>
+      )}
+
+      {/* 関連業務（編集時のみ表示） */}
+      {isEdit && relatedProjects.length > 0 && (
+        <div className="mb-6">
+          <RelatedProjectsSection projects={relatedProjects} />
+        </div>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-6">

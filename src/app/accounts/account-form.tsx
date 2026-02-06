@@ -23,9 +23,11 @@ import {
   type AccountFormData,
   type ContactFormData,
   type BranchFormData,
+  type RelatedProject,
 } from "./actions";
 import { IndustrySelect } from "./industry-select";
 import { estimatePostalCode } from "@/lib/ai/postal-code";
+import { RelatedProjectsSection } from "@/components/related-projects-section";
 
 // 法人格のカナパターン（前方・後方どちらにも対応）
 const CORPORATE_TITLE_KANA = [
@@ -75,9 +77,10 @@ interface AccountFormProps {
   account?: AccountWithContacts;
   isEdit?: boolean;
   industries: Industry[];
+  relatedProjects?: RelatedProject[];
 }
 
-export function AccountForm({ account, isEdit = false, industries }: AccountFormProps) {
+export function AccountForm({ account, isEdit = false, industries, relatedProjects = [] }: AccountFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -327,6 +330,13 @@ export function AccountForm({ account, isEdit = false, industries }: AccountForm
             <p className="text-destructive">{error}</p>
           </CardContent>
         </Card>
+      )}
+
+      {/* 関連業務（編集時のみ表示） */}
+      {isEdit && relatedProjects.length > 0 && (
+        <div className="mb-6">
+          <RelatedProjectsSection projects={relatedProjects} />
+        </div>
       )}
 
       <form onSubmit={handleSubmit} className="space-y-6">

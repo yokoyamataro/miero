@@ -2,8 +2,21 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import type { AccountInsert, ContactInsert, AccountWithContacts, Industry, IndustryInsert, Branch } from "@/types/database";
+import type { AccountInsert, ContactInsert, AccountWithContacts, Industry, IndustryInsert, Branch, Project } from "@/types/database";
 import { DEFAULT_INDUSTRIES } from "@/types/database";
+
+// 関連業務の型
+export interface RelatedProject {
+  id: string;
+  code: string;
+  name: string;
+  status: string;
+  category: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  relationship: "顧客" | "関係者";
+  stakeholder_tag?: string;
+}
 
 export interface AccountFormData {
   company_name: string;
@@ -435,4 +448,105 @@ export async function initializeDefaultIndustries(): Promise<void> {
   await supabase
     .from("industries")
     .insert(industriesToInsert as never);
+}
+
+// ============================================
+// 関連業務取得
+// ============================================
+
+// 法人に関連する業務を取得（顧客として、または関係者として）
+export async function getRelatedProjectsForAccount(accountId: string): Promise<RelatedProject[]> {
+  const supabase = await createClient();
+
+  // 1. この法人に属する連絡先IDを取得
+  const { data: contacts, error: contactsError } = await supabase
+    .from("contacts" as never)
+    .select("id")
+    .eq("account_id", accountId)
+    .is("deleted_at", null);
+
+  if (contactsError) {
+    console.error("Error fetching contacts for account:", contactsError);
+    return [];
+  }
+
+  const contactIds = (contacts || []).map((c: { id: string }) => c.id);
+
+  if (contactIds.length === 0) {
+    return [];
+  }
+
+  const relatedProjects: RelatedProject[] = [];
+
+  // 2. 顧客として紐づいている業務を取得
+  const { data: customerProjects, error: customerError } = await supabase
+    .from("projects" as never)
+    .select("id, code, name, status, category, start_date, end_date")
+    .in("contact_id", contactIds)
+    .is("deleted_at", null);
+
+  if (customerError) {
+    console.error("Error fetching customer projects:", customerError);
+  } else if (customerProjects) {
+    for (const p of customerProjects as Project[]) {
+      relatedProjects.push({
+        id: p.id,
+        code: p.code,
+        name: p.name,
+        status: p.status,
+        category: p.category,
+        start_date: p.start_date,
+        end_date: p.end_date,
+        relationship: "顧客",
+      });
+    }
+  }
+
+  // 3. 関係者として紐づいている業務を取得
+  const { data: stakeholderData, error: stakeholderError } = await supabase
+    .from("project_stakeholders" as never)
+    .select(`
+      project_id,
+      tag:stakeholder_tags(name),
+      project:projects(id, code, name, status, category, start_date, end_date, deleted_at)
+    `)
+    .in("contact_id", contactIds);
+
+  if (stakeholderError) {
+    console.error("Error fetching stakeholder projects:", stakeholderError);
+  } else if (stakeholderData) {
+    for (const s of stakeholderData as Array<{
+      project_id: string;
+      tag: { name: string } | null;
+      project: Project & { deleted_at: string | null } | null;
+    }>) {
+      if (s.project && !s.project.deleted_at) {
+        // 既に顧客として追加されていないかチェック
+        const existing = relatedProjects.find((rp) => rp.id === s.project!.id);
+        if (!existing) {
+          relatedProjects.push({
+            id: s.project.id,
+            code: s.project.code,
+            name: s.project.name,
+            status: s.project.status,
+            category: s.project.category,
+            start_date: s.project.start_date,
+            end_date: s.project.end_date,
+            relationship: "関係者",
+            stakeholder_tag: s.tag?.name,
+          });
+        }
+      }
+    }
+  }
+
+  // start_dateの降順でソート
+  relatedProjects.sort((a, b) => {
+    if (!a.start_date && !b.start_date) return 0;
+    if (!a.start_date) return 1;
+    if (!b.start_date) return -1;
+    return b.start_date.localeCompare(a.start_date);
+  });
+
+  return relatedProjects;
 }

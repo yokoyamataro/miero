@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getAccountById, getIndustries } from "../../actions";
+import { getAccountById, getIndustries, getRelatedProjectsForAccount } from "../../actions";
 import { AccountForm } from "../../account-form";
 
 interface EditAccountPageProps {
@@ -8,9 +8,10 @@ interface EditAccountPageProps {
 
 export default async function EditAccountPage({ params }: EditAccountPageProps) {
   const { id } = await params;
-  const [account, industries] = await Promise.all([
+  const [account, industries, relatedProjects] = await Promise.all([
     getAccountById(id),
     getIndustries(),
+    getRelatedProjectsForAccount(id),
   ]);
 
   if (!account) {
@@ -19,7 +20,7 @@ export default async function EditAccountPage({ params }: EditAccountPageProps) 
 
   return (
     <main className="container mx-auto px-4 py-8 max-w-3xl">
-      <AccountForm account={account} isEdit industries={industries} />
+      <AccountForm account={account} isEdit industries={industries} relatedProjects={relatedProjects} />
     </main>
   );
 }
