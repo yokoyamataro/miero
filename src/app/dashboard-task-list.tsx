@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ListTodo, User, UsersRound, GripVertical, Clock, AlertTriangle } from "lucide-react";
+import { ListTodo, User, UsersRound, GripVertical, Clock, AlertTriangle, Pause } from "lucide-react";
 import { type Employee } from "@/types/database";
 import { type TaskWithProject } from "./dashboard-actions";
 import Link from "next/link";
@@ -72,10 +72,15 @@ export function DashboardTaskList({
       }
       grouped[task.project_id].tasks.push(task);
     }
-    // 緊急を先頭に、その後はcode順にソート
+    // 緊急を先頭に、待機を最後に、その後はcode順にソート
     return Object.values(grouped).sort((a, b) => {
+      // 緊急を先頭に
       if (a.project.is_urgent !== b.project.is_urgent) {
         return a.project.is_urgent ? -1 : 1;
+      }
+      // 待機を最後に
+      if (a.project.is_on_hold !== b.project.is_on_hold) {
+        return a.project.is_on_hold ? 1 : -1;
       }
       return b.project.code.localeCompare(a.project.code);
     });
@@ -133,10 +138,13 @@ export function DashboardTaskList({
                   {project.is_urgent && (
                     <AlertTriangle className="h-4 w-4 text-destructive flex-shrink-0" />
                   )}
+                  {project.is_on_hold && (
+                    <Pause className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  )}
                   <span className="font-mono text-xs text-muted-foreground">
                     {project.code}
                   </span>
-                  <span className="font-medium text-sm truncate">
+                  <span className={`font-medium text-sm truncate ${project.is_on_hold ? "text-muted-foreground" : ""}`}>
                     {project.name}
                   </span>
                 </Link>

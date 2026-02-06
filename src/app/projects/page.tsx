@@ -11,11 +11,12 @@ export const dynamic = "force-dynamic";
 export default async function ProjectsPage() {
   const supabase = await createClient();
 
-  // 業務データを取得（緊急を先頭に、その後は作成日時の降順）
+  // 業務データを取得（緊急を先頭に、待機を最後に、その後は作成日時の降順）
   const { data: projects, error } = await supabase
     .from("projects")
     .select("*")
     .order("is_urgent", { ascending: false })
+    .order("is_on_hold", { ascending: true })
     .order("created_at", { ascending: false });
 
   // 連絡先を取得
