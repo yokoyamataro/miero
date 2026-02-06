@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ListTodo, User, UsersRound, GripVertical, Clock } from "lucide-react";
+import { ListTodo, User, UsersRound, GripVertical, Clock, AlertTriangle } from "lucide-react";
 import { type Employee } from "@/types/database";
 import { type TaskWithProject } from "./dashboard-actions";
 import Link from "next/link";
@@ -72,10 +72,13 @@ export function DashboardTaskList({
       }
       grouped[task.project_id].tasks.push(task);
     }
-    // code順にソート
-    return Object.values(grouped).sort((a, b) =>
-      b.project.code.localeCompare(a.project.code)
-    );
+    // 緊急を先頭に、その後はcode順にソート
+    return Object.values(grouped).sort((a, b) => {
+      if (a.project.is_urgent !== b.project.is_urgent) {
+        return a.project.is_urgent ? -1 : 1;
+      }
+      return b.project.code.localeCompare(a.project.code);
+    });
   }, [filteredTasks]);
 
   return (
@@ -127,6 +130,9 @@ export function DashboardTaskList({
                   href={`/projects/${project.id}`}
                   className="flex items-center gap-2 mb-2 hover:bg-muted px-2 py-1 rounded -mx-2"
                 >
+                  {project.is_urgent && (
+                    <AlertTriangle className="h-4 w-4 text-destructive flex-shrink-0" />
+                  )}
                   <span className="font-mono text-xs text-muted-foreground">
                     {project.code}
                   </span>

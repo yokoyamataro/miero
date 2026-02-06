@@ -43,6 +43,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Trash2,
+  AlertTriangle,
 } from "lucide-react";
 import {
   PROJECT_CATEGORY_LABELS,
@@ -487,7 +488,7 @@ export function ProjectInfo({
 
   const handleUpdate = (field: string, value: string) => {
     startTransition(async () => {
-      let updateValue: string | number | null = value;
+      let updateValue: string | number | boolean | null = value;
 
       // フィールドに応じた変換
       if (field === "fee_tax_excluded") {
@@ -498,6 +499,8 @@ export function ProjectInfo({
         updateValue = null;
       } else if ((field === "location" || field === "location_detail") && !value) {
         updateValue = null;
+      } else if (field === "is_urgent") {
+        updateValue = value === "true";
       }
 
       await updateProject(project.id, { [field]: updateValue });
@@ -552,6 +555,15 @@ export function ProjectInfo({
               ))}
             </SelectContent>
           </Select>
+          <Button
+            variant={project.is_urgent ? "destructive" : "outline"}
+            size="sm"
+            className="gap-1"
+            onClick={() => handleUpdate("is_urgent", project.is_urgent ? "false" : "true")}
+          >
+            <AlertTriangle className="h-4 w-4" />
+            緊急
+          </Button>
           <div className="flex-1" />
           <AlertDialog>
             <AlertDialogTrigger asChild>

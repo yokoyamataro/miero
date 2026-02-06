@@ -9,7 +9,7 @@ import {
 
 // タスク＋業務情報の型
 export type TaskWithProject = Task & {
-  project: Pick<Project, "id" | "code" | "name" | "location">;
+  project: Pick<Project, "id" | "code" | "name" | "location" | "is_urgent">;
 };
 
 // 未完了タスク一覧を取得（業務情報付き）
@@ -43,7 +43,7 @@ export async function getIncompleteTasks(
   const projectIds = Array.from(new Set(typedTasks.map((t) => t.project_id)));
   const { data: projects, error: projectsError } = await supabase
     .from("projects")
-    .select("id, code, name, location, status")
+    .select("id, code, name, location, status, is_urgent")
     .in("id", projectIds);
 
   if (projectsError) {

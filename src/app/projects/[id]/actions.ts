@@ -26,6 +26,7 @@ export async function updateProject(
   updates: {
     name?: string;
     status?: ProjectStatus;
+    is_urgent?: boolean;
     category?: ProjectCategory;
     contact_id?: string | null;
     manager_id?: string | null;
