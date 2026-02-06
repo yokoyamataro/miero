@@ -10,8 +10,9 @@ import {
   Calendar,
   Menu,
   RefreshCw,
+  Home,
 } from "lucide-react";
-import { format } from "date-fns";
+import { format, addHours } from "date-fns";
 import { ja } from "date-fns/locale";
 import { LogoutButton } from "./logout-button";
 import {
@@ -23,6 +24,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 const navItems = [
+  { href: "/", label: "ホーム", icon: Home },
   { href: "/projects", label: "業務", icon: FolderKanban },
   { href: "/customers", label: "顧客", icon: UserCircle },
   { href: "/employees", label: "社員", icon: Users },
@@ -42,10 +44,11 @@ export async function Header() {
   const { data: { user } } = await supabase.auth.getUser();
 
   let employeeName = "";
-  // ビルド時刻を取得（日本時間で表示）
-  const buildTime = process.env.NEXT_PUBLIC_BUILD_TIME
+  // ビルド時刻を取得（UTC→日本時間+9時間）
+  const buildTimeUtc = process.env.NEXT_PUBLIC_BUILD_TIME
     ? new Date(process.env.NEXT_PUBLIC_BUILD_TIME)
     : new Date();
+  const buildTime = addHours(buildTimeUtc, 9);
   if (user) {
     // RLSをバイパスして社員名を取得
     const adminClient = createAdminClient();
