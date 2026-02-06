@@ -245,13 +245,15 @@ export function EventModal({
         task_id: linkedTaskId,
       };
 
-      if (event) {
+      if (event && event.id) {
+        // 既存イベントの更新
         const result = await updateEvent(event.id, eventData, participantIds);
         if (result.error) {
           setError(result.error);
           return;
         }
       } else {
+        // 新規イベントの作成
         const result = await createEvent(eventData, participantIds);
         if (result.error) {
           setError(result.error);
