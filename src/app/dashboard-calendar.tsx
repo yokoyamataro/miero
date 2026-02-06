@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -52,32 +52,43 @@ import {
   EVENT_CATEGORY_COLORS,
   type EventCategoryLegacy,
 } from "@/types/database";
-import { EventModal } from "./event-modal";
-import { EventDetailModal } from "./event-detail-modal";
+import { EventModal } from "./calendar/event-modal";
+import { EventDetailModal } from "./calendar/event-detail-modal";
+import { type TaskWithProject } from "./dashboard-actions";
 
 type ViewMode = "day" | "week" | "month";
-type EmployeeFilter = "me" | "all" | string; // "me" = 自分のみ, "all" = 全員, string = 特定の社員ID
+type EmployeeFilter = "me" | "all" | string;
 
-interface CalendarViewProps {
+interface DashboardCalendarProps {
   initialEvents: CalendarEventWithParticipants[];
   employees: Employee[];
   eventCategories: EventCategory[];
   initialView: ViewMode;
   initialDate: string;
   currentEmployeeId: string | null;
+  onDropTask: (date: Date, taskData: DroppedTaskData) => void;
 }
 
-// 月曜始まり
+export interface DroppedTaskData {
+  taskId: string;
+  projectId: string;
+  projectCode: string;
+  projectName: string;
+  projectLocation: string | null;
+  taskTitle: string;
+}
+
 const WEEKDAY_LABELS = ["月", "火", "水", "木", "金", "土", "日"];
 
-export function CalendarView({
+export function DashboardCalendar({
   initialEvents,
   employees,
   eventCategories,
   initialView,
   initialDate,
   currentEmployeeId,
-}: CalendarViewProps) {
+  onDropTask,
+}: DashboardCalendarProps) {
   const router = useRouter();
   const [viewMode, setViewMode] = useState<ViewMode>(initialView);
   const [currentDate, setCurrentDate] = useState(parseISO(initialDate));
@@ -87,14 +98,15 @@ export function CalendarView({
   const [selectedEvent, setSelectedEvent] = useState<CalendarEventWithParticipants | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [employeeFilter, setEmployeeFilter] = useState<EmployeeFilter>("all");
+  const [dragOverDate, setDragOverDate] = useState<string | null>(null);
 
-  // 社員リストをソート（ログインユーザーを先頭に）
+  // 社員リストをソート
   const sortedEmployees = useMemo(() => {
     if (!currentEmployeeId) return employees;
     return [...employees].sort((a, b) => {
       if (a.id === currentEmployeeId) return -1;
       if (b.id === currentEmployeeId) return 1;
-      return 0; // 他は登録順のまま
+      return 0;
     });
   }, [employees, currentEmployeeId]);
 
@@ -108,15 +120,13 @@ export function CalendarView({
     if (!targetEmployeeId) return events;
 
     return events.filter((event) => {
-      // 作成者が対象社員
       if (event.created_by === targetEmployeeId) return true;
-      // 参加者に対象社員が含まれる
       if (event.participants.some((p) => p.id === targetEmployeeId)) return true;
       return false;
     });
   }, [events, employeeFilter, currentEmployeeId]);
 
-  // 月表示のカレンダー日付を生成（月曜始まり）
+  // 月表示のカレンダー日付を生成
   const monthDays = useMemo(() => {
     const monthStart = startOfMonth(currentDate);
     const monthEnd = endOfMonth(currentDate);
@@ -125,13 +135,13 @@ export function CalendarView({
     return eachDayOfInterval({ start: calendarStart, end: calendarEnd });
   }, [currentDate]);
 
-  // 週表示の日付を生成（月曜始まり）
+  // 週表示の日付を生成
   const weekDays = useMemo(() => {
     const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
     return eachDayOfInterval({ start: weekStart, end: addDays(weekStart, 6) });
   }, [currentDate]);
 
-  // 日付ごとのイベントを取得（フィルタリング済み）
+  // 日付ごとのイベントを取得
   const getEventsForDate = (date: Date) => {
     return filteredEvents.filter((event) => {
       const startDate = parseISO(event.start_date);
@@ -139,6 +149,29 @@ export function CalendarView({
       return date >= startDate && date <= endDate;
     });
   };
+
+  // 週表示用：日付×社員ごとのイベントを取得
+  const getEventsForDateAndEmployee = (date: Date, employeeId: string) => {
+    return filteredEvents.filter((event) => {
+      const startDate = parseISO(event.start_date);
+      const endDate = event.end_date ? parseISO(event.end_date) : startDate;
+      const isInDateRange = date >= startDate && date <= endDate;
+      if (!isInDateRange) return false;
+      return event.created_by === employeeId ||
+             event.participants.some((p) => p.id === employeeId);
+    });
+  };
+
+  // 週表示に表示する社員リスト
+  const weekViewEmployees = useMemo(() => {
+    if (employeeFilter === "me") {
+      return sortedEmployees.filter((emp) => emp.id === currentEmployeeId);
+    } else if (employeeFilter === "all") {
+      return sortedEmployees;
+    } else {
+      return sortedEmployees.filter((emp) => emp.id === employeeFilter);
+    }
+  }, [sortedEmployees, employeeFilter, currentEmployeeId]);
 
   // ナビゲーション
   const navigatePrev = () => {
@@ -200,9 +233,36 @@ export function CalendarView({
     router.refresh();
     setShowEventModal(false);
     setShowDetailModal(false);
-    // SSRからのデータを再取得するためにページをリロード
     window.location.reload();
   };
+
+  // ドロップハンドラー
+  const handleDrop = useCallback(
+    (date: Date, e: React.DragEvent) => {
+      e.preventDefault();
+      setDragOverDate(null);
+
+      try {
+        const data = e.dataTransfer.getData("text/plain");
+        if (data) {
+          const taskData = JSON.parse(data) as DroppedTaskData;
+          onDropTask(date, taskData);
+        }
+      } catch (err) {
+        console.error("Drop error:", err);
+      }
+    },
+    [onDropTask]
+  );
+
+  const handleDragOver = useCallback((date: Date, e: React.DragEvent) => {
+    e.preventDefault();
+    setDragOverDate(format(date, "yyyy-MM-dd"));
+  }, []);
+
+  const handleDragLeave = useCallback(() => {
+    setDragOverDate(null);
+  }, []);
 
   // タイトル
   const getTitle = () => {
@@ -220,23 +280,19 @@ export function CalendarView({
 
   // イベントの区分色を取得
   const getCategoryColor = (event: CalendarEventWithParticipants) => {
-    // 新しい区分マスタを使用
     if (event.eventCategory) {
       return event.eventCategory.color;
     }
-    // 旧カテゴリーから色を取得（後方互換）
     if (event.category && EVENT_CATEGORY_COLORS[event.category as EventCategoryLegacy]) {
       return EVENT_CATEGORY_COLORS[event.category as EventCategoryLegacy];
     }
     return "bg-gray-500";
   };
 
-  // イベントの区分名を取得
   const getCategoryName = (event: CalendarEventWithParticipants) => {
     if (event.eventCategory) {
       return event.eventCategory.name;
     }
-    // 旧カテゴリー名（後方互換）
     if (event.category) {
       return event.category;
     }
@@ -303,7 +359,6 @@ export function CalendarView({
   // 月表示
   const renderMonthView = () => (
     <div className="grid grid-cols-7 gap-px bg-border">
-      {/* 曜日ヘッダー（月曜始まり） */}
       {WEEKDAY_LABELS.map((day, idx) => (
         <div
           key={day}
@@ -315,19 +370,23 @@ export function CalendarView({
         </div>
       ))}
 
-      {/* 日付セル */}
       {monthDays.map((date, idx) => {
         const dayEvents = getEventsForDate(date);
         const isCurrentMonth = isSameMonth(date, currentDate);
         const dayOfWeek = date.getDay();
+        const dateStr = format(date, "yyyy-MM-dd");
+        const isDragOver = dragOverDate === dateStr;
 
         return (
           <div
             key={idx}
-            className={`min-h-[100px] p-1 bg-background cursor-pointer hover:bg-muted/50 ${
+            className={`min-h-[80px] p-1 bg-background cursor-pointer hover:bg-muted/50 ${
               !isCurrentMonth ? "opacity-40" : ""
-            }`}
+            } ${isDragOver ? "bg-blue-100 ring-2 ring-blue-400" : ""}`}
             onClick={() => handleDateClick(date)}
+            onDrop={(e) => handleDrop(date, e)}
+            onDragOver={(e) => handleDragOver(date, e)}
+            onDragLeave={handleDragLeave}
           >
             <div
               className={`text-sm mb-1 w-6 h-6 flex items-center justify-center rounded-full ${
@@ -343,10 +402,10 @@ export function CalendarView({
               {format(date, "d")}
             </div>
             <div className="space-y-0.5">
-              {dayEvents.slice(0, 3).map((event) => renderEvent(event, true))}
-              {dayEvents.length > 3 && (
+              {dayEvents.slice(0, 2).map((event) => renderEvent(event, true))}
+              {dayEvents.length > 2 && (
                 <div className="text-xs text-muted-foreground">
-                  +{dayEvents.length - 3}件
+                  +{dayEvents.length - 2}件
                 </div>
               )}
             </div>
@@ -356,49 +415,19 @@ export function CalendarView({
     </div>
   );
 
-  // 週表示用：日付×社員ごとのイベントを取得
-  const getEventsForDateAndEmployee = (date: Date, employeeId: string) => {
-    return filteredEvents.filter((event) => {
-      const startDate = parseISO(event.start_date);
-      const endDate = event.end_date ? parseISO(event.end_date) : startDate;
-      const isInDateRange = date >= startDate && date <= endDate;
-      if (!isInDateRange) return false;
-
-      // 作成者が対象社員、または参加者に含まれる
-      return event.created_by === employeeId ||
-             event.participants.some((p) => p.id === employeeId);
-    });
-  };
-
-  // 週表示に表示する社員リスト（フィルター適用）
-  const weekViewEmployees = useMemo(() => {
-    if (employeeFilter === "me") {
-      // 自分のみ
-      return sortedEmployees.filter((emp) => emp.id === currentEmployeeId);
-    } else if (employeeFilter === "all") {
-      // 全員（自分が先頭）
-      return sortedEmployees;
-    } else {
-      // 特定の社員
-      return sortedEmployees.filter((emp) => emp.id === employeeFilter);
-    }
-  }, [sortedEmployees, employeeFilter, currentEmployeeId]);
-
   // 週表示
   const renderWeekView = () => (
     <div className="overflow-auto">
       <table className="w-full border-collapse">
         <thead>
           <tr>
-            {/* 社員名列のヘッダー */}
-            <th className="p-2 bg-muted border text-left min-w-[100px] sticky left-0 z-10">
+            <th className="p-2 bg-muted border text-left min-w-[80px] sticky left-0 z-10">
               社員
             </th>
-            {/* 曜日ヘッダー（月曜始まり） */}
             {weekDays.map((date, idx) => (
               <th
                 key={idx}
-                className={`p-2 text-center bg-muted border min-w-[140px] ${
+                className={`p-2 text-center bg-muted border min-w-[120px] ${
                   idx === 5 ? "text-blue-500" : idx === 6 ? "text-red-500" : ""
                 }`}
               >
@@ -419,26 +448,31 @@ export function CalendarView({
         <tbody>
           {weekViewEmployees.map((employee) => (
             <tr key={employee.id}>
-              {/* 社員名 */}
               <td className="p-2 bg-muted/50 border font-medium sticky left-0 z-10 whitespace-nowrap">
                 <div className="flex items-center gap-1">
                   <User className="h-4 w-4 text-muted-foreground" />
-                  <span>{employee.name}</span>
+                  <span className="text-sm">{employee.name}</span>
                   {employee.id === currentEmployeeId && (
                     <span className="text-xs text-muted-foreground">(自分)</span>
                   )}
                 </div>
               </td>
-              {/* 各日のイベント */}
               {weekDays.map((date, idx) => {
                 const dayEvents = getEventsForDateAndEmployee(date, employee.id);
+                const dateStr = format(date, "yyyy-MM-dd");
+                const isDragOver = dragOverDate === dateStr;
                 return (
                   <td
                     key={idx}
-                    className="p-2 bg-background border align-top cursor-pointer hover:bg-muted/50 min-h-[100px]"
+                    className={`p-2 bg-background border align-top cursor-pointer hover:bg-muted/50 ${
+                      isDragOver ? "bg-blue-100 ring-2 ring-blue-400" : ""
+                    }`}
                     onClick={() => handleDateClick(date)}
+                    onDrop={(e) => handleDrop(date, e)}
+                    onDragOver={(e) => handleDragOver(date, e)}
+                    onDragLeave={handleDragLeave}
                   >
-                    <div className="space-y-1 min-h-[80px]">
+                    <div className="space-y-1 min-h-[60px]">
                       {dayEvents.map((event) => renderEvent(event))}
                     </div>
                   </td>
@@ -461,13 +495,19 @@ export function CalendarView({
   // 日表示
   const renderDayView = () => {
     const dayEvents = getEventsForDate(currentDate);
-    const hours = Array.from({ length: 24 }, (_, i) => i);
+    const dateStr = format(currentDate, "yyyy-MM-dd");
+    const isDragOver = dragOverDate === dateStr;
 
     return (
       <div className="border rounded-lg overflow-hidden">
         <div
-          className="p-4 bg-muted cursor-pointer hover:bg-muted/80"
+          className={`p-4 bg-muted cursor-pointer hover:bg-muted/80 ${
+            isDragOver ? "bg-blue-100 ring-2 ring-blue-400" : ""
+          }`}
           onClick={() => handleDateClick(currentDate)}
+          onDrop={(e) => handleDrop(currentDate, e)}
+          onDragOver={(e) => handleDragOver(currentDate, e)}
+          onDragLeave={handleDragLeave}
         >
           <div className="flex items-center justify-between mb-4">
             <div className="text-lg font-medium">
@@ -494,9 +534,9 @@ export function CalendarView({
   };
 
   return (
-    <div className="space-y-4">
+    <Card className="h-full flex flex-col">
       {/* ナビゲーション */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
+      <div className="flex items-center justify-between flex-wrap gap-2 p-4 border-b">
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={navigatePrev}>
             <ChevronLeft className="h-4 w-4" />
@@ -507,45 +547,40 @@ export function CalendarView({
           <Button variant="outline" size="sm" onClick={navigateNext}>
             <ChevronRight className="h-4 w-4" />
           </Button>
-          <h2 className="text-xl font-semibold ml-2">{getTitle()}</h2>
+          <h2 className="text-lg font-semibold ml-2">{getTitle()}</h2>
         </div>
 
         <div className="flex gap-2 flex-wrap">
           {/* 社員フィルター */}
-          <div className="flex items-center gap-1">
-            <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
-              <SelectTrigger className="w-[160px] h-9">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">
+          <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
+            <SelectTrigger className="w-[140px] h-8">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">
+                <span className="flex items-center gap-2">
+                  <UsersRound className="h-4 w-4" />
+                  全員
+                </span>
+              </SelectItem>
+              {currentEmployeeId && (
+                <SelectItem value="me">
                   <span className="flex items-center gap-2">
-                    <UsersRound className="h-4 w-4" />
-                    全員の予定
+                    <User className="h-4 w-4" />
+                    自分
                   </span>
                 </SelectItem>
-                {currentEmployeeId && (
-                  <SelectItem value="me">
-                    <span className="flex items-center gap-2">
-                      <User className="h-4 w-4" />
-                      自分の予定
-                    </span>
-                  </SelectItem>
-                )}
-                {sortedEmployees.map((emp) => (
-                  <SelectItem key={emp.id} value={emp.id}>
-                    <span className="flex items-center gap-2">
-                      <User className="h-4 w-4 opacity-50" />
-                      {emp.name}
-                      {emp.id === currentEmployeeId && (
-                        <span className="text-xs text-muted-foreground">(自分)</span>
-                      )}
-                    </span>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+              )}
+              {sortedEmployees.map((emp) => (
+                <SelectItem key={emp.id} value={emp.id}>
+                  <span className="flex items-center gap-2">
+                    <User className="h-4 w-4 opacity-50" />
+                    {emp.name}
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
 
           {/* 表示切替 */}
           <div className="flex border rounded-md">
@@ -579,14 +614,14 @@ export function CalendarView({
           </div>
 
           {/* 新規作成ボタン */}
-          <Button onClick={() => handleDateClick(new Date())}>
+          <Button size="sm" onClick={() => handleDateClick(new Date())}>
             <Plus className="h-4 w-4 mr-1" />
-            予定を追加
+            追加
           </Button>
 
-          {/* 設定ボタン */}
+          {/* 設定リンク */}
           <Link href="/calendar/settings">
-            <Button variant="outline" size="icon">
+            <Button variant="outline" size="icon" className="h-8 w-8">
               <Settings className="h-4 w-4" />
             </Button>
           </Link>
@@ -594,13 +629,11 @@ export function CalendarView({
       </div>
 
       {/* カレンダー本体 */}
-      <Card>
-        <CardContent className="p-0 overflow-hidden">
-          {viewMode === "month" && renderMonthView()}
-          {viewMode === "week" && renderWeekView()}
-          {viewMode === "day" && renderDayView()}
-        </CardContent>
-      </Card>
+      <CardContent className="p-0 flex-1 overflow-auto">
+        {viewMode === "month" && renderMonthView()}
+        {viewMode === "week" && renderWeekView()}
+        {viewMode === "day" && renderDayView()}
+      </CardContent>
 
       {/* イベント作成・編集モーダル */}
       <EventModal
@@ -622,6 +655,6 @@ export function CalendarView({
         onEdit={handleEditEvent}
         onDeleted={handleEventUpdated}
       />
-    </div>
+    </Card>
   );
 }

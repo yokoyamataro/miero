@@ -1,34 +1,35 @@
-import Link from "next/link";
-import { Button } from "@/components/ui/button";
-import { AttendanceClock } from "@/components/attendance-clock";
+import { format, subMonths, addMonths, startOfMonth, endOfMonth } from "date-fns";
 import { getTodayAttendance } from "@/app/attendance/actions";
+import { getEventsInRange, getEmployees, getCurrentEmployeeId, getEventCategories } from "./calendar/actions";
+import { getIncompleteTasks } from "./dashboard-actions";
+import { DashboardView } from "./dashboard-view";
 
 export default async function Home() {
-  const attendanceData = await getTodayAttendance();
+  const today = new Date();
+  const rangeStart = format(subMonths(startOfMonth(today), 1), "yyyy-MM-dd");
+  const rangeEnd = format(addMonths(endOfMonth(today), 1), "yyyy-MM-dd");
+
+  // 並列でデータ取得
+  const [attendanceData, events, employees, currentEmployeeId, eventCategories, tasks] =
+    await Promise.all([
+      getTodayAttendance(),
+      getEventsInRange(rangeStart, rangeEnd),
+      getEmployees(),
+      getCurrentEmployeeId(),
+      getEventCategories(),
+      getIncompleteTasks(), // 全タスク取得（クライアント側でフィルタ）
+    ]);
 
   return (
-    <main className="container mx-auto px-4 py-8">
-      {/* 打刻UI */}
-      <AttendanceClock
-        initialAttendance={attendanceData?.attendance || null}
-        employeeId={attendanceData?.employeeId || null}
+    <main className="container mx-auto">
+      <DashboardView
+        events={events}
+        employees={employees}
+        eventCategories={eventCategories}
+        currentEmployeeId={currentEmployeeId}
+        tasks={tasks}
+        attendance={attendanceData?.attendance || null}
       />
-
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold text-primary">ダッシュボード</h1>
-      </header>
-
-      <section className="mt-12">
-        <h2 className="text-xl font-semibold mb-4">クイックアクション</h2>
-        <div className="flex gap-4 flex-wrap">
-          <Link href="/projects/new">
-            <Button>新規業務登録</Button>
-          </Link>
-          <Link href="/customers">
-            <Button variant="outline">顧客管理</Button>
-          </Link>
-        </div>
-      </section>
     </main>
   );
 }
