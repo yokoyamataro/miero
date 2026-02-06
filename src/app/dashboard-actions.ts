@@ -22,7 +22,7 @@ export async function getIncompleteTasks(
   let query = supabase
     .from("tasks" as never)
     .select("*")
-    .eq("status", "未完了")
+    .eq("is_completed", false)
     .order("sort_order", { ascending: true });
 
   if (assignedToFilter) {

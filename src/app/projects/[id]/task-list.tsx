@@ -118,7 +118,7 @@ function SortableTaskItem({
     opacity: isDragging ? 0.5 : 1,
   };
 
-  const isCompleted = task.status === "完了";
+  const isCompleted = task.is_completed;
 
   const handleToggleComplete = () => {
     if (!isCompleted) {
@@ -127,7 +127,7 @@ function SortableTaskItem({
     } else {
       // 未完了に戻す
       startTransition(async () => {
-        await updateTask(task.id, { status: "未完了", actual_minutes: null });
+        await updateTask(task.id, { is_completed: false, actual_minutes: null });
         router.refresh();
       });
     }
@@ -398,7 +398,7 @@ function CompleteTaskModal({
       const hours = parseFloat(actualHours) || 0;
       const actualMinutes = hours > 0 ? hoursToMinutes(hours) : null;
       await updateTask(task.id, {
-        status: "完了",
+        is_completed: true,
         actual_minutes: actualMinutes,
       });
       router.refresh();
@@ -789,7 +789,7 @@ export function TaskList({ projectId, tasks, employees }: TaskListProps) {
   };
 
   // 進捗計算
-  const completedCount = localTasks.filter((t) => t.status === "完了").length;
+  const completedCount = localTasks.filter((t) => t.is_completed).length;
   const totalCount = localTasks.length;
   const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 

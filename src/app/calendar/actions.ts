@@ -331,7 +331,7 @@ export async function getActiveProjectsWithTasks(): Promise<ProjectWithTasks[]> 
     .from("tasks" as never)
     .select("*")
     .in("project_id", projectIds)
-    .eq("status", "未完了")
+    .eq("is_completed", false)
     .order("sort_order", { ascending: true });
 
   const allTasks = (tasks as Task[]) || [];

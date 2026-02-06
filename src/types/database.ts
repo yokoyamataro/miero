@@ -313,14 +313,12 @@ export interface ProjectWithRelations extends Project {
 // ============================================
 // Task (タスク)
 // ============================================
-export type TaskStatus = "未完了" | "完了";
-
 export interface Task {
   id: string;
   project_id: string;
   title: string;
   description: string | null;
-  status: TaskStatus;
+  is_completed: boolean;
   due_date: string | null;
   assigned_to: string | null;
   sort_order: number;
@@ -336,7 +334,7 @@ export interface TaskInsert {
   project_id: string;
   title: string;
   description?: string | null;
-  status?: TaskStatus;
+  is_completed?: boolean;
   due_date?: string | null;
   assigned_to?: string | null;
   sort_order?: number;

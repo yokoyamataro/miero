@@ -4,7 +4,6 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import {
   type TaskInsert,
-  type TaskStatus,
   type ProjectStatus,
   type ProjectCategory,
   type StakeholderTag,
@@ -91,7 +90,7 @@ export async function updateTask(
   updates: {
     title?: string;
     description?: string | null;
-    status?: TaskStatus;
+    is_completed?: boolean;
     due_date?: string | null;
     assigned_to?: string | null;
     sort_order?: number;
@@ -328,7 +327,7 @@ export async function createTasksFromTemplateSet(
     project_id: projectId,
     title: item.title,
     estimated_minutes: item.estimated_minutes,
-    status: "未完了",
+    is_completed: false,
     sort_order: currentSortOrder++,
   }));
 
