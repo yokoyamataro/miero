@@ -90,6 +90,7 @@ export function AccountForm({ account, isEdit = false, industries }: AccountForm
       id: b.id,
       name: b.name,
       phone: b.phone,
+      fax: b.fax,
       postal_code: b.postal_code,
       prefecture: b.prefecture,
       city: b.city,
@@ -123,6 +124,7 @@ export function AccountForm({ account, isEdit = false, industries }: AccountForm
         id: `temp-${Date.now()}`,
         name: "",
         phone: null,
+        fax: null,
         postal_code: null,
         prefecture: null,
         city: null,
@@ -214,6 +216,7 @@ export function AccountForm({ account, isEdit = false, industries }: AccountForm
       company_name_kana: (formData.get("company_name_kana") as string) || null,
       corporate_number: (formData.get("corporate_number") as string) || null,
       main_phone: (formData.get("main_phone") as string) || null,
+      fax: (formData.get("fax") as string) || null,
       postal_code: (formData.get("postal_code") as string) || null,
       prefecture: (formData.get("prefecture") as string) || null,
       city: (formData.get("city") as string) || null,
@@ -373,6 +376,17 @@ export function AccountForm({ account, isEdit = false, industries }: AccountForm
                 />
               </div>
               <div>
+                <Label htmlFor="industry">業種</Label>
+                <IndustrySelect
+                  industries={industries}
+                  value={industry}
+                  onChange={setIndustry}
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
                 <Label htmlFor="main_phone">代表電話番号</Label>
                 <Input
                   id="main_phone"
@@ -381,15 +395,13 @@ export function AccountForm({ account, isEdit = false, industries }: AccountForm
                   defaultValue={account?.main_phone || ""}
                 />
               </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="industry">業種</Label>
-                <IndustrySelect
-                  industries={industries}
-                  value={industry}
-                  onChange={setIndustry}
+                <Label htmlFor="fax">FAX番号</Label>
+                <Input
+                  id="fax"
+                  name="fax"
+                  placeholder="例: 011-1234-5679"
+                  defaultValue={account?.fax || ""}
                 />
               </div>
             </div>
@@ -513,7 +525,7 @@ export function AccountForm({ account, isEdit = false, industries }: AccountForm
                     </Button>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                     <div>
                       <Label className="text-xs">支店名 *</Label>
                       <Input
@@ -532,6 +544,16 @@ export function AccountForm({ account, isEdit = false, industries }: AccountForm
                         value={branch.phone || ""}
                         onChange={(e) =>
                           updateBranch(index, "phone", e.target.value || null)
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label className="text-xs">FAX番号</Label>
+                      <Input
+                        placeholder="例: 011-9999-8889"
+                        value={branch.fax || ""}
+                        onChange={(e) =>
+                          updateBranch(index, "fax", e.target.value || null)
                         }
                       />
                     </div>

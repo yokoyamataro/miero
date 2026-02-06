@@ -152,6 +152,7 @@ export interface Branch {
   account_id: string;
   name: string;
   phone: string | null;
+  fax: string | null;
   postal_code: string | null;
   prefecture: string | null;
   city: string | null;
@@ -167,6 +168,7 @@ export interface BranchInsert {
   account_id: string;
   name: string;
   phone?: string | null;
+  fax?: string | null;
   postal_code?: string | null;
   prefecture?: string | null;
   city?: string | null;

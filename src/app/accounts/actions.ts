@@ -10,6 +10,7 @@ export interface AccountFormData {
   company_name_kana: string | null;
   corporate_number: string | null;
   main_phone: string | null;
+  fax: string | null;
   postal_code: string | null;
   prefecture: string | null;
   city: string | null;
@@ -37,6 +38,7 @@ export interface BranchFormData {
   id?: string;
   name: string;
   phone: string | null;
+  fax: string | null;
   postal_code: string | null;
   prefecture: string | null;
   city: string | null;
@@ -101,6 +103,7 @@ export async function createAccount(
     company_name_kana: data.company_name_kana || null,
     corporate_number: data.corporate_number || null,
     main_phone: data.main_phone || null,
+    fax: data.fax || null,
     postal_code: data.postal_code || null,
     prefecture: data.prefecture || null,
     city: data.city || null,
@@ -133,6 +136,7 @@ export async function createAccount(
           account_id: accountId,
           name: branch.name,
           phone: branch.phone || null,
+          fax: branch.fax || null,
           postal_code: branch.postal_code || null,
           prefecture: branch.prefecture || null,
           city: branch.city || null,
@@ -198,6 +202,7 @@ export async function updateAccount(
       company_name_kana: data.company_name_kana || null,
       corporate_number: data.corporate_number || null,
       main_phone: data.main_phone || null,
+      fax: data.fax || null,
       postal_code: data.postal_code || null,
       prefecture: data.prefecture || null,
       city: data.city || null,
@@ -235,6 +240,7 @@ export async function updateAccount(
           account_id: id,
           name: branch.name,
           phone: branch.phone || null,
+          fax: branch.fax || null,
           postal_code: branch.postal_code || null,
           prefecture: branch.prefecture || null,
           city: branch.city || null,
