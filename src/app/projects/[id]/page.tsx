@@ -167,6 +167,7 @@ export default async function ProjectDetailPage({
             manager={typedManager}
             employees={typedEmployees}
             customerData={customerData}
+            currentEmployeeId={currentEmployeeId}
           />
           <StakeholderSection
             projectId={id}

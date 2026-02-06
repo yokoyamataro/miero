@@ -44,7 +44,9 @@ import {
   ChevronRight,
   Trash2,
   AlertTriangle,
+  PauseCircle,
 } from "lucide-react";
+import { Textarea } from "@/components/ui/textarea";
 import {
   PROJECT_CATEGORY_LABELS,
   PROJECT_STATUS_COLORS,
@@ -56,7 +58,7 @@ import {
   type Account,
   type Employee,
 } from "@/types/database";
-import { updateProject, deleteProject } from "./actions";
+import { updateProject, deleteProject, createComment } from "./actions";
 
 // 法人の担当者
 export interface CorporateContact {
@@ -90,6 +92,7 @@ interface ProjectInfoProps {
   manager: Employee | null;
   employees: Employee[];
   customerData: CustomerData;
+  currentEmployeeId: string | null;
 }
 
 const PROJECT_STATUSES: ProjectStatus[] = ["未着手", "進行中", "完了", "中止"];
@@ -481,10 +484,13 @@ export function ProjectInfo({
   manager,
   employees,
   customerData,
+  currentEmployeeId,
 }: ProjectInfoProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [showContactModal, setShowContactModal] = useState(false);
+  const [showOnHoldDialog, setShowOnHoldDialog] = useState(false);
+  const [onHoldReason, setOnHoldReason] = useState("");
 
   const handleUpdate = (field: string, value: string) => {
     startTransition(async () => {
@@ -499,11 +505,34 @@ export function ProjectInfo({
         updateValue = null;
       } else if ((field === "location" || field === "location_detail") && !value) {
         updateValue = null;
-      } else if (field === "is_urgent") {
+      } else if (field === "is_urgent" || field === "is_on_hold") {
         updateValue = value === "true";
       }
 
       await updateProject(project.id, { [field]: updateValue });
+      router.refresh();
+    });
+  };
+
+  const handleOnHoldClick = () => {
+    if (project.is_on_hold) {
+      // 待機解除
+      handleUpdate("is_on_hold", "false");
+    } else {
+      // 待機にする：ダイアログを表示
+      setOnHoldReason("");
+      setShowOnHoldDialog(true);
+    }
+  };
+
+  const handleOnHoldConfirm = () => {
+    startTransition(async () => {
+      // 待機フラグをON
+      await updateProject(project.id, { is_on_hold: true });
+      // コメントを追加
+      const commentContent = `【待機】\n理由：${onHoldReason || "（理由未入力）"}`;
+      await createComment(project.id, commentContent);
+      setShowOnHoldDialog(false);
       router.refresh();
     });
   };
@@ -563,6 +592,15 @@ export function ProjectInfo({
           >
             <AlertTriangle className="h-4 w-4" />
             緊急
+          </Button>
+          <Button
+            variant={project.is_on_hold ? "secondary" : "outline"}
+            size="sm"
+            className="gap-1"
+            onClick={handleOnHoldClick}
+          >
+            <PauseCircle className="h-4 w-4" />
+            待機
           </Button>
           <div className="flex-1" />
           <AlertDialog>
@@ -706,6 +744,37 @@ export function ProjectInfo({
         currentContactId={project.contact_id}
         onSelect={handleContactChange}
       />
+
+      {/* 待機理由入力ダイアログ */}
+      <Dialog open={showOnHoldDialog} onOpenChange={setShowOnHoldDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>待機にする</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              待機理由をコメントとして記録します。
+            </p>
+            <Textarea
+              placeholder="待機の理由を入力..."
+              value={onHoldReason}
+              onChange={(e) => setOnHoldReason(e.target.value)}
+              rows={3}
+            />
+            <div className="flex justify-end gap-2">
+              <Button
+                variant="outline"
+                onClick={() => setShowOnHoldDialog(false)}
+              >
+                キャンセル
+              </Button>
+              <Button onClick={handleOnHoldConfirm} disabled={isPending}>
+                待機にする
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

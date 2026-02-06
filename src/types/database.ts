@@ -277,6 +277,7 @@ export interface Project {
   name: string;
   status: ProjectStatus;
   is_urgent: boolean;
+  is_on_hold: boolean;
   contact_id: string | null;
   manager_id: string | null;
   start_date: string | null;
@@ -296,6 +297,7 @@ export interface ProjectInsert {
   name: string;
   status?: ProjectStatus;
   is_urgent?: boolean;
+  is_on_hold?: boolean;
   contact_id?: string | null;
   manager_id?: string | null;
   start_date?: string | null;
