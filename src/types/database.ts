@@ -115,6 +115,7 @@ export interface Account {
   company_name_kana: string | null;
   corporate_number: string | null;
   main_phone: string | null;
+  fax: string | null;
   postal_code: string | null;
   prefecture: string | null;
   city: string | null;
@@ -133,6 +134,7 @@ export interface AccountInsert {
   company_name_kana?: string | null;
   corporate_number?: string | null;
   main_phone?: string | null;
+  fax?: string | null;
   postal_code?: string | null;
   prefecture?: string | null;
   city?: string | null;

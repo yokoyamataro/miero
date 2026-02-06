@@ -713,3 +713,71 @@ export async function createStakeholderTag(
 
   return { success: true, id: (tag as { id: string }).id };
 }
+
+// ============================================
+// Contact/Account Actions (顧客情報編集)
+// ============================================
+
+// 連絡先（個人/担当者）を更新
+export async function updateContact(
+  contactId: string,
+  updates: {
+    last_name?: string;
+    first_name?: string;
+    last_name_kana?: string | null;
+    first_name_kana?: string | null;
+    email?: string | null;
+    phone?: string | null;
+    postal_code?: string | null;
+    prefecture?: string | null;
+    city?: string | null;
+    street?: string | null;
+    building?: string | null;
+    department?: string | null;
+    position?: string | null;
+  }
+): Promise<{ success?: boolean; error?: string }> {
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("contacts" as never)
+    .update(updates as never)
+    .eq("id", contactId);
+
+  if (error) {
+    console.error("Error updating contact:", error);
+    return { error: "連絡先の更新に失敗しました" };
+  }
+
+  return { success: true };
+}
+
+// 法人を更新
+export async function updateAccount(
+  accountId: string,
+  updates: {
+    company_name?: string;
+    company_name_kana?: string | null;
+    main_phone?: string | null;
+    fax?: string | null;
+    postal_code?: string | null;
+    prefecture?: string | null;
+    city?: string | null;
+    street?: string | null;
+    building?: string | null;
+  }
+): Promise<{ success?: boolean; error?: string }> {
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("accounts" as never)
+    .update(updates as never)
+    .eq("id", accountId);
+
+  if (error) {
+    console.error("Error updating account:", error);
+    return { error: "法人情報の更新に失敗しました" };
+  }
+
+  return { success: true };
+}
