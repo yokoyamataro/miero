@@ -333,7 +333,7 @@ export function AccountForm({ account, isEdit = false, industries, relatedProjec
       )}
 
       {/* 関連業務（編集時のみ表示） */}
-      {isEdit && relatedProjects.length > 0 && (
+      {isEdit && (
         <div className="mb-6">
           <RelatedProjectsSection projects={relatedProjects} />
         </div>
