@@ -550,10 +550,14 @@ function normalizeDate(dateStr: string): string | null {
 }
 
 // ヘッダーからCSV形式を判定
-type CSVFormat = "standard" | "business" | "corporate";
+type CSVFormat = "standard" | "business" | "corporate" | "boundary";
 
 function detectCSVFormat(headerValues: string[]): CSVFormat {
   const firstHeader = headerValues[0]?.trim();
+  // B_境界測量CSVのヘッダー: ID,顧客,目的,担当者,進捗状況,着手,完了,税抜報酬,紹介者,市区町村,所在,...,▶境界測量,...
+  if (firstHeader === "ID" && headerValues.some((h) => h.trim() === "▶境界測量")) {
+    return "boundary";
+  }
   // E_法人関係CSVのヘッダー: ID,顧客,依頼の目的,業務担当者,進捗状況,受託,完了,税抜報酬,次期改選,エリア,コメント
   if (firstHeader === "ID" && headerValues.some((h) => h.trim() === "依頼の目的")) {
     return "corporate";
@@ -563,6 +567,55 @@ function detectCSVFormat(headerValues: string[]): CSVFormat {
     return "business";
   }
   return "standard";
+}
+
+// 境界測量CSV用の工程定義
+interface BoundaryTaskDefinition {
+  name: string;
+  columnIndex: number;
+}
+
+// 境界測量CSV用のヘッダー列インデックスを解析
+function parseBoundaryHeaders(headerValues: string[]): {
+  boundaryTasks: BoundaryTaskDefinition[];
+  siteSurveyTasks: BoundaryTaskDefinition[];
+  columnMap: Record<string, number>;
+} {
+  const columnMap: Record<string, number> = {};
+  for (let i = 0; i < headerValues.length; i++) {
+    columnMap[headerValues[i].trim()] = i;
+  }
+
+  const boundaryTasks: BoundaryTaskDefinition[] = [];
+  const siteSurveyTasks: BoundaryTaskDefinition[] = [];
+
+  // ▶境界測量 の位置を探す
+  const boundaryStartIdx = columnMap["▶境界測量"];
+  // ▶敷地計測 の位置を探す
+  const siteSurveyStartIdx = columnMap["▶敷地計測"];
+
+  if (boundaryStartIdx !== undefined) {
+    // ▶境界測量の後から▶敷地計測の前まで、または配列の終わりまでが境界測量の工程
+    const endIdx = siteSurveyStartIdx !== undefined ? siteSurveyStartIdx : headerValues.length;
+    for (let i = boundaryStartIdx + 1; i < endIdx; i++) {
+      const name = headerValues[i].trim();
+      if (name && !name.startsWith("▶")) {
+        boundaryTasks.push({ name, columnIndex: i });
+      }
+    }
+  }
+
+  if (siteSurveyStartIdx !== undefined) {
+    // ▶敷地計測の後から配列の終わりまでが敷地計測の工程
+    for (let i = siteSurveyStartIdx + 1; i < headerValues.length; i++) {
+      const name = headerValues[i].trim();
+      if (name && !name.startsWith("▶")) {
+        siteSurveyTasks.push({ name, columnIndex: i });
+      }
+    }
+  }
+
+  return { boundaryTasks, siteSurveyTasks, columnMap };
 }
 
 // CSVインポート
@@ -598,9 +651,9 @@ export async function importProjectsFromCSV(csvContent: string): Promise<{
     {} as Record<string, string>
   );
 
-  // 法人マップを作成（法人名 → contact_id）※business形式用
+  // 法人マップを作成（法人名 → contact_id）※business/boundary形式用
   let accountNameToContactId: Record<string, string> = {};
-  if (format === "business") {
+  if (format === "business" || format === "boundary") {
     // 法人を取得
     const { data: accountsData } = await supabase
       .from("accounts" as never)
@@ -626,11 +679,232 @@ export async function importProjectsFromCSV(csvContent: string): Promise<{
     }
   }
 
+  // 境界測量CSV用のヘッダー解析
+  let boundaryTaskDefs: BoundaryTaskDefinition[] = [];
+  let siteSurveyTaskDefs: BoundaryTaskDefinition[] = [];
+  let boundaryColumnMap: Record<string, number> = {};
+  if (format === "boundary") {
+    const parsed = parseBoundaryHeaders(headerValues);
+    boundaryTaskDefs = parsed.boundaryTasks;
+    siteSurveyTaskDefs = parsed.siteSurveyTasks;
+    boundaryColumnMap = parsed.columnMap;
+  }
+
   for (let i = 0; i < dataLines.length; i++) {
     const lineNum = i + 2;
     const values = parseCSVLine(dataLines[i]);
 
-    if (format === "corporate") {
+    if (format === "boundary") {
+      // B_境界測量CSV形式
+      // ヘッダー: ID,顧客,目的,担当者,進捗状況,着手,完了,税抜報酬,紹介者,市区町村,所在,地図,詳細,グループ,▶境界測量,...工程...,▶敷地計測,...工程...
+      const code = values[boundaryColumnMap["ID"]]?.trim();
+      const customerName = values[boundaryColumnMap["顧客"]]?.trim();
+      const purpose = values[boundaryColumnMap["目的"]]?.trim();
+      const managerName = values[boundaryColumnMap["担当者"]]?.trim();
+      const statusRaw = values[boundaryColumnMap["進捗状況"]]?.trim();
+      const startDateRaw = values[boundaryColumnMap["着手"]]?.trim();
+      const endDateRaw = values[boundaryColumnMap["完了"]]?.trim();
+      const feeRaw = values[boundaryColumnMap["税抜報酬"]]?.trim();
+      const area = values[boundaryColumnMap["市区町村"]]?.trim();
+      const locationDetail = values[boundaryColumnMap["所在"]]?.trim();
+      const notes = values[boundaryColumnMap["詳細"]]?.trim();
+
+      // 空行をスキップ
+      if (!code) {
+        continue;
+      }
+
+      // 業務コードのプレフィックスからカテゴリを判定
+      const prefix = code.charAt(0).toUpperCase();
+      const categoryCode = CODE_PREFIX_TO_CATEGORY[prefix];
+      if (!categoryCode) {
+        errors.push(`${lineNum}行目: 業務コード「${code}」のプレフィックス「${prefix}」から有効なカテゴリを判定できません`);
+        continue;
+      }
+
+      // ステータスのマッピング（停止→進行中）
+      let validStatus: ProjectStatus = "未着手";
+      if (statusRaw) {
+        if (VALID_STATUSES.includes(statusRaw as ProjectStatus)) {
+          validStatus = statusRaw as ProjectStatus;
+        } else if (statusRaw === "停止") {
+          validStatus = "進行中";
+        } else if (statusRaw === "請求済") {
+          validStatus = "完了";
+        } else if (statusRaw === "受注") {
+          validStatus = "未着手";
+        } else if (statusRaw === "着手" || statusRaw === "作業中") {
+          validStatus = "進行中";
+        }
+      }
+
+      // 担当者
+      const managerId = managerName ? employeeNameToId[managerName] || null : null;
+
+      // 日付
+      const startDate = normalizeDate(startDateRaw);
+      const endDate = normalizeDate(endDateRaw);
+
+      if (startDateRaw && !startDate) {
+        errors.push(`${lineNum}行目: 無効な着手日「${startDateRaw}」`);
+        continue;
+      }
+      if (endDateRaw && !endDate) {
+        errors.push(`${lineNum}行目: 無効な完了日「${endDateRaw}」`);
+        continue;
+      }
+
+      // 金額
+      const feeClean = feeRaw ? feeRaw.replace(/,/g, "") : "";
+      const feeNumber = feeClean ? parseInt(feeClean, 10) : null;
+      if (feeClean && isNaN(feeNumber as number)) {
+        errors.push(`${lineNum}行目: 無効な報酬額「${feeRaw}」`);
+        continue;
+      }
+
+      // 顧客マッチング（法人名から）。該当なしの場合は法人を新規作成
+      let contactId: string | null = null;
+      if (customerName) {
+        if (accountNameToContactId[customerName]) {
+          contactId = accountNameToContactId[customerName];
+        } else {
+          // 法人を新規作成
+          const { data: newAccount, error: accError } = await supabase
+            .from("accounts" as never)
+            .insert({ company_name: customerName } as never)
+            .select("id")
+            .single();
+
+          if (!accError && newAccount) {
+            const newAccountId = (newAccount as { id: string }).id;
+            const { data: newContact, error: contactError } = await supabase
+              .from("contacts" as never)
+              .insert({
+                account_id: newAccountId,
+                last_name: customerName,
+                first_name: "",
+                is_primary: true,
+              } as never)
+              .select("id")
+              .single();
+
+            if (!contactError && newContact) {
+              const newContactId = (newContact as { id: string }).id;
+              accountNameToContactId[customerName] = newContactId;
+              contactId = newContactId;
+            }
+          }
+        }
+      }
+
+      // 既存チェック
+      const { data: existing } = await supabase
+        .from("projects")
+        .select("id")
+        .eq("code", code)
+        .single();
+
+      if (existing) {
+        errors.push(`${lineNum}行目: 業務コード「${code}」は既に存在します`);
+        continue;
+      }
+
+      // details に詳細を保存
+      const details: Record<string, string> = {};
+      if (notes) {
+        details.notes = notes;
+      }
+
+      // 業務を作成
+      const { data: projectData, error: insertError } = await supabase
+        .from("projects")
+        .insert({
+          code,
+          category: categoryCode,
+          name: purpose || "（業務名未設定）",
+          status: validStatus,
+          contact_id: contactId,
+          manager_id: managerId,
+          start_date: startDate,
+          end_date: endDate,
+          fee_tax_excluded: feeNumber || 0,
+          location: area || null,
+          location_detail: locationDetail || null,
+          details,
+        })
+        .select("id")
+        .single();
+
+      if (insertError) {
+        errors.push(`${lineNum}行目: ${insertError.message}`);
+        continue;
+      }
+
+      const projectId = (projectData as { id: string }).id;
+
+      // タスクを作成（工程列をタスクに変換）
+      // ▶境界測量かどうかを判定（TRUE/FALSEで判断）
+      const isBoundarySurvey = values[boundaryColumnMap["▶境界測量"]]?.toUpperCase() === "TRUE";
+      const isSiteSurvey = values[boundaryColumnMap["▶敷地計測"]]?.toUpperCase() === "TRUE";
+
+      let taskSortOrder = 0;
+      const tasksToInsert: Array<{
+        project_id: string;
+        title: string;
+        is_completed: boolean;
+        sort_order: number;
+        assigned_to: string | null;
+      }> = [];
+
+      // 境界測量の工程をタスクとして追加
+      if (isBoundarySurvey) {
+        for (const taskDef of boundaryTaskDefs) {
+          const cellValue = values[taskDef.columnIndex]?.toUpperCase();
+          const isCompleted = cellValue === "TRUE";
+          // FALSE（まだ実行していない工程）やTRUE（完了した工程）をタスクとして追加
+          // 空やx等の場合は該当しない工程なのでスキップ
+          if (cellValue === "TRUE" || cellValue === "FALSE") {
+            tasksToInsert.push({
+              project_id: projectId,
+              title: taskDef.name,
+              is_completed: isCompleted,
+              sort_order: taskSortOrder++,
+              assigned_to: managerId,
+            });
+          }
+        }
+      }
+
+      // 敷地計測の工程をタスクとして追加
+      if (isSiteSurvey) {
+        for (const taskDef of siteSurveyTaskDefs) {
+          const cellValue = values[taskDef.columnIndex]?.toUpperCase();
+          const isCompleted = cellValue === "TRUE";
+          if (cellValue === "TRUE" || cellValue === "FALSE") {
+            tasksToInsert.push({
+              project_id: projectId,
+              title: taskDef.name,
+              is_completed: isCompleted,
+              sort_order: taskSortOrder++,
+              assigned_to: managerId,
+            });
+          }
+        }
+      }
+
+      // タスクを一括挿入
+      if (tasksToInsert.length > 0) {
+        const { error: taskError } = await supabase
+          .from("tasks" as never)
+          .insert(tasksToInsert as never);
+
+        if (taskError) {
+          errors.push(`${lineNum}行目: タスク作成エラー - ${taskError.message}`);
+        }
+      }
+
+      imported++;
+    } else if (format === "corporate") {
       // E_法人関係CSV形式: ID,顧客,依頼の目的,業務担当者,進捗状況,受託,完了,税抜報酬,次期改選,エリア,コメント
       const [code, customerName, purpose, managerName, statusRaw, startDateRaw, endDateRaw, feeRaw, nextElection, area, comment] = values;
 

@@ -109,6 +109,12 @@ export default async function ProjectDetailPage({
   const typedAllContacts = (allContacts as Contact[]) || [];
   const typedAllAccounts = (allAccounts as Account[]) || [];
 
+  // タスクの時間集計
+  const taskTimeTotals = {
+    estimatedMinutes: typedTasks.reduce((sum, t) => sum + (t.estimated_minutes || 0), 0),
+    actualMinutes: typedTasks.reduce((sum, t) => sum + (t.actual_minutes || 0), 0),
+  };
+
   // 顧客データを作成（法人→担当者の2段階選択用）
   const contactsByAccountId = typedAllContacts
     .filter((c) => c.account_id)
@@ -168,6 +174,7 @@ export default async function ProjectDetailPage({
             employees={typedEmployees}
             customerData={customerData}
             currentEmployeeId={currentEmployeeId}
+            taskTimeTotals={taskTimeTotals}
           />
           <StakeholderSection
             projectId={id}

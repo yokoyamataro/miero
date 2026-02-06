@@ -781,3 +781,129 @@ export async function updateAccount(
 
   return { success: true };
 }
+
+// ============================================
+// 新規顧客作成 (個人/法人+担当者)
+// ============================================
+
+// 個人顧客を作成
+export async function createIndividualContact(data: {
+  last_name: string;
+  first_name: string;
+  last_name_kana?: string | null;
+  first_name_kana?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  postal_code?: string | null;
+  prefecture?: string | null;
+  city?: string | null;
+  street?: string | null;
+  building?: string | null;
+}): Promise<{ success?: boolean; error?: string; contactId?: string }> {
+  const supabase = await createClient();
+
+  const { data: contact, error } = await supabase
+    .from("contacts" as never)
+    .insert({
+      last_name: data.last_name,
+      first_name: data.first_name,
+      last_name_kana: data.last_name_kana || null,
+      first_name_kana: data.first_name_kana || null,
+      email: data.email || null,
+      phone: data.phone || null,
+      postal_code: data.postal_code || null,
+      prefecture: data.prefecture || null,
+      city: data.city || null,
+      street: data.street || null,
+      building: data.building || null,
+      account_id: null,
+      is_primary: false,
+    } as never)
+    .select("id")
+    .single();
+
+  if (error) {
+    console.error("Error creating individual contact:", error);
+    return { error: "個人顧客の作成に失敗しました" };
+  }
+
+  return { success: true, contactId: (contact as { id: string }).id };
+}
+
+// 法人＋担当者を作成
+export async function createCorporateContact(data: {
+  // 法人情報
+  company_name: string;
+  company_name_kana?: string | null;
+  main_phone?: string | null;
+  fax?: string | null;
+  postal_code?: string | null;
+  prefecture?: string | null;
+  city?: string | null;
+  street?: string | null;
+  building?: string | null;
+  // 担当者情報
+  contact_last_name: string;
+  contact_first_name: string;
+  contact_last_name_kana?: string | null;
+  contact_first_name_kana?: string | null;
+  contact_email?: string | null;
+  contact_phone?: string | null;
+  contact_department?: string | null;
+  contact_position?: string | null;
+}): Promise<{ success?: boolean; error?: string; contactId?: string; accountId?: string }> {
+  const supabase = await createClient();
+
+  // 法人を作成
+  const { data: account, error: accountError } = await supabase
+    .from("accounts" as never)
+    .insert({
+      company_name: data.company_name,
+      company_name_kana: data.company_name_kana || null,
+      main_phone: data.main_phone || null,
+      fax: data.fax || null,
+      postal_code: data.postal_code || null,
+      prefecture: data.prefecture || null,
+      city: data.city || null,
+      street: data.street || null,
+      building: data.building || null,
+    } as never)
+    .select("id")
+    .single();
+
+  if (accountError) {
+    console.error("Error creating account:", accountError);
+    return { error: "法人の作成に失敗しました" };
+  }
+
+  const accountId = (account as { id: string }).id;
+
+  // 担当者を作成
+  const { data: contact, error: contactError } = await supabase
+    .from("contacts" as never)
+    .insert({
+      last_name: data.contact_last_name,
+      first_name: data.contact_first_name,
+      last_name_kana: data.contact_last_name_kana || null,
+      first_name_kana: data.contact_first_name_kana || null,
+      email: data.contact_email || null,
+      phone: data.contact_phone || null,
+      department: data.contact_department || null,
+      position: data.contact_position || null,
+      account_id: accountId,
+      is_primary: true,
+    } as never)
+    .select("id")
+    .single();
+
+  if (contactError) {
+    console.error("Error creating contact:", contactError);
+    return { error: "担当者の作成に失敗しました", accountId };
+  }
+
+  return {
+    success: true,
+    contactId: (contact as { id: string }).id,
+    accountId,
+  };
+}

@@ -133,6 +133,11 @@ export function CSVActions() {
               <p>以下のCSV形式に対応しています:</p>
               <div className="space-y-2 ml-2">
                 <div>
+                  <p className="font-medium">B_境界測量CSV（自動判定）</p>
+                  <p className="text-xs">ID, 顧客, 目的, 担当者, 進捗状況, 着手, 完了, 税抜報酬, ... , ▶境界測量, 工程列...</p>
+                  <p className="text-xs text-muted-foreground">※工程列はタスクとしてインポートされます</p>
+                </div>
+                <div>
                   <p className="font-medium">E_法人関係CSV（自動判定）</p>
                   <p className="text-xs">ID, 顧客, 依頼の目的, 業務担当者, 進捗状況, 受託, 完了, 税抜報酬, 次期改選, エリア, コメント</p>
                 </div>
@@ -146,6 +151,7 @@ export function CSVActions() {
                 </div>
               </div>
               <p className="text-xs">※ 既存の業務コードと重複する行はスキップされます</p>
+              <p className="text-xs">※「停止」ステータスは「進行中」としてインポートされます</p>
             </div>
 
             {/* ファイル選択 */}
