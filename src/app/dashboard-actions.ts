@@ -51,9 +51,9 @@ export async function getIncompleteTasks(
     return [];
   }
 
-  // 進行中の業務のみフィルタ
+  // 進行中の業務のみフィルタ（未着手・進行中・ステータス未設定を含む）
   const activeProjects = (projects || []).filter((p) =>
-    ["受注", "着手", "進行中"].includes(p.status)
+    ["未着手", "進行中"].includes(p.status) || !p.status
   );
   const projectMap = new Map(activeProjects.map((p) => [p.id, p]));
 
