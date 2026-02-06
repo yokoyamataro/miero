@@ -11,9 +11,16 @@ import {
   type CalendarEventWithParticipants,
   type Employee,
   type EventCategory,
-  type Attendance,
 } from "@/types/database";
 import { type TaskWithProject } from "./dashboard-actions";
+
+// AttendanceClock用の型定義
+type Attendance = {
+  id: string;
+  clock_in: string | null;
+  clock_out: string | null;
+  date: string;
+} | null;
 
 interface DashboardViewProps {
   events: CalendarEventWithParticipants[];

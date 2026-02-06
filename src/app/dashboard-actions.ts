@@ -40,7 +40,7 @@ export async function getIncompleteTasks(
   if (typedTasks.length === 0) return [];
 
   // 関連する業務を取得
-  const projectIds = [...new Set(typedTasks.map((t) => t.project_id))];
+  const projectIds = Array.from(new Set(typedTasks.map((t) => t.project_id)));
   const { data: projects, error: projectsError } = await supabase
     .from("projects")
     .select("id, code, name, location, status")
