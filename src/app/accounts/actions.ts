@@ -482,8 +482,7 @@ export async function getRelatedProjectsForAccount(accountId: string): Promise<R
   const { data: customerProjects, error: customerError } = await supabase
     .from("projects" as never)
     .select("id, code, name, status, category, start_date, end_date")
-    .in("contact_id", contactIds)
-    .is("deleted_at", null);
+    .in("contact_id", contactIds);
 
   if (customerError) {
     console.error("Error fetching customer projects:", customerError);
@@ -508,7 +507,7 @@ export async function getRelatedProjectsForAccount(accountId: string): Promise<R
     .select(`
       project_id,
       tag:stakeholder_tags(name),
-      project:projects(id, code, name, status, category, start_date, end_date, deleted_at)
+      project:projects(id, code, name, status, category, start_date, end_date)
     `)
     .in("contact_id", contactIds);
 
@@ -518,9 +517,9 @@ export async function getRelatedProjectsForAccount(accountId: string): Promise<R
     for (const s of stakeholderData as Array<{
       project_id: string;
       tag: { name: string } | null;
-      project: Project & { deleted_at: string | null } | null;
+      project: Project | null;
     }>) {
-      if (s.project && !s.project.deleted_at) {
+      if (s.project) {
         // 既に顧客として追加されていないかチェック
         const existing = relatedProjects.find((rp) => rp.id === s.project!.id);
         if (!existing) {
