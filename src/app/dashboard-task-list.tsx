@@ -54,7 +54,10 @@ export function DashboardTaskList({
     if (assigneeFilter === "all") {
       return tasks;
     }
-    return tasks.filter((task) => task.assigned_to === assigneeFilter);
+    // 担当者が一致するか、担当者未設定のタスクも表示
+    return tasks.filter((task) =>
+      task.assigned_to === assigneeFilter || task.assigned_to === null
+    );
   }, [tasks, assigneeFilter]);
 
   // 業務ごとにグループ化
