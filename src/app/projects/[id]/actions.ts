@@ -907,3 +907,46 @@ export async function createCorporateContact(data: {
     accountId,
   };
 }
+
+// 既存の法人に担当者を追加
+export async function addContactToAccount(data: {
+  account_id: string;
+  last_name: string;
+  first_name: string;
+  last_name_kana?: string | null;
+  first_name_kana?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  department?: string | null;
+  position?: string | null;
+  is_primary?: boolean;
+}): Promise<{ success?: boolean; error?: string; contactId?: string }> {
+  const supabase = await createClient();
+
+  const { data: contact, error: contactError } = await supabase
+    .from("contacts" as never)
+    .insert({
+      account_id: data.account_id,
+      last_name: data.last_name,
+      first_name: data.first_name,
+      last_name_kana: data.last_name_kana || null,
+      first_name_kana: data.first_name_kana || null,
+      email: data.email || null,
+      phone: data.phone || null,
+      department: data.department || null,
+      position: data.position || null,
+      is_primary: data.is_primary ?? false,
+    } as never)
+    .select("id")
+    .single();
+
+  if (contactError) {
+    console.error("Error adding contact to account:", contactError);
+    return { error: "担当者の追加に失敗しました" };
+  }
+
+  return {
+    success: true,
+    contactId: (contact as { id: string }).id,
+  };
+}

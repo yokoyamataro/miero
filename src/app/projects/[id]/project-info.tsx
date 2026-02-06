@@ -60,7 +60,7 @@ import {
   type Account,
   type Employee,
 } from "@/types/database";
-import { updateProject, deleteProject, createComment, updateContact, updateAccount, createIndividualContact, createCorporateContact } from "./actions";
+import { updateProject, deleteProject, createComment, updateContact, updateAccount, createIndividualContact, createCorporateContact, addContactToAccount } from "./actions";
 import { Phone, Mail, MapPin as MapPinIcon, Pencil, Printer } from "lucide-react";
 import { Label } from "@/components/ui/label";
 
@@ -476,18 +476,51 @@ export function ContactSelectModal({
             </div>
 
             <div className="flex-1 overflow-y-auto space-y-1 mt-4">
+              {/* 担当者無しオプション - 法人に紐づく（担当者未設定）を作成して選択 */}
+              <Button
+                variant="ghost"
+                className="w-full justify-start text-muted-foreground"
+                onClick={() => {
+                  // 既存の（担当者未設定）があればそれを選択、なければ新規作成
+                  const noContactEntry = selectedAccount.contacts.find(c => c.name === "（担当者未設定）");
+                  if (noContactEntry) {
+                    handleSelect(noContactEntry.id);
+                  } else {
+                    // 既存法人に担当者を追加
+                    startTransition(async () => {
+                      const result = await addContactToAccount({
+                        account_id: selectedAccount.id,
+                        last_name: "（担当者未設定）",
+                        first_name: "",
+                        is_primary: false,
+                      });
+                      if (result.contactId) {
+                        onSelect(result.contactId);
+                        onOpenChange(false);
+                        reset();
+                        router.refresh();
+                      }
+                    });
+                  }
+                }}
+              >
+                担当者無し
+              </Button>
               {filteredContactsInAccount.length > 0 ? (
-                filteredContactsInAccount.map((contact) => (
-                  <Button
-                    key={contact.id}
-                    variant={currentContactId === contact.id ? "secondary" : "ghost"}
-                    className="w-full justify-start"
-                    onClick={() => handleSelect(contact.id)}
-                  >
-                    {contact.name}
-                  </Button>
-                ))
-              ) : (
+                filteredContactsInAccount
+                  .filter(contact => contact.name !== "（担当者未設定）")
+                  .map((contact) => (
+                    <Button
+                      key={contact.id}
+                      variant={currentContactId === contact.id ? "secondary" : "ghost"}
+                      className="w-full justify-start"
+                      onClick={() => handleSelect(contact.id)}
+                    >
+                      {contact.name}
+                    </Button>
+                  ))
+              ) : null}
+              {filteredContactsInAccount.filter(c => c.name !== "（担当者未設定）").length === 0 && (
                 <div className="text-center text-muted-foreground py-4">
                   担当者が登録されていません
                 </div>
