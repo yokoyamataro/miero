@@ -275,21 +275,33 @@ export async function updateAccount(
     }
   }
 
-  // 既存の連絡先を論理削除
-  const { error: deleteError } = await supabase
+  // 既存の連絡先IDを取得
+  const { data: existingContacts } = await supabase
     .from("contacts" as never)
-    .update({ deleted_at: new Date().toISOString() } as never)
+    .select("id")
     .eq("account_id", id)
     .is("deleted_at", null);
 
-  if (deleteError) {
-    console.error("Error soft-deleting contacts:", deleteError);
-    return { error: deleteError.message };
+  const existingContactIds = new Set((existingContacts || []).map((c: { id: string }) => c.id));
+  const newContactIds = new Set(contacts.filter((c) => c.id).map((c) => c.id));
+
+  // 削除された連絡先を論理削除（既存にあって新しいリストにないもの）
+  const contactsToDelete = Array.from(existingContactIds).filter((cid) => !newContactIds.has(cid));
+  if (contactsToDelete.length > 0) {
+    const { error: deleteError } = await supabase
+      .from("contacts" as never)
+      .update({ deleted_at: new Date().toISOString() } as never)
+      .in("id", contactsToDelete);
+
+    if (deleteError) {
+      console.error("Error soft-deleting contacts:", deleteError);
+      return { error: deleteError.message };
+    }
   }
 
-  // 新しい連絡先を作成
-  if (contacts.length > 0) {
-    const contactsToInsert = contacts.map((c) => ({
+  // 連絡先を更新または作成
+  for (const c of contacts) {
+    const contactData = {
       account_id: id,
       branch_id: c.branch_id ? branchIdMap[c.branch_id] || null : null,
       last_name: c.last_name,
@@ -301,15 +313,29 @@ export async function updateAccount(
       department: c.department || null,
       position: c.position || null,
       is_primary: c.is_primary,
-    }));
+    };
 
-    const { error: contactsError } = await supabase
-      .from("contacts" as never)
-      .insert(contactsToInsert as never);
+    if (c.id && existingContactIds.has(c.id)) {
+      // 既存の連絡先を更新
+      const { error: updateError } = await supabase
+        .from("contacts" as never)
+        .update(contactData as never)
+        .eq("id", c.id);
 
-    if (contactsError) {
-      console.error("Error creating contacts:", contactsError);
-      return { error: contactsError.message };
+      if (updateError) {
+        console.error("Error updating contact:", updateError);
+        return { error: updateError.message };
+      }
+    } else {
+      // 新しい連絡先を作成
+      const { error: insertError } = await supabase
+        .from("contacts" as never)
+        .insert(contactData as never);
+
+      if (insertError) {
+        console.error("Error creating contact:", insertError);
+        return { error: insertError.message };
+      }
     }
   }
 
