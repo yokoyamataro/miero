@@ -289,6 +289,16 @@ export function DashboardCalendar({
     return "bg-gray-500";
   };
 
+  // 濃い色から薄い背景色を取得（bg-xxx-500 → bg-xxx-100）
+  const getLightBgColor = (categoryColor: string) => {
+    // bg-xxx-500 や bg-xxx-400 を bg-xxx-100 に変換
+    const match = categoryColor.match(/^bg-(\w+)-\d+$/);
+    if (match) {
+      return `bg-${match[1]}-100`;
+    }
+    return "bg-gray-100";
+  };
+
   const getCategoryName = (event: CalendarEventWithParticipants) => {
     if (event.eventCategory) {
       return event.eventCategory.name;
@@ -302,6 +312,7 @@ export function DashboardCalendar({
   // イベントレンダリング
   const renderEvent = (event: CalendarEventWithParticipants, compact = false) => {
     const categoryColor = getCategoryColor(event);
+    const lightBgColor = getLightBgColor(categoryColor);
     const categoryName = getCategoryName(event);
     const timeStr = event.start_time ? event.start_time.slice(0, 5) : "";
 
@@ -309,7 +320,7 @@ export function DashboardCalendar({
       return (
         <div
           key={event.id}
-          className="text-xs truncate cursor-pointer hover:opacity-80 flex items-center gap-1"
+          className={`text-xs truncate cursor-pointer hover:opacity-80 flex items-center gap-1 px-1 py-0.5 rounded ${lightBgColor}`}
           onClick={(e) => handleEventClick(event, e)}
           title={event.title}
         >
@@ -324,13 +335,13 @@ export function DashboardCalendar({
     return (
       <div
         key={event.id}
-        className="border rounded cursor-pointer hover:bg-muted/50 mb-1 overflow-hidden"
+        className={`border rounded cursor-pointer hover:opacity-80 mb-1 overflow-hidden ${lightBgColor}`}
         onClick={(e) => handleEventClick(event, e)}
       >
         {categoryName && (
           <div className={`${categoryColor} text-white text-xs font-medium px-2 py-0.5`}>{categoryName}</div>
         )}
-        <div className="p-2 bg-white">
+        <div className="p-2">
           <div className="font-medium text-black">{event.title}</div>
           {event.start_time && (
             <div className="text-sm flex items-center gap-1 mt-1 text-black">
