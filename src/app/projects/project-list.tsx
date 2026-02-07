@@ -32,6 +32,8 @@ interface ProjectData {
   start_date: string | null;
   end_date: string | null;
   fee_tax_excluded: number | null;
+  location: string | null;
+  location_detail: string | null;
 }
 
 interface Employee {
@@ -44,17 +46,6 @@ interface ProjectListProps {
   employees: Employee[];
   contactDisplayMap: Record<string, string>;
   employeeMap: Record<string, string>;
-}
-
-function formatDate(dateStr: string | null): string {
-  if (!dateStr) return "-";
-  const date = new Date(dateStr);
-  return `${date.getFullYear()}/${String(date.getMonth() + 1).padStart(2, "0")}/${String(date.getDate()).padStart(2, "0")}`;
-}
-
-function formatCurrency(amount: number | null): string {
-  if (amount === null || amount === undefined) return "-";
-  return `¥${amount.toLocaleString()}`;
 }
 
 export function ProjectList({ projects, employees, contactDisplayMap, employeeMap }: ProjectListProps) {
@@ -130,7 +121,8 @@ export function ProjectList({ projects, employees, contactDisplayMap, employeeMa
                 <TableHead className="w-[32px] py-1 text-xs text-center">重要</TableHead>
                 <TableHead className="w-[32px] py-1 text-xs text-center">待機</TableHead>
                 <TableHead className="w-[140px] py-1 text-xs">顧客</TableHead>
-                <TableHead className="py-1 text-xs">業務名</TableHead>
+                <TableHead className="w-[200px] py-1 text-xs">業務名</TableHead>
+                <TableHead className="py-1 text-xs">所在地</TableHead>
                 <TableHead className="w-[100px] py-1 text-xs">担当</TableHead>
               </TableRow>
             </TableHeader>
@@ -156,10 +148,13 @@ export function ProjectList({ projects, employees, contactDisplayMap, employeeMa
                   <TableCell className="text-xs py-1 truncate max-w-[140px]">
                     {project.contact_id ? (contactDisplayMap[project.contact_id] || "-").slice(0, 16) : "-"}
                   </TableCell>
-                  <TableCell className="py-1">
+                  <TableCell className="py-1 max-w-[200px]">
                     <Link href={`/projects/${project.id}`} className="block text-sm hover:underline truncate">
-                      {project.name}
+                      {project.name.slice(0, 16)}
                     </Link>
+                  </TableCell>
+                  <TableCell className="text-xs py-1 truncate">
+                    {[project.location, project.location_detail].filter(Boolean).join(" ") || "-"}
                   </TableCell>
                   <TableCell className="text-xs py-1">
                     {project.manager_id ? employeeMap[project.manager_id] || "-" : "-"}
