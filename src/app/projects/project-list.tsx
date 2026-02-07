@@ -25,6 +25,8 @@ interface ProjectData {
   category: string;
   name: string;
   status: string;
+  is_urgent: boolean;
+  is_on_hold: boolean;
   contact_id: string | null;
   manager_id: string | null;
   start_date: string | null;
@@ -124,12 +126,12 @@ export function ProjectList({ projects, employees, contactDisplayMap, employeeMa
             <TableHeader>
               <TableRow className="h-8">
                 <TableHead className="w-[90px] py-1 text-xs">コード</TableHead>
-                <TableHead className="py-1 text-xs">業務名</TableHead>
-                <TableHead className="w-[90px] py-1 text-xs">ステータス</TableHead>
+                <TableHead className="w-[80px] py-1 text-xs">ステータス</TableHead>
+                <TableHead className="w-[40px] py-1 text-xs text-center">重要</TableHead>
+                <TableHead className="w-[40px] py-1 text-xs text-center">待機</TableHead>
                 <TableHead className="py-1 text-xs">顧客</TableHead>
+                <TableHead className="py-1 text-xs">業務名</TableHead>
                 <TableHead className="w-[70px] py-1 text-xs">担当</TableHead>
-                <TableHead className="w-[90px] py-1 text-xs">着手</TableHead>
-                <TableHead className="w-[90px] py-1 text-xs text-right">報酬</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -141,26 +143,26 @@ export function ProjectList({ projects, employees, contactDisplayMap, employeeMa
                     </Link>
                   </TableCell>
                   <TableCell className="py-1">
-                    <Link href={`/projects/${project.id}`} className="block text-sm hover:underline">
-                      {project.name}
-                    </Link>
-                  </TableCell>
-                  <TableCell className="py-1">
                     <Badge className={`${PROJECT_STATUS_COLORS[project.status as ProjectStatus]} text-xs`}>
                       {project.status}
                     </Badge>
                   </TableCell>
+                  <TableCell className="text-xs py-1 text-center">
+                    {project.is_urgent ? "⚠️" : ""}
+                  </TableCell>
+                  <TableCell className="text-xs py-1 text-center">
+                    {project.is_on_hold ? "⏸" : ""}
+                  </TableCell>
                   <TableCell className="text-xs py-1">
                     {project.contact_id ? contactDisplayMap[project.contact_id] || "-" : "-"}
                   </TableCell>
+                  <TableCell className="py-1">
+                    <Link href={`/projects/${project.id}`} className="block text-sm hover:underline">
+                      {project.name}
+                    </Link>
+                  </TableCell>
                   <TableCell className="text-xs py-1">
                     {project.manager_id ? employeeMap[project.manager_id] || "-" : "-"}
-                  </TableCell>
-                  <TableCell className="text-xs py-1">
-                    {formatDate(project.start_date)}
-                  </TableCell>
-                  <TableCell className="text-xs py-1 text-right">
-                    {formatCurrency(project.fee_tax_excluded)}
                   </TableCell>
                 </TableRow>
               ))}
