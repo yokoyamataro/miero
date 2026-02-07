@@ -101,6 +101,7 @@ interface ProjectInfoProps {
     estimatedMinutes: number;
     actualMinutes: number;
   };
+  stakeholderSection?: React.ReactNode;
 }
 
 const PROJECT_STATUSES: ProjectStatus[] = ["未着手", "進行中", "完了", "中止"];
@@ -1331,6 +1332,7 @@ export function ProjectInfo({
   customerData,
   currentEmployeeId,
   taskTimeTotals,
+  stakeholderSection,
 }: ProjectInfoProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -1515,6 +1517,9 @@ export function ProjectInfo({
               />
             </div>
           </div>
+
+          {/* 関係者セクション（顧客と期間の間に配置） */}
+          {stakeholderSection}
 
           <EditableField
             label="担当者"

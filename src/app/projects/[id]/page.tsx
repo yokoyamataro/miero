@@ -175,12 +175,14 @@ export default async function ProjectDetailPage({
             customerData={customerData}
             currentEmployeeId={currentEmployeeId}
             taskTimeTotals={taskTimeTotals}
-          />
-          <StakeholderSection
-            projectId={id}
-            stakeholders={projectStakeholders}
-            tags={stakeholderTags}
-            customerData={customerData}
+            stakeholderSection={
+              <StakeholderSection
+                projectId={id}
+                stakeholders={projectStakeholders}
+                tags={stakeholderTags}
+                customerData={customerData}
+              />
+            }
           />
         </div>
 

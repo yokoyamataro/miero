@@ -109,9 +109,9 @@ export function DashboardView({
       </div>
 
       {/* メインコンテンツ */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-4 p-4 min-h-0">
-        {/* 左側: カレンダー (2/3) */}
-        <div className="lg:col-span-2 min-h-0">
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-4 gap-4 p-4 min-h-0">
+        {/* 左側: カレンダー (3/4) */}
+        <div className="lg:col-span-3 min-h-0">
           <DashboardCalendar
             initialEvents={events}
             employees={employees}
@@ -123,7 +123,7 @@ export function DashboardView({
           />
         </div>
 
-        {/* 右側: タスクリスト (1/3) */}
+        {/* 右側: タスクリスト (1/4) */}
         <div className="min-h-0">
           <DashboardTaskList
             tasks={tasks}
