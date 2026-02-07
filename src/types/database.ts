@@ -35,10 +35,10 @@ export const PROJECT_CATEGORY_LABELS: Record<ProjectCategory, string> = {
 
 // ステータスバッジカラー
 export const PROJECT_STATUS_COLORS: Record<ProjectStatus, string> = {
-  未着手: "bg-blue-100 text-blue-800",
-  進行中: "bg-green-100 text-green-800",
-  完了: "bg-gray-100 text-gray-800",
-  中止: "bg-red-100 text-red-800",
+  未着手: "bg-blue-500 text-white",
+  進行中: "bg-green-500 text-white",
+  完了: "bg-red-500 text-white",
+  中止: "bg-gray-400 text-white",
 };
 
 // JSONB details 型定義

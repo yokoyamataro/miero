@@ -126,12 +126,12 @@ export function ProjectList({ projects, employees, contactDisplayMap, employeeMa
             <TableHeader>
               <TableRow className="h-8">
                 <TableHead className="w-[90px] py-1 text-xs">コード</TableHead>
-                <TableHead className="w-[80px] py-1 text-xs">ステータス</TableHead>
-                <TableHead className="w-[40px] py-1 text-xs text-center">重要</TableHead>
-                <TableHead className="w-[40px] py-1 text-xs text-center">待機</TableHead>
-                <TableHead className="py-1 text-xs">顧客</TableHead>
+                <TableHead className="w-[70px] py-1 text-xs whitespace-nowrap">ステータス</TableHead>
+                <TableHead className="w-[32px] py-1 text-xs text-center">重要</TableHead>
+                <TableHead className="w-[32px] py-1 text-xs text-center">待機</TableHead>
+                <TableHead className="w-[140px] py-1 text-xs">顧客</TableHead>
                 <TableHead className="py-1 text-xs">業務名</TableHead>
-                <TableHead className="w-[70px] py-1 text-xs">担当</TableHead>
+                <TableHead className="w-[100px] py-1 text-xs">担当</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -142,7 +142,7 @@ export function ProjectList({ projects, employees, contactDisplayMap, employeeMa
                       {project.code}
                     </Link>
                   </TableCell>
-                  <TableCell className="py-1">
+                  <TableCell className="py-1 whitespace-nowrap">
                     <Badge className={`${PROJECT_STATUS_COLORS[project.status as ProjectStatus]} text-xs`}>
                       {project.status}
                     </Badge>
@@ -153,11 +153,11 @@ export function ProjectList({ projects, employees, contactDisplayMap, employeeMa
                   <TableCell className="text-xs py-1 text-center">
                     {project.is_on_hold ? "⏸" : ""}
                   </TableCell>
-                  <TableCell className="text-xs py-1">
-                    {project.contact_id ? contactDisplayMap[project.contact_id] || "-" : "-"}
+                  <TableCell className="text-xs py-1 truncate max-w-[140px]">
+                    {project.contact_id ? (contactDisplayMap[project.contact_id] || "-").slice(0, 16) : "-"}
                   </TableCell>
                   <TableCell className="py-1">
-                    <Link href={`/projects/${project.id}`} className="block text-sm hover:underline">
+                    <Link href={`/projects/${project.id}`} className="block text-sm hover:underline truncate">
                       {project.name}
                     </Link>
                   </TableCell>
