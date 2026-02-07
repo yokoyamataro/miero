@@ -275,14 +275,18 @@ export async function updateAccount(
     }
   }
 
-  // 既存の連絡先IDを取得
+  // 既存の連絡先を取得
   const { data: existingContacts } = await supabase
     .from("contacts" as never)
     .select("id")
     .eq("account_id", id)
     .is("deleted_at", null);
 
-  const existingContactIds = new Set((existingContacts || []).map((c: { id: string }) => c.id));
+  type ExistingContact = { id: string };
+  const existingContactList = (existingContacts || []) as ExistingContact[];
+
+  // 既存連絡先ID
+  const existingContactIds = new Set(existingContactList.map((c) => c.id));
   const newContactIds = new Set(contacts.filter((c) => c.id).map((c) => c.id));
 
   // 削除された連絡先を論理削除（既存にあって新しいリストにないもの）

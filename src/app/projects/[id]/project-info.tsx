@@ -477,31 +477,22 @@ export function ContactSelectModal({
             </div>
 
             <div className="flex-1 overflow-y-auto space-y-1 mt-4">
-              {/* 担当者無しオプション - 法人に紐づく（担当者未設定）を作成して選択 */}
+              {/* 担当者無しオプション - 代表連絡先（is_primary）を使用 */}
               <Button
                 variant="ghost"
                 className="w-full justify-start text-muted-foreground"
                 onClick={() => {
-                  // 既存の（担当者未設定）があればそれを選択、なければ新規作成
-                  const noContactEntry = selectedAccount.contacts.find(c => c.name === "（担当者未設定）");
-                  if (noContactEntry) {
-                    handleSelect(noContactEntry.id);
+                  // 代表連絡先（is_primaryの連絡先、なければ最初の連絡先）を選択
+                  // 「（担当者未設定）」以外の連絡先を優先
+                  const normalContacts = selectedAccount.contacts.filter(c => c.name !== "（担当者未設定）");
+                  if (normalContacts.length > 0) {
+                    handleSelect(normalContacts[0].id);
+                  } else if (selectedAccount.contacts.length > 0) {
+                    // 連絡先が全て「（担当者未設定）」の場合はそれを使用
+                    handleSelect(selectedAccount.contacts[0].id);
                   } else {
-                    // 既存法人に担当者を追加
-                    startTransition(async () => {
-                      const result = await addContactToAccount({
-                        account_id: selectedAccount.id,
-                        last_name: "（担当者未設定）",
-                        first_name: "",
-                        is_primary: false,
-                      });
-                      if (result.contactId) {
-                        onSelect(result.contactId);
-                        onOpenChange(false);
-                        reset();
-                        router.refresh();
-                      }
-                    });
+                    // 連絡先がない場合は未選択
+                    handleSelect(null);
                   }
                 }}
               >
