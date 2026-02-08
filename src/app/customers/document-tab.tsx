@@ -415,15 +415,15 @@ export function DocumentTab({
         {recipientType === "account" && selectedRecipientId && availableBranches.length > 0 && (
           <div className="space-y-2">
             <Label>支店</Label>
-            <Select value={selectedBranchId} onValueChange={(v) => {
-              setSelectedBranchId(v);
+            <Select value={selectedBranchId || "__none__"} onValueChange={(v) => {
+              setSelectedBranchId(v === "__none__" ? "" : v);
               setSelectedContactId("");
             }}>
               <SelectTrigger>
                 <SelectValue placeholder="支店を選択（任意）" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">本社</SelectItem>
+                <SelectItem value="__none__">本社</SelectItem>
                 {availableBranches.map((b) => (
                   <SelectItem key={b.id} value={b.id}>
                     {b.name}
@@ -438,12 +438,12 @@ export function DocumentTab({
         {recipientType === "account" && selectedRecipientId && availableContacts.length > 0 && (
           <div className="space-y-2">
             <Label>担当者</Label>
-            <Select value={selectedContactId} onValueChange={setSelectedContactId}>
+            <Select value={selectedContactId || "__none__"} onValueChange={(v) => setSelectedContactId(v === "__none__" ? "" : v)}>
               <SelectTrigger>
                 <SelectValue placeholder="担当者を選択（任意）" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">指定なし</SelectItem>
+                <SelectItem value="__none__">指定なし</SelectItem>
                 {availableContacts.map((c) => (
                   <SelectItem key={c.id} value={c.id}>
                     {c.last_name} {c.first_name}
