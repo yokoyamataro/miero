@@ -93,7 +93,10 @@ export function CalendarView({
     originalTop: number;
     originalHeight: number;
     date: Date;
+    previewTop: number;
+    previewHeight: number;
   } | null>(null);
+  const [justFinishedResizing, setJustFinishedResizing] = useState(false);
 
   // 社員リストをソート（ログインユーザーを先頭に）
   const sortedEmployees = useMemo(() => {
@@ -198,9 +201,10 @@ export function CalendarView({
     setShowEventModal(true);
   };
 
-  // イベントクリックで詳細表示
+  // イベントクリックで詳細表示（リサイズ直後は無視）
   const handleEventClick = (event: CalendarEventWithParticipants, e: React.MouseEvent) => {
     e.stopPropagation();
+    if (justFinishedResizing) return;
     setSelectedEvent(event);
     setShowDetailModal(true);
   };
@@ -250,20 +254,49 @@ export function CalendarView({
       originalTop: currentTop,
       originalHeight: currentHeight,
       date,
+      previewTop: currentTop,
+      previewHeight: currentHeight,
     });
   }, []);
 
-  // イベントリサイズ中
-  const handleResizeMove = useCallback(() => {
-    // プレビュー用（現在は使用しない）
-  }, []);
+  // イベントリサイズ中 - プレビュー表示を更新
+  const handleResizeMove = useCallback((e: MouseEvent) => {
+    if (!resizingEvent) return;
+
+    const deltaY = e.clientY - resizingEvent.startY;
+    const deltaMinutes = Math.round(deltaY / 48 * 60 / 30) * 30; // 30分単位
+    const deltaPx = (deltaMinutes / 60) * 48;
+
+    let newTop = resizingEvent.originalTop;
+    let newHeight = resizingEvent.originalHeight;
+
+    if (resizingEvent.edge === "top") {
+      newTop = resizingEvent.originalTop + deltaPx;
+      newHeight = resizingEvent.originalHeight - deltaPx;
+      if (newHeight < 24) {
+        newHeight = 24;
+        newTop = resizingEvent.originalTop + resizingEvent.originalHeight - 24;
+      }
+      if (newTop < 48) {
+        newTop = 48;
+        newHeight = resizingEvent.originalTop + resizingEvent.originalHeight - 48;
+      }
+    } else {
+      newHeight = resizingEvent.originalHeight + deltaPx;
+      if (newHeight < 24) newHeight = 24;
+    }
+
+    setResizingEvent((prev) =>
+      prev ? { ...prev, previewTop: newTop, previewHeight: newHeight } : null
+    );
+  }, [resizingEvent]);
 
   // イベントリサイズ終了
   const handleResizeEnd = useCallback(async (e: MouseEvent) => {
     if (!resizingEvent) return;
 
     const deltaY = e.clientY - resizingEvent.startY;
-    const deltaMinutes = Math.round(deltaY / 48 * 60 / 15) * 15; // 15分単位
+    const deltaMinutes = Math.round(deltaY / 48 * 60 / 30) * 30; // 30分単位
 
     const event = events.find((ev) => ev.id === resizingEvent.eventId);
     if (!event || !event.start_time) {
@@ -295,6 +328,9 @@ export function CalendarView({
     const newEndTime = `${String(Math.floor(newEndMinutes / 60)).padStart(2, "0")}:${String(newEndMinutes % 60).padStart(2, "0")}:00`;
 
     setResizingEvent(null);
+    // リサイズ直後のクリックイベントを防ぐためのフラグ
+    setJustFinishedResizing(true);
+    setTimeout(() => setJustFinishedResizing(false), 100);
 
     // 変更がない場合はスキップ
     if (newStartTime === event.start_time && newEndTime === event.end_time) {
@@ -790,13 +826,16 @@ export function CalendarView({
                   const lightBgColor = getLightBgColor(categoryColor);
                   const categoryName = getCategoryName(event);
                   const isResizing = resizingEvent?.eventId === event.id;
+                  // リサイズ中はプレビュー位置を使用
+                  const displayTop = isResizing ? resizingEvent.previewTop : pos.top;
+                  const displayHeight = isResizing ? resizingEvent.previewHeight : pos.height;
                   return (
                     <div
                       key={event.id}
                       className={`absolute left-0.5 right-0.5 rounded px-1 py-0.5 overflow-hidden border ${lightBgColor} ${
                         isResizing ? "ring-2 ring-primary z-10" : "cursor-pointer hover:opacity-80"
                       }`}
-                      style={{ top: pos.top, height: pos.height }}
+                      style={{ top: displayTop, height: displayHeight }}
                       onClick={(e) => handleEventClick(event, e)}
                     >
                       {/* 上部リサイズハンドル */}
@@ -807,10 +846,10 @@ export function CalendarView({
                       <div className="text-xs font-medium truncate text-black">
                         {event.start_time?.slice(0, 5)} {event.title}
                       </div>
-                      {categoryName && pos.height >= 36 && (
+                      {categoryName && displayHeight >= 36 && (
                         <span className={`${categoryColor} text-white px-1 rounded text-[10px]`}>{categoryName}</span>
                       )}
-                      {event.location && pos.height >= 48 && (
+                      {event.location && displayHeight >= 48 && (
                         <div className="text-[10px] text-black truncate flex items-center gap-0.5">
                           <MapPin className="h-2.5 w-2.5" />
                           {event.location}
