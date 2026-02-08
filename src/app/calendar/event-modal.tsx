@@ -138,13 +138,14 @@ export function EventModal({
       setAllDay(false);
       setLocation("");
       setMapUrl("");
-      setParticipantIds([]);
+      // デフォルトで自分を参加者に設定
+      setParticipantIds(currentEmployeeId ? [currentEmployeeId] : []);
       setShowProjectSelector(false);
       setLinkedProjectId(null);
       setLinkedTaskId(null);
       setLinkedProjectCode(null);
     }
-  }, [event, selectedDate, open, eventCategories]);
+  }, [event, selectedDate, open, eventCategories, currentEmployeeId]);
 
   // 業務ToDoを読み込む
   const loadProjectsWithTasks = async () => {
@@ -460,7 +461,21 @@ export function EventModal({
                   <select
                     className="w-20 h-10 px-2 rounded-md border border-input bg-background text-sm"
                     value={startHour}
-                    onChange={(e) => setStartHour(e.target.value)}
+                    onChange={(e) => {
+                      const newHour = e.target.value;
+                      setStartHour(newHour);
+                      // 時を選択したら自動的に00分を設定
+                      if (newHour && !startMinute) {
+                        setStartMinute("00");
+                        // 終了時刻を30分後に自動設定
+                        const startMinutes = parseInt(newHour) * 60;
+                        const endMinutes = startMinutes + 30;
+                        const newEndHour = String(Math.floor(endMinutes / 60) % 24).padStart(2, "0");
+                        const newEndMinute = endMinutes % 60 === 0 ? "00" : "30";
+                        setEndHour(newEndHour);
+                        setEndMinute(newEndMinute);
+                      }
+                    }}
                   >
                     <option value="">--</option>
                     {HOUR_OPTIONS.map((h) => (
@@ -473,7 +488,19 @@ export function EventModal({
                   <select
                     className="w-20 h-10 px-2 rounded-md border border-input bg-background text-sm"
                     value={startMinute}
-                    onChange={(e) => setStartMinute(e.target.value)}
+                    onChange={(e) => {
+                      const newMinute = e.target.value;
+                      setStartMinute(newMinute);
+                      // 分を変更したら終了時刻も30分後に更新
+                      if (startHour && newMinute) {
+                        const startMinutes = parseInt(startHour) * 60 + parseInt(newMinute);
+                        const endMinutes = startMinutes + 30;
+                        const newEndHour = String(Math.floor(endMinutes / 60) % 24).padStart(2, "0");
+                        const newEndMinute = endMinutes % 60 === 0 ? "00" : "30";
+                        setEndHour(newEndHour);
+                        setEndMinute(newEndMinute);
+                      }
+                    }}
                   >
                     <option value="">--</option>
                     {MINUTE_OPTIONS.map((m) => (

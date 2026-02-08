@@ -3,7 +3,6 @@
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { AttendanceClock } from "@/components/attendance-clock";
 import { DashboardCalendar, type DroppedTaskData } from "./dashboard-calendar";
 import { DashboardTaskList } from "./dashboard-task-list";
 import { EventModal } from "./calendar/event-modal";
@@ -14,21 +13,12 @@ import {
 } from "@/types/database";
 import { type TaskWithProject } from "./dashboard-actions";
 
-// AttendanceClock用の型定義
-type Attendance = {
-  id: string;
-  clock_in: string | null;
-  clock_out: string | null;
-  date: string;
-} | null;
-
 interface DashboardViewProps {
   events: CalendarEventWithParticipants[];
   employees: Employee[];
   eventCategories: EventCategory[];
   currentEmployeeId: string | null;
   tasks: TaskWithProject[];
-  attendance: Attendance | null;
   initialView?: "day" | "week" | "month";
   initialDate?: string;
 }
@@ -39,7 +29,6 @@ export function DashboardView({
   eventCategories,
   currentEmployeeId,
   tasks,
-  attendance,
   initialView = "day",
   initialDate,
 }: DashboardViewProps) {
@@ -104,16 +93,8 @@ export function DashboardView({
 
   return (
     <div className="h-[calc(100vh-4rem)] flex flex-col">
-      {/* 打刻UI */}
-      <div className="flex-shrink-0">
-        <AttendanceClock
-          initialAttendance={attendance}
-          employeeId={currentEmployeeId}
-        />
-      </div>
-
       {/* メインコンテンツ */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-4 gap-4 p-4 min-h-0">
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-4 gap-4 min-h-0">
         {/* 左側: カレンダー (3/4) */}
         <div className="lg:col-span-3 min-h-0">
           <DashboardCalendar

@@ -14,6 +14,7 @@ import {
 import { format, addHours } from "date-fns";
 import { ja } from "date-fns/locale";
 import { LogoutButton } from "./logout-button";
+import { HeaderAttendance } from "./header-attendance";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -42,20 +43,36 @@ export async function Header() {
   const { data: { user } } = await supabase.auth.getUser();
 
   let employeeName = "";
+  let employeeId: string | null = null;
+  let attendance: { id: string; clock_in: string | null; clock_out: string | null; date: string } | null = null;
+
   // ビルド時刻を取得（UTC→日本時間+9時間）
   const buildTimeUtc = process.env.NEXT_PUBLIC_BUILD_TIME
     ? new Date(process.env.NEXT_PUBLIC_BUILD_TIME)
     : new Date();
   const buildTime = addHours(buildTimeUtc, 9);
   if (user) {
-    // RLSをバイパスして社員名を取得
+    // RLSをバイパスして社員情報を取得
     const adminClient = createAdminClient();
     const { data: employee } = await adminClient
       .from("employees")
-      .select("name")
+      .select("id, name")
       .eq("auth_id", user.id)
       .single();
     employeeName = employee?.name || "";
+    employeeId = employee?.id || null;
+
+    // 今日の勤怠データを取得
+    if (employeeId) {
+      const today = format(new Date(), "yyyy-MM-dd");
+      const { data: attendanceData } = await supabase
+        .from("attendances")
+        .select("id, clock_in, clock_out, date")
+        .eq("employee_id", employeeId)
+        .eq("date", today)
+        .single();
+      attendance = attendanceData;
+    }
   }
 
   return (
@@ -84,8 +101,18 @@ export async function Header() {
             </nav>
           </div>
 
-          {/* 右側：ユーザー情報 */}
+          {/* 右側：出勤・ユーザー情報 */}
           <div className="flex items-center gap-4">
+            {/* 出勤UI（デスクトップ） */}
+            {user && employeeId && (
+              <div className="hidden md:block">
+                <HeaderAttendance
+                  initialAttendance={attendance}
+                  employeeId={employeeId}
+                />
+              </div>
+            )}
+
             {/* デスクトップ表示 */}
             {user && (
               <div className="hidden sm:flex items-center gap-4">
