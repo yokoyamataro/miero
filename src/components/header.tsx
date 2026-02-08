@@ -7,7 +7,6 @@ import {
   FolderKanban,
   UserCircle,
   Users,
-  Calendar,
   Menu,
   RefreshCw,
   Home,
@@ -28,7 +27,6 @@ const navItems = [
   { href: "/projects", label: "業務", icon: FolderKanban },
   { href: "/customers", label: "顧客", icon: UserCircle },
   { href: "/employees", label: "社員", icon: Users },
-  { href: "/calendar", label: "カレンダー", icon: Calendar },
 ];
 
 export async function Header() {
