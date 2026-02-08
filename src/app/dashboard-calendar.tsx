@@ -310,7 +310,7 @@ export function DashboardCalendar({
   };
 
   // イベントレンダリング
-  const renderEvent = (event: CalendarEventWithParticipants, compact = false) => {
+  const renderEvent = (event: CalendarEventWithParticipants, compact = false, hideParticipants = false) => {
     const categoryColor = getCategoryColor(event);
     const lightBgColor = getLightBgColor(categoryColor);
     const categoryName = getCategoryName(event);
@@ -356,7 +356,7 @@ export function DashboardCalendar({
               <span className="truncate">{event.location}</span>
             </div>
           )}
-          {event.participants.length > 0 && (
+          {!hideParticipants && event.participants.length > 0 && (
             <div className="text-sm flex items-center gap-1 mt-1 text-black">
               <Users className="h-3 w-3" />
               {event.participants.map((p) => p.name).join(", ")}
@@ -484,7 +484,7 @@ export function DashboardCalendar({
                     onDragLeave={handleDragLeave}
                   >
                     <div className="space-y-1 min-h-[60px]">
-                      {dayEvents.map((event) => renderEvent(event))}
+                      {dayEvents.map((event) => renderEvent(event, false, true))}
                     </div>
                   </td>
                 );
