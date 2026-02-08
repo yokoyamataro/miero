@@ -720,3 +720,24 @@ export const DEFAULT_INDUSTRIES = [
   "司法書士",
   "その他",
 ];
+
+// ============================================
+// DocumentTemplate (文書テンプレート)
+// ============================================
+export interface DocumentTemplate {
+  id: string;
+  name: string;
+  file_name: string;
+  description: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DocumentTemplateInsert {
+  id?: string;
+  name: string;
+  file_name: string;
+  description?: string | null;
+  sort_order?: number;
+}

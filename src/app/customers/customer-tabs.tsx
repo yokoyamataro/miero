@@ -11,8 +11,10 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Building2, User } from "lucide-react";
+import { Building2, User, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DocumentTab } from "./document-tab";
+import type { Account, Contact, Employee, DocumentTemplate } from "@/types/database";
 
 // 五十音インデックス
 const AIUEO_INDEX = [
@@ -38,7 +40,7 @@ function getKanaRow(kana: string | null): string | null {
   return null;
 }
 
-interface Account {
+interface AccountLocal {
   id: string;
   company_name: string;
   company_name_kana: string | null;
@@ -53,7 +55,7 @@ interface Account {
   }[];
 }
 
-interface Individual {
+interface IndividualLocal {
   id: string;
   last_name: string;
   first_name: string;
@@ -66,34 +68,49 @@ interface Individual {
 
 interface CustomerTabsProps {
   accounts: Account[];
-  individuals: Individual[];
+  individuals: Contact[];
+  allContacts: Contact[];
+  employees: Employee[];
+  templates: DocumentTemplate[];
+  currentEmployeeId: string | null;
 }
 
-export function CustomerTabs({ accounts, individuals }: CustomerTabsProps) {
-  const [activeTab, setActiveTab] = useState<"accounts" | "individuals">("accounts");
+export function CustomerTabs({
+  accounts,
+  individuals,
+  allContacts,
+  employees,
+  templates,
+  currentEmployeeId,
+}: CustomerTabsProps) {
+  const [activeTab, setActiveTab] = useState<"accounts" | "individuals" | "documents">("accounts");
   const tableContainerRef = useRef<HTMLDivElement>(null);
+
+  // 型変換（contacts付きの法人データ用）
+  const accountsLocal = accounts as unknown as AccountLocal[];
+  const individualsLocal = individuals as unknown as IndividualLocal[];
 
   // 法人を五十音行ごとにグループ化
   const accountsByRow = useMemo(() => {
-    const grouped: Record<string, Account[]> = {};
-    for (const account of accounts) {
+    const grouped: Record<string, AccountLocal[]> = {};
+    for (const account of accountsLocal) {
       const row = getKanaRow(account.company_name_kana) || "他";
       if (!grouped[row]) grouped[row] = [];
       grouped[row].push(account);
     }
     return grouped;
-  }, [accounts]);
+  }, [accountsLocal]);
 
   // 個人を五十音行ごとにグループ化
   const individualsByRow = useMemo(() => {
-    const grouped: Record<string, Individual[]> = {};
-    for (const individual of individuals) {
+    const grouped: Record<string, IndividualLocal[]> = {};
+    for (const individual of individualsLocal) {
       const row = getKanaRow(individual.last_name_kana) || "他";
       if (!grouped[row]) grouped[row] = [];
       grouped[row].push(individual);
     }
     return grouped;
-  }, [individuals]);
+  }, [individualsLocal]);
 
   // 該当行へスクロール
   const scrollToRow = (row: string) => {
@@ -109,7 +126,7 @@ export function CustomerTabs({ accounts, individuals }: CustomerTabsProps) {
     : Object.keys(individualsByRow);
 
   return (
-    <Tabs defaultValue="accounts" className="w-full" onValueChange={(v) => setActiveTab(v as "accounts" | "individuals")}>
+    <Tabs defaultValue="accounts" className="w-full" onValueChange={(v) => setActiveTab(v as "accounts" | "individuals" | "documents")}>
       <TabsList className="mb-4">
         <TabsTrigger value="accounts" className="gap-2">
           <Building2 className="h-4 w-4" />
@@ -119,10 +136,14 @@ export function CustomerTabs({ accounts, individuals }: CustomerTabsProps) {
           <User className="h-4 w-4" />
           個人 ({individuals.length})
         </TabsTrigger>
+        <TabsTrigger value="documents" className="gap-2">
+          <FileText className="h-4 w-4" />
+          文書
+        </TabsTrigger>
       </TabsList>
 
       <TabsContent value="accounts">
-        {accounts.length === 0 ? (
+        {accountsLocal.length === 0 ? (
           <p className="text-muted-foreground text-center py-8">
             法人顧客がまだ登録されていません
           </p>
@@ -211,7 +232,7 @@ export function CustomerTabs({ accounts, individuals }: CustomerTabsProps) {
       </TabsContent>
 
       <TabsContent value="individuals">
-        {individuals.length === 0 ? (
+        {individualsLocal.length === 0 ? (
           <p className="text-muted-foreground text-center py-8">
             個人顧客がまだ登録されていません
           </p>
@@ -292,6 +313,17 @@ export function CustomerTabs({ accounts, individuals }: CustomerTabsProps) {
             </div>
           </div>
         )}
+      </TabsContent>
+
+      <TabsContent value="documents">
+        <DocumentTab
+          templates={templates}
+          accounts={accounts}
+          allContacts={allContacts}
+          individuals={individuals}
+          employees={employees}
+          currentEmployeeId={currentEmployeeId}
+        />
       </TabsContent>
     </Tabs>
   );
