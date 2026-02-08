@@ -30,7 +30,7 @@ interface EventModalProps {
   eventCategories: EventCategory[];
   selectedDate: Date | null;
   event: CalendarEventWithParticipants | null;
-  onSaved: () => void;
+  onSaved: (savedEvent: CalendarEventWithParticipants, isNew: boolean) => void;
   currentEmployeeId: string | null;
 }
 
@@ -252,6 +252,9 @@ export function EventModal({
           setError(result.error);
           return;
         }
+        if (result.event) {
+          onSaved(result.event, false);
+        }
       } else {
         // 新規イベントの作成
         const result = await createEvent(eventData, participantIds);
@@ -259,9 +262,10 @@ export function EventModal({
           setError(result.error);
           return;
         }
+        if (result.event) {
+          onSaved(result.event, true);
+        }
       }
-
-      onSaved();
     } catch (err) {
       setError("保存に失敗しました");
     } finally {

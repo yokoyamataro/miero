@@ -141,7 +141,7 @@ export async function getEventsInRange(
 export async function createEvent(
   data: CalendarEventInsert,
   participantIds: string[]
-): Promise<{ success?: boolean; error?: string; eventId?: string }> {
+): Promise<{ success?: boolean; error?: string; eventId?: string; event?: CalendarEventWithParticipants }> {
   const supabase = await createClient();
 
   const employeeId = await getCurrentEmployeeIdInternal(supabase);
@@ -156,7 +156,7 @@ export async function createEvent(
       ...data,
       created_by: employeeId,
     } as never)
-    .select("id")
+    .select("*")
     .single();
 
   if (error) {
@@ -180,8 +180,41 @@ export async function createEvent(
     }
   }
 
+  // 参加者情報を取得
+  const { data: employees } = await supabase
+    .from("employees")
+    .select("*")
+    .in("id", participantIds.length > 0 ? participantIds : [employeeId]);
+
+  const employeeMap = new Map(employees?.map((e) => [e.id, e]) || []);
+  const participants = participantIds
+    .map((id) => employeeMap.get(id))
+    .filter(Boolean) as Employee[];
+
+  const creator = employeeMap.get(employeeId) || null;
+
+  // 区分情報を取得
+  let eventCategory: EventCategory | null = null;
+  if (event.event_category_id) {
+    const { data: category } = await supabase
+      .from("event_categories")
+      .select("*")
+      .eq("id", event.event_category_id)
+      .single();
+    eventCategory = category as EventCategory | null;
+  }
+
+  const fullEvent: CalendarEventWithParticipants = {
+    ...event,
+    participants,
+    creator,
+    project: null,
+    task: null,
+    eventCategory,
+  };
+
   revalidatePath("/calendar");
-  return { success: true, eventId: event.id };
+  return { success: true, eventId: event.id, event: fullEvent };
 }
 
 // イベントを更新
@@ -189,7 +222,7 @@ export async function updateEvent(
   eventId: string,
   data: Partial<CalendarEventInsert>,
   participantIds: string[]
-): Promise<{ success?: boolean; error?: string }> {
+): Promise<{ success?: boolean; error?: string; event?: CalendarEventWithParticipants }> {
   const supabase = await createClient();
 
   const employeeId = await getCurrentEmployeeIdInternal(supabase);
@@ -198,10 +231,12 @@ export async function updateEvent(
   }
 
   // イベントを更新
-  const { error } = await supabase
+  const { data: updatedEvent, error } = await supabase
     .from("calendar_events")
     .update(data as never)
-    .eq("id", eventId);
+    .eq("id", eventId)
+    .select("*")
+    .single();
 
   if (error) {
     console.error("Error updating event:", error);
@@ -225,8 +260,42 @@ export async function updateEvent(
       .insert(participantInserts as never);
   }
 
+  // 参加者情報を取得
+  const allEmployeeIds = [...participantIds, updatedEvent.created_by].filter(Boolean);
+  const { data: employees } = await supabase
+    .from("employees")
+    .select("*")
+    .in("id", allEmployeeIds);
+
+  const employeeMap = new Map(employees?.map((e) => [e.id, e]) || []);
+  const participants = participantIds
+    .map((id) => employeeMap.get(id))
+    .filter(Boolean) as Employee[];
+
+  const creator = updatedEvent.created_by ? employeeMap.get(updatedEvent.created_by) : null;
+
+  // 区分情報を取得
+  let eventCategory: EventCategory | null = null;
+  if (updatedEvent.event_category_id) {
+    const { data: category } = await supabase
+      .from("event_categories")
+      .select("*")
+      .eq("id", updatedEvent.event_category_id)
+      .single();
+    eventCategory = category as EventCategory | null;
+  }
+
+  const fullEvent: CalendarEventWithParticipants = {
+    ...updatedEvent,
+    participants,
+    creator: creator || null,
+    project: null,
+    task: null,
+    eventCategory,
+  };
+
   revalidatePath("/calendar");
-  return { success: true };
+  return { success: true, event: fullEvent };
 }
 
 // イベントを削除

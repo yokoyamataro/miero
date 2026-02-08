@@ -36,7 +36,7 @@ interface EventDetailModalProps {
   onOpenChange: (open: boolean) => void;
   event: CalendarEventWithParticipants | null;
   onEdit: (event: CalendarEventWithParticipants) => void;
-  onDeleted: () => void;
+  onDeleted: (eventId: string) => void;
 }
 
 export function EventDetailModal({
@@ -62,7 +62,7 @@ export function EventDetailModal({
       return;
     }
 
-    onDeleted();
+    onDeleted(event.id);
   };
 
   const formatDateRange = () => {

@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useMemo, useCallback, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -79,7 +78,6 @@ export function CalendarView({
   initialDate,
   currentEmployeeId,
 }: CalendarViewProps) {
-  const router = useRouter();
   const [viewMode, setViewMode] = useState<ViewMode>(initialView);
   const [currentDate, setCurrentDate] = useState(parseISO(initialDate));
   const [events, setEvents] = useState(initialEvents);
@@ -215,17 +213,24 @@ export function CalendarView({
     setShowEventModal(true);
   };
 
-  // イベント更新後
-  const handleEventUpdated = useCallback(() => {
-    router.refresh();
+  // イベント更新後（楽観的UI更新）
+  const handleEventSaved = useCallback((savedEvent: CalendarEventWithParticipants, isNew: boolean) => {
     setShowEventModal(false);
     setShowDetailModal(false);
-    // 現在の表示モードと日付を保持してホームにリダイレクト
-    const params = new URLSearchParams();
-    params.set("view", viewMode);
-    params.set("date", format(currentDate, "yyyy-MM-dd"));
-    window.location.href = `/?${params.toString()}`;
-  }, [router, viewMode, currentDate]);
+    if (isNew) {
+      setEvents((prev) => [...prev, savedEvent]);
+    } else {
+      setEvents((prev) =>
+        prev.map((e) => (e.id === savedEvent.id ? savedEvent : e))
+      );
+    }
+  }, []);
+
+  // イベント削除後（楽観的UI更新）
+  const handleEventDeleted = useCallback((deletedEventId: string) => {
+    setShowDetailModal(false);
+    setEvents((prev) => prev.filter((e) => e.id !== deletedEventId));
+  }, []);
 
   // イベントリサイズ開始
   const handleResizeStart = useCallback((
@@ -296,6 +301,17 @@ export function CalendarView({
       return;
     }
 
+    // 楽観的UI更新：先にローカルstateを更新
+    const updatedEvent = {
+      ...event,
+      start_time: newStartTime,
+      end_time: newEndTime,
+    };
+    setEvents((prev) =>
+      prev.map((e) => (e.id === event.id ? updatedEvent : e))
+    );
+
+    // バックグラウンドでDB更新
     const result = await updateEvent(
       event.id,
       {
@@ -305,10 +321,13 @@ export function CalendarView({
       event.participants.map((p) => p.id)
     );
 
-    if (result.success) {
-      handleEventUpdated();
+    // エラー時はロールバック
+    if (!result.success) {
+      setEvents((prev) =>
+        prev.map((e) => (e.id === event.id ? event : e))
+      );
     }
-  }, [resizingEvent, events, handleEventUpdated]);
+  }, [resizingEvent, events]);
 
   // グローバルマウスイベントのリスナー登録
   useEffect(() => {
@@ -939,7 +958,7 @@ export function CalendarView({
         eventCategories={eventCategories}
         selectedDate={selectedDate}
         event={selectedEvent}
-        onSaved={handleEventUpdated}
+        onSaved={handleEventSaved}
         currentEmployeeId={currentEmployeeId}
       />
 
@@ -949,7 +968,7 @@ export function CalendarView({
         onOpenChange={setShowDetailModal}
         event={selectedEvent}
         onEdit={handleEditEvent}
-        onDeleted={handleEventUpdated}
+        onDeleted={handleEventDeleted}
       />
     </div>
   );

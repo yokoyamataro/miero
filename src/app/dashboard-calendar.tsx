@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useMemo, useCallback, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -90,7 +89,6 @@ export function DashboardCalendar({
   currentEmployeeId,
   onDropTask,
 }: DashboardCalendarProps) {
-  const router = useRouter();
   const [viewMode, setViewMode] = useState<ViewMode>(initialView);
   const [currentDate, setCurrentDate] = useState(parseISO(initialDate));
   const [events, setEvents] = useState(initialEvents);
@@ -257,17 +255,26 @@ export function DashboardCalendar({
     setShowEventModal(true);
   };
 
-  // イベント更新後
-  const handleEventUpdated = () => {
-    router.refresh();
+  // イベント更新後（楽観的UI更新）
+  const handleEventSaved = useCallback((savedEvent: CalendarEventWithParticipants, isNew: boolean) => {
     setShowEventModal(false);
     setShowDetailModal(false);
-    // 現在の表示モードと日付を保持してリロード
-    const params = new URLSearchParams();
-    params.set("view", viewMode);
-    params.set("date", format(currentDate, "yyyy-MM-dd"));
-    window.location.href = `/?${params.toString()}`;
-  };
+    if (isNew) {
+      // 新規イベントを追加
+      setEvents((prev) => [...prev, savedEvent]);
+    } else {
+      // 既存イベントを更新
+      setEvents((prev) =>
+        prev.map((e) => (e.id === savedEvent.id ? savedEvent : e))
+      );
+    }
+  }, []);
+
+  // イベント削除後（楽観的UI更新）
+  const handleEventDeleted = useCallback((deletedEventId: string) => {
+    setShowDetailModal(false);
+    setEvents((prev) => prev.filter((e) => e.id !== deletedEventId));
+  }, []);
 
   // ドロップハンドラー
   const handleDrop = useCallback(
@@ -348,7 +355,19 @@ export function DashboardCalendar({
       newEndTime = `${String(endHour).padStart(2, "0")}:${String(endMin).padStart(2, "0")}:00`;
     }
 
-    // イベントを更新
+    // 楽観的UI更新：先にローカルstateを更新
+    const updatedEvent = {
+      ...event,
+      start_date: format(date, "yyyy-MM-dd"),
+      end_date: format(date, "yyyy-MM-dd"),
+      start_time: newStartTime,
+      end_time: newEndTime,
+    };
+    setEvents((prev) =>
+      prev.map((e) => (e.id === eventId ? updatedEvent : e))
+    );
+
+    // バックグラウンドでDB更新
     const result = await updateEvent(
       eventId,
       {
@@ -360,10 +379,13 @@ export function DashboardCalendar({
       event.participants.map((p) => p.id)
     );
 
-    if (result.success) {
-      handleEventUpdated();
+    // エラー時はロールバック
+    if (!result.success) {
+      setEvents((prev) =>
+        prev.map((e) => (e.id === eventId ? event : e))
+      );
     }
-  }, [events, handleEventUpdated]);
+  }, [events]);
 
   // 時間枠へのドラッグオーバー
   const handleTimeSlotDragOver = useCallback((date: Date, hour: number, e: React.DragEvent) => {
@@ -475,6 +497,17 @@ export function DashboardCalendar({
       return;
     }
 
+    // 楽観的UI更新：先にローカルstateを更新
+    const updatedEvent = {
+      ...event,
+      start_time: newStartTime,
+      end_time: newEndTime,
+    };
+    setEvents((prev) =>
+      prev.map((e) => (e.id === event.id ? updatedEvent : e))
+    );
+
+    // バックグラウンドでDB更新
     const result = await updateEvent(
       event.id,
       {
@@ -484,10 +517,13 @@ export function DashboardCalendar({
       event.participants.map((p) => p.id)
     );
 
-    if (result.success) {
-      handleEventUpdated();
+    // エラー時はロールバック
+    if (!result.success) {
+      setEvents((prev) =>
+        prev.map((e) => (e.id === event.id ? event : e))
+      );
     }
-  }, [resizingEvent, events, handleEventUpdated]);
+  }, [resizingEvent, events]);
 
   // グローバルマウスイベントのリスナー登録
   useEffect(() => {
@@ -1062,7 +1098,7 @@ export function DashboardCalendar({
         eventCategories={eventCategories}
         selectedDate={selectedDate}
         event={selectedEvent}
-        onSaved={handleEventUpdated}
+        onSaved={handleEventSaved}
         currentEmployeeId={currentEmployeeId}
       />
 
@@ -1072,7 +1108,7 @@ export function DashboardCalendar({
         onOpenChange={setShowDetailModal}
         event={selectedEvent}
         onEdit={handleEditEvent}
-        onDeleted={handleEventUpdated}
+        onDeleted={handleEventDeleted}
       />
     </Card>
   );
