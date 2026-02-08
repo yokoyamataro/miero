@@ -289,14 +289,33 @@ export function DashboardCalendar({
     return "bg-gray-500";
   };
 
-  // 濃い色から薄い背景色を取得（bg-xxx-500 → bg-xxx-100）
+  // 濃い色から薄い背景色を取得
+  const LIGHT_BG_MAP: Record<string, string> = {
+    "bg-blue-500": "bg-blue-100",
+    "bg-blue-300": "bg-blue-100",
+    "bg-indigo-500": "bg-indigo-100",
+    "bg-sky-500": "bg-sky-100",
+    "bg-green-500": "bg-green-100",
+    "bg-green-300": "bg-green-100",
+    "bg-teal-500": "bg-teal-100",
+    "bg-emerald-500": "bg-emerald-100",
+    "bg-yellow-500": "bg-yellow-100",
+    "bg-orange-500": "bg-orange-100",
+    "bg-red-500": "bg-red-100",
+    "bg-pink-500": "bg-pink-100",
+    "bg-purple-500": "bg-purple-100",
+    "bg-violet-500": "bg-violet-100",
+    "bg-fuchsia-500": "bg-fuchsia-100",
+    "bg-cyan-500": "bg-cyan-100",
+    "bg-rose-500": "bg-rose-100",
+    "bg-amber-500": "bg-amber-100",
+    "bg-gray-500": "bg-gray-100",
+    "bg-gray-400": "bg-gray-100",
+    "bg-slate-500": "bg-slate-100",
+    "bg-slate-400": "bg-slate-100",
+  };
   const getLightBgColor = (categoryColor: string) => {
-    // bg-xxx-500 や bg-xxx-400 を bg-xxx-100 に変換
-    const match = categoryColor.match(/^bg-(\w+)-\d+$/);
-    if (match) {
-      return `bg-${match[1]}-100`;
-    }
-    return "bg-gray-100";
+    return LIGHT_BG_MAP[categoryColor] || "bg-gray-100";
   };
 
   const getCategoryName = (event: CalendarEventWithParticipants) => {
