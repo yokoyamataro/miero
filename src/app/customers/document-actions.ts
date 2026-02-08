@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import type { DocumentTemplate, Employee, Account, Contact } from "@/types/database";
+import type { DocumentTemplate, Employee, Account, Contact, Branch } from "@/types/database";
 
 // テンプレート一覧取得
 export async function getDocumentTemplates(): Promise<DocumentTemplate[]> {
@@ -48,6 +48,8 @@ export async function generateDocument(request: {
   templateId: string;
   recipientType: "account" | "contact";
   recipientId: string;
+  branchId?: string;
+  contactId?: string;
   senderId: string;
   documentDate: string;
 }): Promise<{
@@ -121,7 +123,75 @@ export async function generateDocument(request: {
     };
   }
 
-  // 3. 差出人情報取得
+  // 3. 支店情報取得（法人選択時のみ）
+  let branchData: {
+    name: string;
+    phone: string;
+    fax: string;
+    postal_code: string;
+    address: string;
+  } = {
+    name: "",
+    phone: "",
+    fax: "",
+    postal_code: "",
+    address: "",
+  };
+
+  if (request.branchId) {
+    const { data: branch } = await supabase
+      .from("branches")
+      .select("*")
+      .eq("id", request.branchId)
+      .single();
+
+    if (branch) {
+      const br = branch as Branch;
+      branchData = {
+        name: br.name || "",
+        phone: br.phone || "",
+        fax: br.fax || "",
+        postal_code: br.postal_code || "",
+        address: `${br.prefecture || ""}${br.city || ""}${br.street || ""}${br.building || ""}`,
+      };
+    }
+  }
+
+  // 4. 担当者情報取得（法人選択時のみ）
+  let contactData: {
+    name: string;
+    department: string;
+    position: string;
+    phone: string;
+    email: string;
+  } = {
+    name: "",
+    department: "",
+    position: "",
+    phone: "",
+    email: "",
+  };
+
+  if (request.contactId) {
+    const { data: contact } = await supabase
+      .from("contacts")
+      .select("*")
+      .eq("id", request.contactId)
+      .single();
+
+    if (contact) {
+      const cont = contact as Contact;
+      contactData = {
+        name: `${cont.last_name} ${cont.first_name}`,
+        department: cont.department || "",
+        position: cont.position || "",
+        phone: cont.phone || "",
+        email: cont.email || "",
+      };
+    }
+  }
+
+  // 5. 差出人情報取得
   const { data: sender, error: senderError } = await supabase
     .from("employees")
     .select("*")
@@ -134,12 +204,22 @@ export async function generateDocument(request: {
 
   const emp = sender as Employee;
 
-  // 4. プレースホルダー値マップを作成
+  // 6. プレースホルダー値マップを作成
   const placeholderValues = {
     宛先_会社名: recipientData.company_name,
     宛先_氏名: recipientData.name,
     宛先_郵便番号: recipientData.postal_code ? `〒${recipientData.postal_code}` : "",
     宛先_住所: recipientData.address,
+    支店名: branchData.name,
+    支店_電話: branchData.phone,
+    支店_FAX: branchData.fax,
+    支店_郵便番号: branchData.postal_code ? `〒${branchData.postal_code}` : "",
+    支店_住所: branchData.address,
+    担当者_氏名: contactData.name,
+    担当者_部署: contactData.department,
+    担当者_役職: contactData.position,
+    担当者_電話: contactData.phone,
+    担当者_メール: contactData.email,
     差出人_氏名: emp.name,
     差出人_メール: emp.email || "",
     作成日: formatJapaneseDate(new Date()),

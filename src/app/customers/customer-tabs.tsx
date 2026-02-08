@@ -14,7 +14,7 @@ import {
 import { Building2, User, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DocumentTab } from "./document-tab";
-import type { Account, Contact, Employee, DocumentTemplate } from "@/types/database";
+import type { Account, Contact, Employee, DocumentTemplate, Branch } from "@/types/database";
 
 // 五十音インデックス
 const AIUEO_INDEX = [
@@ -72,6 +72,7 @@ interface CustomerTabsProps {
   allContacts: Contact[];
   employees: Employee[];
   templates: DocumentTemplate[];
+  branches: Branch[];
   currentEmployeeId: string | null;
 }
 
@@ -81,6 +82,7 @@ export function CustomerTabs({
   allContacts,
   employees,
   templates,
+  branches,
   currentEmployeeId,
 }: CustomerTabsProps) {
   const [activeTab, setActiveTab] = useState<"accounts" | "individuals" | "documents">("accounts");
@@ -322,6 +324,7 @@ export function CustomerTabs({
           allContacts={allContacts}
           individuals={individuals}
           employees={employees}
+          branches={branches}
           currentEmployeeId={currentEmployeeId}
         />
       </TabsContent>

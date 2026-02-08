@@ -19,7 +19,7 @@ import { FileText, Download, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import Docxtemplater from "docxtemplater";
 import PizZip from "pizzip";
-import type { DocumentTemplate, Account, Contact, Employee } from "@/types/database";
+import type { DocumentTemplate, Account, Contact, Employee, Branch } from "@/types/database";
 import { generateDocument } from "./document-actions";
 
 interface DocumentTabProps {
@@ -28,6 +28,7 @@ interface DocumentTabProps {
   allContacts: Contact[];
   individuals: Contact[];
   employees: Employee[];
+  branches: Branch[];
   currentEmployeeId: string | null;
 }
 
@@ -37,17 +38,37 @@ export function DocumentTab({
   allContacts,
   individuals,
   employees,
+  branches,
   currentEmployeeId,
 }: DocumentTabProps) {
   // フォーム状態
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
   const [recipientType, setRecipientType] = useState<"account" | "contact">("account");
   const [selectedRecipientId, setSelectedRecipientId] = useState<string>("");
+  const [selectedBranchId, setSelectedBranchId] = useState<string>("");
+  const [selectedContactId, setSelectedContactId] = useState<string>("");
   const [selectedSenderId, setSelectedSenderId] = useState<string>(currentEmployeeId || "");
   const [useToday, setUseToday] = useState(true);
   const [documentDate, setDocumentDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // 選択中の法人に紐づく支店一覧
+  const availableBranches = recipientType === "account" && selectedRecipientId
+    ? branches.filter(b => b.account_id === selectedRecipientId)
+    : [];
+
+  // 選択中の法人（または支店）に紐づく担当者一覧
+  const availableContacts = recipientType === "account" && selectedRecipientId
+    ? allContacts.filter(c => {
+        if (c.account_id !== selectedRecipientId) return false;
+        // 支店が選択されている場合はその支店の担当者のみ
+        if (selectedBranchId) {
+          return c.branch_id === selectedBranchId;
+        }
+        return true;
+      })
+    : [];
 
   // 生成処理
   const handleGenerate = async () => {
@@ -65,6 +86,8 @@ export function DocumentTab({
         templateId: selectedTemplateId,
         recipientType,
         recipientId: selectedRecipientId,
+        branchId: selectedBranchId || undefined,
+        contactId: selectedContactId || undefined,
         senderId: selectedSenderId,
         documentDate: useToday ? format(new Date(), "yyyy-MM-dd") : documentDate,
       });
@@ -172,6 +195,8 @@ export function DocumentTab({
                 onChange={() => {
                   setRecipientType("account");
                   setSelectedRecipientId("");
+                  setSelectedBranchId("");
+                  setSelectedContactId("");
                 }}
                 className="w-4 h-4"
               />
@@ -186,6 +211,8 @@ export function DocumentTab({
                 onChange={() => {
                   setRecipientType("contact");
                   setSelectedRecipientId("");
+                  setSelectedBranchId("");
+                  setSelectedContactId("");
                 }}
                 className="w-4 h-4"
               />
@@ -197,7 +224,11 @@ export function DocumentTab({
         {/* 宛先選択 */}
         <div className="space-y-2">
           <Label>宛先 *</Label>
-          <Select value={selectedRecipientId} onValueChange={setSelectedRecipientId}>
+          <Select value={selectedRecipientId} onValueChange={(v) => {
+            setSelectedRecipientId(v);
+            setSelectedBranchId("");
+            setSelectedContactId("");
+          }}>
             <SelectTrigger>
               <SelectValue placeholder="宛先を選択" />
             </SelectTrigger>
@@ -249,6 +280,50 @@ export function DocumentTab({
             </SelectContent>
           </Select>
         </div>
+
+        {/* 支店選択（法人選択時のみ、支店がある場合のみ表示） */}
+        {recipientType === "account" && selectedRecipientId && availableBranches.length > 0 && (
+          <div className="space-y-2">
+            <Label>支店</Label>
+            <Select value={selectedBranchId} onValueChange={(v) => {
+              setSelectedBranchId(v);
+              setSelectedContactId("");
+            }}>
+              <SelectTrigger>
+                <SelectValue placeholder="支店を選択（任意）" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">本社</SelectItem>
+                {availableBranches.map((b) => (
+                  <SelectItem key={b.id} value={b.id}>
+                    {b.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {/* 担当者選択（法人選択時のみ、担当者がいる場合のみ表示） */}
+        {recipientType === "account" && selectedRecipientId && availableContacts.length > 0 && (
+          <div className="space-y-2">
+            <Label>担当者</Label>
+            <Select value={selectedContactId} onValueChange={setSelectedContactId}>
+              <SelectTrigger>
+                <SelectValue placeholder="担当者を選択（任意）" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">指定なし</SelectItem>
+                {availableContacts.map((c) => (
+                  <SelectItem key={c.id} value={c.id}>
+                    {c.last_name} {c.first_name}
+                    {c.department && <span className="text-muted-foreground ml-1">({c.department})</span>}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         {/* 差出人選択 */}
         <div className="space-y-2">
@@ -326,11 +401,25 @@ export function DocumentTab({
         {/* 使用可能なプレースホルダー一覧 */}
         <div className="text-xs text-muted-foreground border-t pt-4">
           <p className="font-medium mb-2">テンプレートで使用可能なプレースホルダー:</p>
-          <div className="grid grid-cols-2 gap-1">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1">
+            <span className="font-medium col-span-2 mt-2">【宛先】</span>
             <span>{"{{宛先_会社名}}"}</span>
             <span>{"{{宛先_氏名}}"}</span>
             <span>{"{{宛先_郵便番号}}"}</span>
             <span>{"{{宛先_住所}}"}</span>
+            <span className="font-medium col-span-2 mt-2">【支店】</span>
+            <span>{"{{支店名}}"}</span>
+            <span>{"{{支店_電話}}"}</span>
+            <span>{"{{支店_FAX}}"}</span>
+            <span>{"{{支店_郵便番号}}"}</span>
+            <span>{"{{支店_住所}}"}</span>
+            <span className="font-medium col-span-2 mt-2">【担当者】</span>
+            <span>{"{{担当者_氏名}}"}</span>
+            <span>{"{{担当者_部署}}"}</span>
+            <span>{"{{担当者_役職}}"}</span>
+            <span>{"{{担当者_電話}}"}</span>
+            <span>{"{{担当者_メール}}"}</span>
+            <span className="font-medium col-span-2 mt-2">【差出人・日付】</span>
             <span>{"{{差出人_氏名}}"}</span>
             <span>{"{{差出人_メール}}"}</span>
             <span>{"{{作成日}}"}</span>
