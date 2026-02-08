@@ -141,6 +141,11 @@ export function DashboardCalendar({
     return eachDayOfInterval({ start: weekStart, end: addDays(weekStart, 6) });
   }, [currentDate]);
 
+  // 3日表示の日付を生成（今日を含む3日間）
+  const threeDays = useMemo(() => {
+    return eachDayOfInterval({ start: currentDate, end: addDays(currentDate, 2) });
+  }, [currentDate]);
+
   // 日付ごとのイベントを取得
   const getEventsForDate = (date: Date) => {
     return filteredEvents.filter((event) => {
@@ -159,6 +164,19 @@ export function DashboardCalendar({
       if (!isInDateRange) return false;
       return event.created_by === employeeId ||
              event.participants.some((p) => p.id === employeeId);
+    });
+  };
+
+  // 3日表示用：自分のイベントのみ取得
+  const getMyEventsForDate = (date: Date) => {
+    if (!currentEmployeeId) return [];
+    return filteredEvents.filter((event) => {
+      const startDate = parseISO(event.start_date);
+      const endDate = event.end_date ? parseISO(event.end_date) : startDate;
+      const isInDateRange = date >= startDate && date <= endDate;
+      if (!isInDateRange) return false;
+      return event.created_by === currentEmployeeId ||
+             event.participants.some((p) => p.id === currentEmployeeId);
     });
   };
 
@@ -183,7 +201,7 @@ export function DashboardCalendar({
         setCurrentDate(subWeeks(currentDate, 1));
         break;
       case "day":
-        setCurrentDate(subDays(currentDate, 1));
+        setCurrentDate(subDays(currentDate, 3));
         break;
     }
   };
@@ -197,7 +215,7 @@ export function DashboardCalendar({
         setCurrentDate(addWeeks(currentDate, 1));
         break;
       case "day":
-        setCurrentDate(addDays(currentDate, 1));
+        setCurrentDate(addDays(currentDate, 3));
         break;
     }
   };
@@ -274,7 +292,8 @@ export function DashboardCalendar({
         const weekEnd = addDays(weekStart, 6);
         return `${format(weekStart, "M月d日", { locale: ja })} - ${format(weekEnd, "M月d日", { locale: ja })}`;
       case "day":
-        return format(currentDate, "yyyy年M月d日(E)", { locale: ja });
+        const dayEnd = addDays(currentDate, 2);
+        return `${format(currentDate, "M月d日", { locale: ja })} - ${format(dayEnd, "M月d日", { locale: ja })}`;
     }
   };
 
@@ -522,42 +541,152 @@ export function DashboardCalendar({
     </div>
   );
 
-  // 日表示
+  // 3日表示（時間軸付き、自分のみ）
   const renderDayView = () => {
-    const dayEvents = getEventsForDate(currentDate);
-    const dateStr = format(currentDate, "yyyy-MM-dd");
-    const isDragOver = dragOverDate === dateStr;
+    // 8時〜18時の時間枠
+    const hours = Array.from({ length: 11 }, (_, i) => i + 8);
+
+    // イベントを時間枠に配置するヘルパー
+    const getEventPosition = (event: CalendarEventWithParticipants) => {
+      if (!event.start_time) return null;
+      const [startHour, startMin] = event.start_time.split(":").map(Number);
+      const startMinutes = startHour * 60 + startMin;
+      const baseMinutes = 8 * 60; // 8:00基準
+      const top = ((startMinutes - baseMinutes) / 60) * 48; // 48px per hour
+
+      let height = 48; // デフォルト1時間分
+      if (event.end_time) {
+        const [endHour, endMin] = event.end_time.split(":").map(Number);
+        const endMinutes = endHour * 60 + endMin;
+        height = Math.max(24, ((endMinutes - startMinutes) / 60) * 48);
+      }
+
+      return { top: Math.max(0, top), height };
+    };
+
+    // 終日または時間なしイベント
+    const getAllDayEvents = (date: Date) => {
+      return getMyEventsForDate(date).filter((e) => !e.start_time || e.all_day);
+    };
+
+    // 時間指定イベント
+    const getTimedEvents = (date: Date) => {
+      return getMyEventsForDate(date).filter((e) => e.start_time && !e.all_day);
+    };
 
     return (
-      <div className="border rounded-lg overflow-hidden">
-        <div
-          className={`p-4 bg-muted cursor-pointer hover:bg-muted/80 ${
-            isDragOver ? "bg-blue-100 ring-2 ring-blue-400" : ""
-          }`}
-          onClick={() => handleDateClick(currentDate)}
-          onDrop={(e) => handleDrop(currentDate, e)}
-          onDragOver={(e) => handleDragOver(currentDate, e)}
-          onDragLeave={handleDragLeave}
-        >
-          <div className="flex items-center justify-between mb-4">
-            <div className="text-lg font-medium">
-              {format(currentDate, "M月d日(E)", { locale: ja })}
-            </div>
-            <Button size="sm" onClick={() => handleDateClick(currentDate)}>
-              <Plus className="h-4 w-4 mr-1" />
-              予定を追加
-            </Button>
+      <div className="overflow-auto">
+        {/* ヘッダー: 3日分の日付 */}
+        <div className="grid grid-cols-[60px_1fr_1fr_1fr] border-b">
+          <div className="p-2 bg-muted border-r text-center text-xs font-medium">時間</div>
+          {threeDays.map((date, idx) => {
+            const dayOfWeek = date.getDay();
+            return (
+              <div
+                key={idx}
+                className={`p-2 bg-muted border-r text-center ${
+                  dayOfWeek === 0 ? "text-red-500" : dayOfWeek === 6 ? "text-blue-500" : ""
+                }`}
+              >
+                <div className="text-sm font-medium">{format(date, "M/d(E)", { locale: ja })}</div>
+                {isToday(date) && (
+                  <span className="inline-block w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs leading-6">
+                    今
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* 終日イベント行 */}
+        <div className="grid grid-cols-[60px_1fr_1fr_1fr] border-b bg-gray-50">
+          <div className="p-1 border-r text-xs text-muted-foreground text-center">終日</div>
+          {threeDays.map((date, idx) => {
+            const allDayEvents = getAllDayEvents(date);
+            const dateStr = format(date, "yyyy-MM-dd");
+            const isDragOver = dragOverDate === dateStr;
+            return (
+              <div
+                key={idx}
+                className={`p-1 border-r min-h-[32px] cursor-pointer hover:bg-muted/50 ${
+                  isDragOver ? "bg-blue-100 ring-2 ring-blue-400" : ""
+                }`}
+                onClick={() => handleDateClick(date)}
+                onDrop={(e) => handleDrop(date, e)}
+                onDragOver={(e) => handleDragOver(date, e)}
+                onDragLeave={handleDragLeave}
+              >
+                {allDayEvents.map((event) => renderEvent(event, true, true))}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* 時間軸 */}
+        <div className="grid grid-cols-[60px_1fr_1fr_1fr]">
+          {/* 時間ラベル列 */}
+          <div className="border-r">
+            {hours.map((hour) => (
+              <div key={hour} className="h-12 border-b text-xs text-muted-foreground text-right pr-2 pt-0.5">
+                {hour}:00
+              </div>
+            ))}
           </div>
 
-          {dayEvents.length === 0 ? (
-            <p className="text-muted-foreground text-center py-8">
-              予定はありません
-            </p>
-          ) : (
-            <div className="space-y-2">
-              {dayEvents.map((event) => renderEvent(event))}
-            </div>
-          )}
+          {/* 3日分のイベント列 */}
+          {threeDays.map((date, dayIdx) => {
+            const timedEvents = getTimedEvents(date);
+            const dateStr = format(date, "yyyy-MM-dd");
+            const isDragOver = dragOverDate === dateStr;
+            return (
+              <div
+                key={dayIdx}
+                className={`border-r relative cursor-pointer ${
+                  isDragOver ? "bg-blue-100" : ""
+                }`}
+                onClick={() => handleDateClick(date)}
+                onDrop={(e) => handleDrop(date, e)}
+                onDragOver={(e) => handleDragOver(date, e)}
+                onDragLeave={handleDragLeave}
+              >
+                {/* 時間枠の背景線 */}
+                {hours.map((hour) => (
+                  <div key={hour} className="h-12 border-b hover:bg-muted/30" />
+                ))}
+
+                {/* イベント（絶対配置） */}
+                {timedEvents.map((event) => {
+                  const pos = getEventPosition(event);
+                  if (!pos) return null;
+                  const categoryColor = getCategoryColor(event);
+                  const lightBgColor = getLightBgColor(categoryColor);
+                  const categoryName = getCategoryName(event);
+                  return (
+                    <div
+                      key={event.id}
+                      className={`absolute left-0.5 right-0.5 rounded px-1 py-0.5 overflow-hidden cursor-pointer hover:opacity-80 border ${lightBgColor}`}
+                      style={{ top: pos.top, height: pos.height }}
+                      onClick={(e) => handleEventClick(event, e)}
+                    >
+                      <div className="text-xs font-medium truncate text-black">
+                        {event.start_time?.slice(0, 5)} {event.title}
+                      </div>
+                      {categoryName && pos.height >= 36 && (
+                        <span className={`${categoryColor} text-white px-1 rounded text-[10px]`}>{categoryName}</span>
+                      )}
+                      {event.location && pos.height >= 48 && (
+                        <div className="text-[10px] text-black truncate flex items-center gap-0.5">
+                          <MapPin className="h-2.5 w-2.5" />
+                          {event.location}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
         </div>
       </div>
     );
