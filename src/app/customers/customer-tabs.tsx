@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Table,
@@ -11,9 +12,27 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Building2, User, FileText } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Building2, User, FileText, UserMinus, Merge, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DocumentTab } from "./document-tab";
+import { convertAccountToIndividual, mergeAccounts } from "@/app/accounts/actions";
 import type { Account, Contact, Employee, DocumentTemplate, Branch } from "@/types/database";
 
 // 五十音インデックス
@@ -85,8 +104,107 @@ export function CustomerTabs({
   branches,
   currentEmployeeId,
 }: CustomerTabsProps) {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<"accounts" | "individuals" | "documents">("accounts");
   const tableContainerRef = useRef<HTMLDivElement>(null);
+
+  // 個人移行ダイアログ
+  const [convertDialogOpen, setConvertDialogOpen] = useState(false);
+  const [convertTarget, setConvertTarget] = useState<AccountLocal | null>(null);
+  const [convertLastName, setConvertLastName] = useState("");
+  const [convertFirstName, setConvertFirstName] = useState("");
+  const [convertLastNameKana, setConvertLastNameKana] = useState("");
+  const [convertFirstNameKana, setConvertFirstNameKana] = useState("");
+  const [isConverting, setIsConverting] = useState(false);
+  const [convertError, setConvertError] = useState<string | null>(null);
+
+  // 統合ダイアログ
+  const [mergeDialogOpen, setMergeDialogOpen] = useState(false);
+  const [mergeSource, setMergeSource] = useState<AccountLocal | null>(null);
+  const [mergeTargetId, setMergeTargetId] = useState("");
+  const [isMerging, setIsMerging] = useState(false);
+  const [mergeError, setMergeError] = useState<string | null>(null);
+
+  // 個人移行ダイアログを開く
+  const openConvertDialog = (account: AccountLocal) => {
+    setConvertTarget(account);
+    // 主担当者がいればその名前をデフォルト値として設定
+    const primaryContact = account.contacts?.find((c) => c.is_primary);
+    if (primaryContact) {
+      setConvertLastName(primaryContact.last_name);
+      setConvertFirstName(primaryContact.first_name);
+    } else {
+      setConvertLastName("");
+      setConvertFirstName("");
+    }
+    setConvertLastNameKana("");
+    setConvertFirstNameKana("");
+    setConvertError(null);
+    setConvertDialogOpen(true);
+  };
+
+  // 個人移行を実行
+  const handleConvert = async () => {
+    if (!convertTarget || !convertLastName.trim() || !convertFirstName.trim()) {
+      setConvertError("氏名は必須です");
+      return;
+    }
+
+    setIsConverting(true);
+    setConvertError(null);
+
+    const result = await convertAccountToIndividual({
+      accountId: convertTarget.id,
+      lastName: convertLastName.trim(),
+      firstName: convertFirstName.trim(),
+      lastNameKana: convertLastNameKana.trim() || null,
+      firstNameKana: convertFirstNameKana.trim() || null,
+    });
+
+    if (result.error) {
+      setConvertError(result.error);
+      setIsConverting(false);
+      return;
+    }
+
+    setIsConverting(false);
+    setConvertDialogOpen(false);
+    router.refresh();
+  };
+
+  // 統合ダイアログを開く
+  const openMergeDialog = (account: AccountLocal) => {
+    setMergeSource(account);
+    setMergeTargetId("");
+    setMergeError(null);
+    setMergeDialogOpen(true);
+  };
+
+  // 統合を実行
+  const handleMerge = async () => {
+    if (!mergeSource || !mergeTargetId) {
+      setMergeError("統合先を選択してください");
+      return;
+    }
+
+    setIsMerging(true);
+    setMergeError(null);
+
+    const result = await mergeAccounts({
+      sourceAccountId: mergeSource.id,
+      targetAccountId: mergeTargetId,
+    });
+
+    if (result.error) {
+      setMergeError(result.error);
+      setIsMerging(false);
+      return;
+    }
+
+    setIsMerging(false);
+    setMergeDialogOpen(false);
+    router.refresh();
+  };
 
   // 型変換（contacts付きの法人データ用）
   const accountsLocal = accounts as unknown as AccountLocal[];
@@ -187,6 +305,7 @@ export function CustomerTabs({
                     <TableHead>主担当者</TableHead>
                     <TableHead>電話番号</TableHead>
                     <TableHead>所在地</TableHead>
+                    <TableHead className="w-24">操作</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -221,6 +340,26 @@ export function CustomerTabs({
                             {account.prefecture && account.city
                               ? `${account.prefecture}${account.city}`
                               : "-"}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-1">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                title="個人に移行"
+                                onClick={() => openConvertDialog(account)}
+                              >
+                                <UserMinus className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                title="統合"
+                                onClick={() => openMergeDialog(account)}
+                              >
+                                <Merge className="h-4 w-4" />
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       );
@@ -328,6 +467,125 @@ export function CustomerTabs({
           currentEmployeeId={currentEmployeeId}
         />
       </TabsContent>
+
+      {/* 個人移行ダイアログ */}
+      <Dialog open={convertDialogOpen} onOpenChange={setConvertDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>個人に移行</DialogTitle>
+            <DialogDescription>
+              「{convertTarget?.company_name}」を個人顧客に移行します。
+              関連する業務は新しい個人に引き継がれます。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>姓 *</Label>
+                <Input
+                  value={convertLastName}
+                  onChange={(e) => setConvertLastName(e.target.value)}
+                  placeholder="山田"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>名 *</Label>
+                <Input
+                  value={convertFirstName}
+                  onChange={(e) => setConvertFirstName(e.target.value)}
+                  placeholder="太郎"
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>セイ</Label>
+                <Input
+                  value={convertLastNameKana}
+                  onChange={(e) => setConvertLastNameKana(e.target.value)}
+                  placeholder="ヤマダ"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>メイ</Label>
+                <Input
+                  value={convertFirstNameKana}
+                  onChange={(e) => setConvertFirstNameKana(e.target.value)}
+                  placeholder="タロウ"
+                />
+              </div>
+            </div>
+            {convertError && (
+              <p className="text-sm text-destructive">{convertError}</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConvertDialogOpen(false)}>
+              キャンセル
+            </Button>
+            <Button onClick={handleConvert} disabled={isConverting}>
+              {isConverting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  移行中...
+                </>
+              ) : (
+                "移行"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 統合ダイアログ */}
+      <Dialog open={mergeDialogOpen} onOpenChange={setMergeDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>法人を統合</DialogTitle>
+            <DialogDescription>
+              「{mergeSource?.company_name}」を別の法人に統合します。
+              連絡先と業務は統合先に引き継がれます。
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>統合先 *</Label>
+              <Select value={mergeTargetId} onValueChange={setMergeTargetId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="統合先を選択" />
+                </SelectTrigger>
+                <SelectContent>
+                  {accountsLocal
+                    .filter((a) => a.id !== mergeSource?.id)
+                    .map((a) => (
+                      <SelectItem key={a.id} value={a.id}>
+                        {a.company_name}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {mergeError && (
+              <p className="text-sm text-destructive">{mergeError}</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMergeDialogOpen(false)}>
+              キャンセル
+            </Button>
+            <Button onClick={handleMerge} disabled={isMerging}>
+              {isMerging ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  統合中...
+                </>
+              ) : (
+                "統合"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Tabs>
   );
 }

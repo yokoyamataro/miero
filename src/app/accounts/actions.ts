@@ -579,3 +579,194 @@ export async function getRelatedProjectsForAccount(accountId: string): Promise<R
 
   return relatedProjects;
 }
+
+// ============================================
+// 法人から個人への移行
+// ============================================
+
+export interface ConvertToIndividualData {
+  accountId: string;
+  lastName: string;
+  firstName: string;
+  lastNameKana: string | null;
+  firstNameKana: string | null;
+}
+
+export async function convertAccountToIndividual(
+  data: ConvertToIndividualData
+): Promise<{ success?: boolean; error?: string; contactId?: string }> {
+  const supabase = await createClient();
+
+  // 1. 法人情報を取得
+  const { data: account, error: accountError } = await supabase
+    .from("accounts" as never)
+    .select("*")
+    .eq("id", data.accountId)
+    .is("deleted_at", null)
+    .single();
+
+  if (accountError || !account) {
+    return { error: "法人が見つかりません" };
+  }
+
+  const acct = account as {
+    id: string;
+    postal_code: string | null;
+    prefecture: string | null;
+    city: string | null;
+    street: string | null;
+    building: string | null;
+    main_phone: string | null;
+    notes: string | null;
+  };
+
+  // 2. 個人顧客（contact）を作成（account_id = null）
+  const { data: newContact, error: contactError } = await supabase
+    .from("contacts" as never)
+    .insert({
+      account_id: null,
+      branch_id: null,
+      last_name: data.lastName,
+      first_name: data.firstName,
+      last_name_kana: data.lastNameKana || null,
+      first_name_kana: data.firstNameKana || null,
+      phone: acct.main_phone || null,
+      postal_code: acct.postal_code || null,
+      prefecture: acct.prefecture || null,
+      city: acct.city || null,
+      street: acct.street || null,
+      building: acct.building || null,
+      notes: acct.notes || null,
+      is_primary: false,
+    } as never)
+    .select()
+    .single();
+
+  if (contactError || !newContact) {
+    console.error("Error creating individual contact:", contactError);
+    return { error: "個人の作成に失敗しました" };
+  }
+
+  const newContactId = (newContact as { id: string }).id;
+
+  // 3. 法人に紐づく既存の連絡先を取得
+  const { data: existingContacts } = await supabase
+    .from("contacts" as never)
+    .select("id")
+    .eq("account_id", data.accountId)
+    .is("deleted_at", null);
+
+  const existingContactIds = (existingContacts || []).map((c: { id: string }) => c.id);
+
+  // 4. 業務の顧客を新しい個人に付け替え
+  if (existingContactIds.length > 0) {
+    const { error: projectError } = await supabase
+      .from("projects" as never)
+      .update({ contact_id: newContactId } as never)
+      .in("contact_id", existingContactIds);
+
+    if (projectError) {
+      console.error("Error updating projects:", projectError);
+      return { error: "業務の移行に失敗しました" };
+    }
+
+    // 5. 関係者も新しい個人に付け替え
+    const { error: stakeholderError } = await supabase
+      .from("project_stakeholders" as never)
+      .update({ contact_id: newContactId } as never)
+      .in("contact_id", existingContactIds);
+
+    if (stakeholderError) {
+      console.error("Error updating stakeholders:", stakeholderError);
+      return { error: "関係者の移行に失敗しました" };
+    }
+  }
+
+  // 6. 法人と関連データを論理削除
+  await supabase
+    .from("contacts" as never)
+    .update({ deleted_at: new Date().toISOString() } as never)
+    .eq("account_id", data.accountId);
+
+  await supabase
+    .from("branches" as never)
+    .update({ deleted_at: new Date().toISOString() } as never)
+    .eq("account_id", data.accountId);
+
+  await supabase
+    .from("accounts" as never)
+    .update({ deleted_at: new Date().toISOString() } as never)
+    .eq("id", data.accountId);
+
+  revalidatePath("/customers");
+  return { success: true, contactId: newContactId };
+}
+
+// ============================================
+// 法人の統合
+// ============================================
+
+export interface MergeAccountsData {
+  sourceAccountId: string; // 統合元（削除される法人）
+  targetAccountId: string; // 統合先（残る法人）
+}
+
+export async function mergeAccounts(
+  data: MergeAccountsData
+): Promise<{ success?: boolean; error?: string }> {
+  const supabase = await createClient();
+
+  // 1. 両方の法人が存在するか確認
+  const { data: sourceAccount } = await supabase
+    .from("accounts" as never)
+    .select("id")
+    .eq("id", data.sourceAccountId)
+    .is("deleted_at", null)
+    .single();
+
+  const { data: targetAccount } = await supabase
+    .from("accounts" as never)
+    .select("id")
+    .eq("id", data.targetAccountId)
+    .is("deleted_at", null)
+    .single();
+
+  if (!sourceAccount || !targetAccount) {
+    return { error: "法人が見つかりません" };
+  }
+
+  // 2. 統合元の連絡先を統合先に移動
+  const { error: contactsError } = await supabase
+    .from("contacts" as never)
+    .update({
+      account_id: data.targetAccountId,
+      branch_id: null, // 支店は統合先に存在しないのでnullに
+    } as never)
+    .eq("account_id", data.sourceAccountId)
+    .is("deleted_at", null);
+
+  if (contactsError) {
+    console.error("Error moving contacts:", contactsError);
+    return { error: "連絡先の移動に失敗しました" };
+  }
+
+  // 3. 統合元の支店を論理削除（連絡先は既に移動済み）
+  await supabase
+    .from("branches" as never)
+    .update({ deleted_at: new Date().toISOString() } as never)
+    .eq("account_id", data.sourceAccountId);
+
+  // 4. 統合元の法人を論理削除
+  const { error: deleteError } = await supabase
+    .from("accounts" as never)
+    .update({ deleted_at: new Date().toISOString() } as never)
+    .eq("id", data.sourceAccountId);
+
+  if (deleteError) {
+    console.error("Error deleting source account:", deleteError);
+    return { error: "統合元の削除に失敗しました" };
+  }
+
+  revalidatePath("/customers");
+  return { success: true };
+}
