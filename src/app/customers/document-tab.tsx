@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
@@ -15,10 +16,18 @@ import {
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { FileText, Download, Loader2 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { FileText, Download, Loader2, Upload } from "lucide-react";
 import { format } from "date-fns";
 import Docxtemplater from "docxtemplater";
 import PizZip from "pizzip";
+import { createClient } from "@/lib/supabase/client";
 import type { DocumentTemplate, Account, Contact, Employee, Branch } from "@/types/database";
 import { generateDocument } from "./document-actions";
 
@@ -41,7 +50,11 @@ export function DocumentTab({
   branches,
   currentEmployeeId,
 }: DocumentTabProps) {
+  const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   // フォーム状態
+  const [templateList, setTemplateList] = useState(templates);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
   const [recipientType, setRecipientType] = useState<"account" | "contact">("account");
   const [selectedRecipientId, setSelectedRecipientId] = useState<string>("");
@@ -52,6 +65,14 @@ export function DocumentTab({
   const [documentDate, setDocumentDate] = useState(format(new Date(), "yyyy-MM-dd"));
   const [isGenerating, setIsGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // アップロードダイアログ状態
+  const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
+  const [uploadName, setUploadName] = useState("");
+  const [uploadDescription, setUploadDescription] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   // 選択中の法人に紐づく支店一覧
   const availableBranches = recipientType === "account" && selectedRecipientId
@@ -97,15 +118,32 @@ export function DocumentTab({
         return;
       }
 
-      const { templateFileName, placeholderValues } = JSON.parse(result.data);
+      const { templateFileName, storagePath, placeholderValues } = JSON.parse(result.data);
 
-      // 2. テンプレートファイルをfetch
-      const templateResponse = await fetch(`/templates/${templateFileName}`);
-      if (!templateResponse.ok) {
-        setError("テンプレートファイルが見つかりません。public/templates/にファイルを配置してください。");
-        return;
+      // 2. テンプレートファイルを取得
+      let templateArrayBuffer: ArrayBuffer;
+
+      if (storagePath) {
+        // Supabase Storageから取得
+        const supabase = createClient();
+        const { data: fileData, error: downloadError } = await supabase.storage
+          .from("document-templates")
+          .download(storagePath);
+
+        if (downloadError || !fileData) {
+          setError("テンプレートファイルのダウンロードに失敗しました。");
+          return;
+        }
+        templateArrayBuffer = await fileData.arrayBuffer();
+      } else {
+        // フォールバック: public/templates/から取得
+        const templateResponse = await fetch(`/templates/${templateFileName}`);
+        if (!templateResponse.ok) {
+          setError("テンプレートファイルが見つかりません。");
+          return;
+        }
+        templateArrayBuffer = await templateResponse.arrayBuffer();
       }
-      const templateArrayBuffer = await templateResponse.arrayBuffer();
 
       // 3. docxtemplaterで置換
       const zip = new PizZip(templateArrayBuffer);
@@ -145,6 +183,87 @@ export function DocumentTab({
     return 0;
   });
 
+  // ファイル選択
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (!file.name.endsWith(".docx")) {
+        setUploadError("Wordファイル（.docx）のみアップロードできます");
+        return;
+      }
+      setSelectedFile(file);
+      setUploadError(null);
+      if (!uploadName) {
+        setUploadName(file.name.replace(".docx", ""));
+      }
+    }
+  };
+
+  // アップロード処理
+  const handleUpload = async () => {
+    if (!selectedFile || !uploadName.trim()) {
+      setUploadError("テンプレート名とファイルを指定してください");
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadError(null);
+
+    try {
+      const supabase = createClient();
+
+      const timestamp = Date.now();
+      const storagePath = `${timestamp}_${selectedFile.name}`;
+
+      // Storageにアップロード
+      const { error: uploadErr } = await supabase.storage
+        .from("document-templates")
+        .upload(storagePath, selectedFile);
+
+      if (uploadErr) {
+        throw new Error("ファイルのアップロードに失敗しました: " + uploadErr.message);
+      }
+
+      // DBにレコード追加
+      const { data: newTemplate, error: insertErr } = await supabase
+        .from("document_templates")
+        .insert({
+          name: uploadName.trim(),
+          file_name: selectedFile.name,
+          storage_path: storagePath,
+          description: uploadDescription.trim() || null,
+          sort_order: templateList.length,
+        })
+        .select()
+        .single();
+
+      if (insertErr) {
+        await supabase.storage.from("document-templates").remove([storagePath]);
+        throw new Error("テンプレートの登録に失敗しました: " + insertErr.message);
+      }
+
+      setTemplateList([...templateList, newTemplate as DocumentTemplate]);
+      resetUploadForm();
+      setIsUploadDialogOpen(false);
+      router.refresh();
+    } catch (err) {
+      setUploadError(err instanceof Error ? err.message : "エラーが発生しました");
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // アップロードフォームリセット
+  const resetUploadForm = () => {
+    setUploadName("");
+    setUploadDescription("");
+    setSelectedFile(null);
+    setUploadError(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -156,18 +275,29 @@ export function DocumentTab({
       <CardContent className="space-y-6">
         {/* テンプレート選択 */}
         <div className="space-y-2">
-          <Label>テンプレート *</Label>
+          <div className="flex items-center justify-between">
+            <Label>テンプレート *</Label>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsUploadDialogOpen(true)}
+            >
+              <Upload className="h-4 w-4 mr-1" />
+              アップロード
+            </Button>
+          </div>
           <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
             <SelectTrigger>
               <SelectValue placeholder="テンプレートを選択" />
             </SelectTrigger>
             <SelectContent>
-              {templates.length === 0 ? (
+              {templateList.length === 0 ? (
                 <SelectItem value="none" disabled>
                   テンプレートがありません
                 </SelectItem>
               ) : (
-                templates.map((t) => (
+                templateList.map((t) => (
                   <SelectItem key={t.id} value={t.id}>
                     {t.name}
                     {t.description && (
@@ -407,6 +537,7 @@ export function DocumentTab({
             <span>{"{{宛先_氏名}}"}</span>
             <span>{"{{宛先_郵便番号}}"}</span>
             <span>{"{{宛先_住所}}"}</span>
+            <span>{"{{敬称}}"} <span className="text-xs">（様/御中）</span></span>
             <span className="font-medium col-span-2 mt-2">【支店】</span>
             <span>{"{{支店名}}"}</span>
             <span>{"{{支店_電話}}"}</span>
@@ -415,6 +546,7 @@ export function DocumentTab({
             <span>{"{{支店_住所}}"}</span>
             <span className="font-medium col-span-2 mt-2">【担当者】</span>
             <span>{"{{担当者_氏名}}"}</span>
+            <span>{"{{担当者_氏名様}}"}</span>
             <span>{"{{担当者_部署}}"}</span>
             <span>{"{{担当者_役職}}"}</span>
             <span>{"{{担当者_電話}}"}</span>
@@ -427,6 +559,74 @@ export function DocumentTab({
           </div>
         </div>
       </CardContent>
+
+      {/* アップロードダイアログ */}
+      <Dialog open={isUploadDialogOpen} onOpenChange={(open) => {
+        setIsUploadDialogOpen(open);
+        if (!open) resetUploadForm();
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>テンプレートアップロード</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Wordファイル *</Label>
+              <Input
+                ref={fileInputRef}
+                type="file"
+                accept=".docx"
+                onChange={handleFileSelect}
+              />
+              {selectedFile && (
+                <p className="text-sm text-muted-foreground">
+                  選択: {selectedFile.name}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label>テンプレート名 *</Label>
+              <Input
+                value={uploadName}
+                onChange={(e) => setUploadName(e.target.value)}
+                placeholder="例: 案内状"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>説明</Label>
+              <Input
+                value={uploadDescription}
+                onChange={(e) => setUploadDescription(e.target.value)}
+                placeholder="例: 顧客向け案内状テンプレート"
+              />
+            </div>
+
+            {uploadError && (
+              <p className="text-sm text-destructive">{uploadError}</p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsUploadDialogOpen(false)}>
+              キャンセル
+            </Button>
+            <Button onClick={handleUpload} disabled={isUploading || !selectedFile}>
+              {isUploading ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  アップロード中...
+                </>
+              ) : (
+                <>
+                  <Upload className="h-4 w-4 mr-2" />
+                  登録
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

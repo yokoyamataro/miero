@@ -91,12 +91,41 @@ export async function generateDocument(request: {
     }
 
     const acct = account as Account;
-    recipientData = {
-      company_name: acct.company_name || "",
-      name: "",
-      postal_code: acct.postal_code || "",
-      address: `${acct.prefecture || ""}${acct.city || ""}${acct.street || ""}${acct.building || ""}`,
-    };
+
+    // 支店が選択されている場合は支店の住所を使用
+    if (request.branchId) {
+      const { data: branch } = await supabase
+        .from("branches")
+        .select("*")
+        .eq("id", request.branchId)
+        .single();
+
+      if (branch) {
+        const br = branch as Branch;
+        recipientData = {
+          company_name: acct.company_name || "",
+          name: "",
+          postal_code: br.postal_code || "",
+          address: `${br.prefecture || ""}${br.city || ""}${br.street || ""}${br.building || ""}`,
+        };
+      } else {
+        // 支店が見つからない場合は本社の住所
+        recipientData = {
+          company_name: acct.company_name || "",
+          name: "",
+          postal_code: acct.postal_code || "",
+          address: `${acct.prefecture || ""}${acct.city || ""}${acct.street || ""}${acct.building || ""}`,
+        };
+      }
+    } else {
+      // 本社選択時は法人の住所を使用
+      recipientData = {
+        company_name: acct.company_name || "",
+        name: "",
+        postal_code: acct.postal_code || "",
+        address: `${acct.prefecture || ""}${acct.city || ""}${acct.street || ""}${acct.building || ""}`,
+      };
+    }
   } else {
     const { data: contact, error: contactError } = await supabase
       .from("contacts")
@@ -160,12 +189,14 @@ export async function generateDocument(request: {
   // 4. 担当者情報取得（法人選択時のみ）
   let contactData: {
     name: string;
+    nameWithKeisho: string;
     department: string;
     position: string;
     phone: string;
     email: string;
   } = {
     name: "",
+    nameWithKeisho: "",
     department: "",
     position: "",
     phone: "",
@@ -183,6 +214,7 @@ export async function generateDocument(request: {
       const cont = contact as Contact;
       contactData = {
         name: `${cont.last_name} ${cont.first_name}`,
+        nameWithKeisho: `${cont.last_name} ${cont.first_name}様`,
         department: cont.department || "",
         position: cont.position || "",
         phone: cont.phone || "",
@@ -204,18 +236,24 @@ export async function generateDocument(request: {
 
   const emp = sender as Employee;
 
-  // 6. プレースホルダー値マップを作成
+  // 6. 敬称を決定（担当者が選択されていれば空、なければ「御中」）
+  const hasContact = request.contactId && contactData.name;
+  const keisho = hasContact ? "" : "御中";
+
+  // 7. プレースホルダー値マップを作成
   const placeholderValues = {
     宛先_会社名: recipientData.company_name,
     宛先_氏名: recipientData.name,
     宛先_郵便番号: recipientData.postal_code ? `〒${recipientData.postal_code}` : "",
     宛先_住所: recipientData.address,
+    敬称: keisho,
     支店名: branchData.name,
     支店_電話: branchData.phone,
     支店_FAX: branchData.fax,
     支店_郵便番号: branchData.postal_code ? `〒${branchData.postal_code}` : "",
     支店_住所: branchData.address,
     担当者_氏名: contactData.name,
+    担当者_氏名様: contactData.nameWithKeisho,
     担当者_部署: contactData.department,
     担当者_役職: contactData.position,
     担当者_電話: contactData.phone,
@@ -232,6 +270,7 @@ export async function generateDocument(request: {
     success: true,
     data: JSON.stringify({
       templateFileName: templateData.file_name,
+      storagePath: templateData.storage_path,
       placeholderValues,
     }),
     fileName: `${templateData.name}_${new Date().toISOString().slice(0, 10)}.docx`,

@@ -728,6 +728,7 @@ export interface DocumentTemplate {
   id: string;
   name: string;
   file_name: string;
+  storage_path: string | null;
   description: string | null;
   sort_order: number;
   created_at: string;
@@ -738,6 +739,7 @@ export interface DocumentTemplateInsert {
   id?: string;
   name: string;
   file_name: string;
+  storage_path?: string | null;
   description?: string | null;
   sort_order?: number;
 }
