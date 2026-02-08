@@ -34,7 +34,7 @@ export default async function CalendarPage({
   ]);
 
   return (
-    <main className="container mx-auto px-4 py-8">
+    <main className="mx-auto px-4 py-8">
       <header className="mb-6">
         <h1 className="text-2xl font-bold">カレンダー</h1>
         <p className="text-muted-foreground">スケジュール管理</p>

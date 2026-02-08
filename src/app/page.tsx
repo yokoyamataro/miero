@@ -21,7 +21,7 @@ export default async function Home() {
     ]);
 
   return (
-    <main className="container mx-auto">
+    <main className="mx-auto px-4 py-4">
       <DashboardView
         events={events}
         employees={employees}

@@ -74,7 +74,7 @@ export default async function ProjectsPage() {
   }
 
   return (
-    <main className="container mx-auto px-4 py-8">
+    <main className="mx-auto px-4 py-8">
       <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
         <div>
           <h1 className="text-2xl font-bold">業務一覧</h1>
