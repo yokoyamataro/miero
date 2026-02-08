@@ -79,7 +79,7 @@ export function DashboardView({
         end_date: format(droppedDate!, "yyyy-MM-dd"),
         end_time: null,
         all_day: false,
-        location: droppedTaskData.projectLocation,
+        location: null,
         map_url: null,
         created_by: currentEmployeeId,
         project_id: droppedTaskData.projectId,
