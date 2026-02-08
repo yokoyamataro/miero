@@ -262,7 +262,11 @@ export function DashboardCalendar({
     router.refresh();
     setShowEventModal(false);
     setShowDetailModal(false);
-    window.location.reload();
+    // 現在の表示モードと日付を保持してリロード
+    const params = new URLSearchParams();
+    params.set("view", viewMode);
+    params.set("date", format(currentDate, "yyyy-MM-dd"));
+    window.location.href = `/?${params.toString()}`;
   };
 
   // ドロップハンドラー

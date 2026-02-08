@@ -220,9 +220,12 @@ export function CalendarView({
     router.refresh();
     setShowEventModal(false);
     setShowDetailModal(false);
-    // SSRからのデータを再取得するためにページをリロード
-    window.location.reload();
-  }, [router]);
+    // 現在の表示モードと日付を保持してホームにリダイレクト
+    const params = new URLSearchParams();
+    params.set("view", viewMode);
+    params.set("date", format(currentDate, "yyyy-MM-dd"));
+    window.location.href = `/?${params.toString()}`;
+  }, [router, viewMode, currentDate]);
 
   // イベントリサイズ開始
   const handleResizeStart = useCallback((

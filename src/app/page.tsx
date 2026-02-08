@@ -4,10 +4,19 @@ import { getEventsInRange, getEmployees, getCurrentEmployeeId, getEventCategorie
 import { getIncompleteTasks } from "./dashboard-actions";
 import { DashboardView } from "./dashboard-view";
 
-export default async function Home() {
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ view?: string; date?: string }>;
+}) {
+  const params = await searchParams;
   const today = new Date();
   const rangeStart = format(subMonths(startOfMonth(today), 1), "yyyy-MM-dd");
   const rangeEnd = format(addMonths(endOfMonth(today), 1), "yyyy-MM-dd");
+
+  // URLパラメータから表示モードと日付を取得
+  const initialView = (params.view as "day" | "week" | "month") || "day";
+  const initialDate = params.date || format(today, "yyyy-MM-dd");
 
   // 並列でデータ取得
   const [attendanceData, events, employees, currentEmployeeId, eventCategories, tasks] =
@@ -29,6 +38,8 @@ export default async function Home() {
         currentEmployeeId={currentEmployeeId}
         tasks={tasks}
         attendance={attendanceData?.attendance || null}
+        initialView={initialView}
+        initialDate={initialDate}
       />
     </main>
   );

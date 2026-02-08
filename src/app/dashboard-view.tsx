@@ -29,6 +29,8 @@ interface DashboardViewProps {
   currentEmployeeId: string | null;
   tasks: TaskWithProject[];
   attendance: Attendance | null;
+  initialView?: "day" | "week" | "month";
+  initialDate?: string;
 }
 
 export function DashboardView({
@@ -38,6 +40,8 @@ export function DashboardView({
   currentEmployeeId,
   tasks,
   attendance,
+  initialView = "day",
+  initialDate,
 }: DashboardViewProps) {
   const router = useRouter();
   const [showEventModal, setShowEventModal] = useState(false);
@@ -116,8 +120,8 @@ export function DashboardView({
             initialEvents={events}
             employees={employees}
             eventCategories={eventCategories}
-            initialView="week"
-            initialDate={format(new Date(), "yyyy-MM-dd")}
+            initialView={initialView}
+            initialDate={initialDate || format(new Date(), "yyyy-MM-dd")}
             currentEmployeeId={currentEmployeeId}
             onDropTask={handleDropTask}
           />
