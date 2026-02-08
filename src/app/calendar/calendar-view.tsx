@@ -639,7 +639,7 @@ export function CalendarView({
         <div className="grid grid-cols-[60px_1fr_1fr_1fr]">
           <div className="border-r">
             {hourLabels.map((slot, idx) => (
-              <div key={idx} className="h-12 border-b text-xs text-muted-foreground text-right pr-2 pt-0.5">
+              <div key={idx} className={`h-12 border-b text-xs text-muted-foreground text-right pr-2 pt-0.5 ${slot.hour === 12 ? "bg-gray-100" : ""}`}>
                 {slot.label}
               </div>
             ))}
@@ -653,8 +653,8 @@ export function CalendarView({
                 className="border-r relative cursor-pointer"
                 onClick={() => handleDateClick(date)}
               >
-                {hourLabels.map((_, idx) => (
-                  <div key={idx} className="h-12 border-b hover:bg-muted/30" />
+                {hourLabels.map((slot, idx) => (
+                  <div key={idx} className={`h-12 border-b ${slot.hour === 12 ? "bg-gray-100" : "hover:bg-muted/30"}`} />
                 ))}
 
                 {timedEvents.map((event) => {

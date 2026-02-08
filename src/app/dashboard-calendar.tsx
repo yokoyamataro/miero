@@ -726,7 +726,7 @@ export function DashboardCalendar({
           {/* 時間ラベル列 */}
           <div className="border-r">
             {hourLabels.map((slot, idx) => (
-              <div key={idx} className="h-12 border-b text-xs text-muted-foreground text-right pr-2 pt-0.5">
+              <div key={idx} className={`h-12 border-b text-xs text-muted-foreground text-right pr-2 pt-0.5 ${slot.hour === 12 ? "bg-gray-100" : ""}`}>
                 {slot.label}
               </div>
             ))}
@@ -744,11 +744,12 @@ export function DashboardCalendar({
                 {/* 時間枠の背景線（ドロップ可能） */}
                 {hourLabels.map((slot, idx) => {
                   const isSlotDragOver = dragOverSlot?.date === dateStr && dragOverSlot?.hour === slot.hour;
+                  const isLunchTime = slot.hour === 12;
                   return (
                     <div
                       key={idx}
                       className={`h-12 border-b cursor-pointer ${
-                        isSlotDragOver ? "bg-blue-200" : "hover:bg-muted/30"
+                        isSlotDragOver ? "bg-blue-200" : isLunchTime ? "bg-gray-100" : "hover:bg-muted/30"
                       }`}
                       onClick={() => handleDateClick(date)}
                       onDrop={(e) => handleTimeSlotDrop(date, slot.hour, e)}
