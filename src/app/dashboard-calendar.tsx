@@ -432,8 +432,8 @@ export function DashboardCalendar({
       <table className="w-full border-collapse">
         <thead>
           <tr>
-            <th className="p-1 bg-muted border text-center w-8 sticky left-0 z-10">
-              <span className="text-xs">名</span>
+            <th className="p-2 bg-muted border text-left min-w-[80px] sticky left-0 z-10">
+              社員
             </th>
             {weekDays.map((date, idx) => (
               <th
@@ -459,13 +459,13 @@ export function DashboardCalendar({
         <tbody>
           {weekViewEmployees.map((employee) => (
             <tr key={employee.id}>
-              <td className="p-1 bg-muted/50 border font-medium sticky left-0 z-10 w-8">
-                <div className="flex flex-col items-center gap-0.5">
-                  <User className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                  <span className="text-xs writing-vertical-rl" style={{ writingMode: "vertical-rl" }}>
-                    {employee.name}
-                    {employee.id === currentEmployeeId && " *"}
-                  </span>
+              <td className="p-2 bg-muted/50 border font-medium sticky left-0 z-10 whitespace-nowrap">
+                <div className="flex items-center gap-1">
+                  <User className="h-4 w-4 text-muted-foreground" />
+                  <span className="text-sm">{employee.name}</span>
+                  {employee.id === currentEmployeeId && (
+                    <span className="text-xs text-muted-foreground">(自分)</span>
+                  )}
                 </div>
               </td>
               {weekDays.map((date, idx) => {
