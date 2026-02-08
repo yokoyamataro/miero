@@ -62,7 +62,7 @@ export function ContactForm({ contact, isEdit = false, relatedProjects = [] }: C
       if (result.error) {
         setError(result.error);
       } else {
-        router.push("/contacts");
+        router.push("/customers");
       }
     });
   };
@@ -81,7 +81,7 @@ export function ContactForm({ contact, isEdit = false, relatedProjects = [] }: C
       if (result.error) {
         setError(result.error);
       } else {
-        router.push("/contacts");
+        router.push("/customers");
       }
     });
   };
@@ -90,7 +90,7 @@ export function ContactForm({ contact, isEdit = false, relatedProjects = [] }: C
     <>
       <header className="mb-8">
         <Link
-          href="/contacts"
+          href="/customers"
           className="flex items-center text-muted-foreground hover:text-foreground mb-4"
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
@@ -284,7 +284,7 @@ export function ContactForm({ contact, isEdit = false, relatedProjects = [] }: C
             )}
           </div>
           <div className="flex gap-4">
-            <Link href="/contacts">
+            <Link href="/customers">
               <Button type="button" variant="outline">
                 キャンセル
               </Button>

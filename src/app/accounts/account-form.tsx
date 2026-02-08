@@ -246,7 +246,7 @@ export function AccountForm({ account, isEdit = false, industries, relatedProjec
       if (result.error) {
         setError(result.error);
       } else {
-        router.push("/accounts");
+        router.push("/customers");
       }
     });
   };
@@ -304,7 +304,7 @@ export function AccountForm({ account, isEdit = false, industries, relatedProjec
       if (result.error) {
         setError(result.error);
       } else {
-        router.push("/accounts");
+        router.push("/customers");
       }
     });
   };
@@ -313,7 +313,7 @@ export function AccountForm({ account, isEdit = false, industries, relatedProjec
     <>
       <header className="mb-8">
         <Link
-          href="/accounts"
+          href="/customers"
           className="flex items-center text-muted-foreground hover:text-foreground mb-4"
         >
           <ArrowLeft className="h-4 w-4 mr-2" />
@@ -821,7 +821,7 @@ export function AccountForm({ account, isEdit = false, industries, relatedProjec
             )}
           </div>
           <div className="flex gap-4">
-            <Link href="/accounts">
+            <Link href="/customers">
               <Button type="button" variant="outline">
                 キャンセル
               </Button>
