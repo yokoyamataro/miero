@@ -55,7 +55,7 @@ import {
 import { EventModal } from "./event-modal";
 import { EventDetailModal } from "./event-detail-modal";
 
-type ViewMode = "day" | "week" | "month";
+type ViewMode = "day" | "threeDay" | "week" | "month";
 type EmployeeFilter = "me" | "all" | string; // "me" = 自分のみ, "all" = 全員, string = 特定の社員ID
 
 interface CalendarViewProps {
@@ -131,6 +131,11 @@ export function CalendarView({
     return eachDayOfInterval({ start: weekStart, end: addDays(weekStart, 6) });
   }, [currentDate]);
 
+  // 3日表示の日付を生成
+  const threeDays = useMemo(() => {
+    return eachDayOfInterval({ start: currentDate, end: addDays(currentDate, 2) });
+  }, [currentDate]);
+
   // 日付ごとのイベントを取得（フィルタリング済み）
   const getEventsForDate = (date: Date) => {
     return filteredEvents.filter((event) => {
@@ -149,6 +154,9 @@ export function CalendarView({
       case "week":
         setCurrentDate(subWeeks(currentDate, 1));
         break;
+      case "threeDay":
+        setCurrentDate(subDays(currentDate, 3));
+        break;
       case "day":
         setCurrentDate(subDays(currentDate, 1));
         break;
@@ -162,6 +170,9 @@ export function CalendarView({
         break;
       case "week":
         setCurrentDate(addWeeks(currentDate, 1));
+        break;
+      case "threeDay":
+        setCurrentDate(addDays(currentDate, 3));
         break;
       case "day":
         setCurrentDate(addDays(currentDate, 1));
@@ -213,6 +224,9 @@ export function CalendarView({
         const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
         const weekEnd = addDays(weekStart, 6);
         return `${format(weekStart, "M月d日", { locale: ja })} - ${format(weekEnd, "M月d日", { locale: ja })}`;
+      case "threeDay":
+        const threeDayEnd = addDays(currentDate, 2);
+        return `${format(currentDate, "M月d日", { locale: ja })} - ${format(threeDayEnd, "M月d日", { locale: ja })}`;
       case "day":
         return format(currentDate, "yyyy年M月d日(E)", { locale: ja });
     }
@@ -461,7 +475,6 @@ export function CalendarView({
   // 日表示
   const renderDayView = () => {
     const dayEvents = getEventsForDate(currentDate);
-    const hours = Array.from({ length: 24 }, (_, i) => i);
 
     return (
       <div className="border rounded-lg overflow-hidden">
@@ -488,6 +501,193 @@ export function CalendarView({
               {dayEvents.map((event) => renderEvent(event))}
             </div>
           )}
+        </div>
+      </div>
+    );
+  };
+
+  // 薄い背景色マッピング
+  const LIGHT_BG_MAP: Record<string, string> = {
+    "bg-blue-500": "bg-blue-100",
+    "bg-blue-300": "bg-blue-100",
+    "bg-indigo-500": "bg-indigo-100",
+    "bg-sky-500": "bg-sky-100",
+    "bg-green-500": "bg-green-100",
+    "bg-green-300": "bg-green-100",
+    "bg-teal-500": "bg-teal-100",
+    "bg-emerald-500": "bg-emerald-100",
+    "bg-yellow-500": "bg-yellow-100",
+    "bg-orange-500": "bg-orange-100",
+    "bg-red-500": "bg-red-100",
+    "bg-pink-500": "bg-pink-100",
+    "bg-purple-500": "bg-purple-100",
+    "bg-violet-500": "bg-violet-100",
+    "bg-fuchsia-500": "bg-fuchsia-100",
+    "bg-cyan-500": "bg-cyan-100",
+    "bg-rose-500": "bg-rose-100",
+    "bg-amber-500": "bg-amber-100",
+    "bg-gray-500": "bg-gray-100",
+    "bg-gray-400": "bg-gray-100",
+    "bg-slate-500": "bg-slate-100",
+    "bg-slate-400": "bg-slate-100",
+  };
+  const getLightBgColor = (categoryColor: string) => {
+    return LIGHT_BG_MAP[categoryColor] || "bg-gray-100";
+  };
+
+  // 3日表示用：自分のイベントのみ取得
+  const getMyEventsForDate = (date: Date) => {
+    if (!currentEmployeeId) return getEventsForDate(date);
+    return filteredEvents.filter((event) => {
+      const startDate = parseISO(event.start_date);
+      const endDate = event.end_date ? parseISO(event.end_date) : startDate;
+      const isInDateRange = date >= startDate && date <= endDate;
+      if (!isInDateRange) return false;
+      return event.created_by === currentEmployeeId ||
+             event.participants.some((p) => p.id === currentEmployeeId);
+    });
+  };
+
+  // 3日表示（時間軸付き）
+  const renderThreeDayView = () => {
+    // 時間枠ラベル: ～8:00, 8:00～9:00, ..., 17:00～18:00, 18:00～
+    const hourLabels = [
+      { label: "～8:00", hour: -1 },
+      ...Array.from({ length: 10 }, (_, i) => ({ label: `${i + 8}:00`, hour: i + 8 })),
+      { label: "18:00～", hour: 18 },
+    ];
+
+    // イベントを時間枠に配置するヘルパー
+    const getEventPosition = (event: CalendarEventWithParticipants) => {
+      if (!event.start_time) return null;
+      const [startHour, startMin] = event.start_time.split(":").map(Number);
+      const startMinutes = startHour * 60 + startMin;
+
+      const baseMinutes = 8 * 60;
+      const firstSlotHeight = 48;
+      let top: number;
+
+      if (startMinutes < baseMinutes) {
+        top = 0;
+      } else if (startMinutes >= 18 * 60) {
+        top = firstSlotHeight + 10 * 48;
+      } else {
+        top = firstSlotHeight + ((startMinutes - baseMinutes) / 60) * 48;
+      }
+
+      let height = 48;
+      if (event.end_time) {
+        const [endHour, endMin] = event.end_time.split(":").map(Number);
+        const endMinutes = endHour * 60 + endMin;
+        height = Math.max(24, ((endMinutes - startMinutes) / 60) * 48);
+      }
+
+      return { top, height };
+    };
+
+    const getAllDayEvents = (date: Date) => {
+      return getMyEventsForDate(date).filter((e) => !e.start_time || e.all_day);
+    };
+
+    const getTimedEvents = (date: Date) => {
+      return getMyEventsForDate(date).filter((e) => e.start_time && !e.all_day);
+    };
+
+    return (
+      <div className="overflow-auto">
+        {/* ヘッダー */}
+        <div className="grid grid-cols-[60px_1fr_1fr_1fr] border-b">
+          <div className="p-2 bg-muted border-r text-center text-xs font-medium">時間</div>
+          {threeDays.map((date, idx) => {
+            const dayOfWeek = date.getDay();
+            return (
+              <div
+                key={idx}
+                className={`p-2 bg-muted border-r text-center ${
+                  dayOfWeek === 0 ? "text-red-500" : dayOfWeek === 6 ? "text-blue-500" : ""
+                }`}
+              >
+                <div className="text-sm font-medium">{format(date, "M/d(E)", { locale: ja })}</div>
+                {isToday(date) && (
+                  <span className="inline-block w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs leading-6">
+                    今
+                  </span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* 終日イベント行 */}
+        <div className="grid grid-cols-[60px_1fr_1fr_1fr] border-b bg-gray-50">
+          <div className="p-1 border-r text-xs text-muted-foreground text-center">終日</div>
+          {threeDays.map((date, idx) => {
+            const allDayEvents = getAllDayEvents(date);
+            return (
+              <div
+                key={idx}
+                className="p-1 border-r min-h-[32px] cursor-pointer hover:bg-muted/50"
+                onClick={() => handleDateClick(date)}
+              >
+                {allDayEvents.map((event) => renderEvent(event, true))}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* 時間軸 */}
+        <div className="grid grid-cols-[60px_1fr_1fr_1fr]">
+          <div className="border-r">
+            {hourLabels.map((slot, idx) => (
+              <div key={idx} className="h-12 border-b text-xs text-muted-foreground text-right pr-2 pt-0.5">
+                {slot.label}
+              </div>
+            ))}
+          </div>
+
+          {threeDays.map((date, dayIdx) => {
+            const timedEvents = getTimedEvents(date);
+            return (
+              <div
+                key={dayIdx}
+                className="border-r relative cursor-pointer"
+                onClick={() => handleDateClick(date)}
+              >
+                {hourLabels.map((_, idx) => (
+                  <div key={idx} className="h-12 border-b hover:bg-muted/30" />
+                ))}
+
+                {timedEvents.map((event) => {
+                  const pos = getEventPosition(event);
+                  if (!pos) return null;
+                  const categoryColor = getCategoryColor(event);
+                  const lightBgColor = getLightBgColor(categoryColor);
+                  const categoryName = getCategoryName(event);
+                  return (
+                    <div
+                      key={event.id}
+                      className={`absolute left-0.5 right-0.5 rounded px-1 py-0.5 overflow-hidden cursor-pointer hover:opacity-80 border ${lightBgColor}`}
+                      style={{ top: pos.top, height: pos.height }}
+                      onClick={(e) => handleEventClick(event, e)}
+                    >
+                      <div className="text-xs font-medium truncate text-black">
+                        {event.start_time?.slice(0, 5)} {event.title}
+                      </div>
+                      {categoryName && pos.height >= 36 && (
+                        <span className={`${categoryColor} text-white px-1 rounded text-[10px]`}>{categoryName}</span>
+                      )}
+                      {event.location && pos.height >= 48 && (
+                        <div className="text-[10px] text-black truncate flex items-center gap-0.5">
+                          <MapPin className="h-2.5 w-2.5" />
+                          {event.location}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
         </div>
       </div>
     );
@@ -559,6 +759,14 @@ export function CalendarView({
               日
             </Button>
             <Button
+              variant={viewMode === "threeDay" ? "default" : "ghost"}
+              size="sm"
+              className="rounded-none border-x"
+              onClick={() => setViewMode("threeDay")}
+            >
+              3日
+            </Button>
+            <Button
               variant={viewMode === "week" ? "default" : "ghost"}
               size="sm"
               className="rounded-none border-x"
@@ -598,6 +806,7 @@ export function CalendarView({
         <CardContent className="p-0 overflow-hidden">
           {viewMode === "month" && renderMonthView()}
           {viewMode === "week" && renderWeekView()}
+          {viewMode === "threeDay" && renderThreeDayView()}
           {viewMode === "day" && renderDayView()}
         </CardContent>
       </Card>

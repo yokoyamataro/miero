@@ -54,6 +54,7 @@ import {
 } from "@/types/database";
 import { EventModal } from "./calendar/event-modal";
 import { EventDetailModal } from "./calendar/event-detail-modal";
+import { updateEvent } from "./calendar/actions";
 import { type TaskWithProject } from "./dashboard-actions";
 
 type ViewMode = "day" | "week" | "month";
@@ -99,6 +100,8 @@ export function DashboardCalendar({
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [employeeFilter, setEmployeeFilter] = useState<EmployeeFilter>("all");
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
+  const [draggingEventId, setDraggingEventId] = useState<string | null>(null);
+  const [dragOverSlot, setDragOverSlot] = useState<{ date: string; hour: number } | null>(null);
 
   // 社員リストをソート
   const sortedEmployees = useMemo(() => {
@@ -281,6 +284,83 @@ export function DashboardCalendar({
   const handleDragLeave = useCallback(() => {
     setDragOverDate(null);
   }, []);
+
+  // イベントのドラッグ開始
+  const handleEventDragStart = useCallback((event: CalendarEventWithParticipants, e: React.DragEvent) => {
+    e.stopPropagation();
+    setDraggingEventId(event.id);
+    e.dataTransfer.setData("application/event-id", event.id);
+    e.dataTransfer.effectAllowed = "move";
+  }, []);
+
+  // イベントのドラッグ終了
+  const handleEventDragEnd = useCallback(() => {
+    setDraggingEventId(null);
+    setDragOverSlot(null);
+  }, []);
+
+  // 時間枠へのドロップ
+  const handleTimeSlotDrop = useCallback(async (date: Date, hour: number, e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverSlot(null);
+
+    const eventId = e.dataTransfer.getData("application/event-id");
+    if (!eventId) return;
+
+    const event = events.find((ev) => ev.id === eventId);
+    if (!event) return;
+
+    // 新しい開始時刻を計算
+    let newStartTime: string;
+    if (hour === -1) {
+      // ～8:00枠
+      newStartTime = "07:00:00";
+    } else if (hour === 18) {
+      // 18:00～枠
+      newStartTime = "18:00:00";
+    } else {
+      newStartTime = `${String(hour).padStart(2, "0")}:00:00`;
+    }
+
+    // イベントの長さを保持
+    let newEndTime: string | null = null;
+    if (event.start_time && event.end_time) {
+      const [startH, startM] = event.start_time.split(":").map(Number);
+      const [endH, endM] = event.end_time.split(":").map(Number);
+      const durationMinutes = (endH * 60 + endM) - (startH * 60 + startM);
+      const [newH] = newStartTime.split(":").map(Number);
+      const newEndMinutes = newH * 60 + durationMinutes;
+      const endHour = Math.floor(newEndMinutes / 60);
+      const endMin = newEndMinutes % 60;
+      newEndTime = `${String(endHour).padStart(2, "0")}:${String(endMin).padStart(2, "0")}:00`;
+    }
+
+    // イベントを更新
+    const result = await updateEvent(
+      eventId,
+      {
+        start_date: format(date, "yyyy-MM-dd"),
+        end_date: format(date, "yyyy-MM-dd"),
+        start_time: newStartTime,
+        end_time: newEndTime,
+      },
+      event.participants.map((p) => p.id)
+    );
+
+    if (result.success) {
+      handleEventUpdated();
+    }
+  }, [events, handleEventUpdated]);
+
+  // 時間枠へのドラッグオーバー
+  const handleTimeSlotDragOver = useCallback((date: Date, hour: number, e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (draggingEventId) {
+      setDragOverSlot({ date: format(date, "yyyy-MM-dd"), hour });
+    }
+  }, [draggingEventId]);
 
   // タイトル
   const getTitle = () => {
@@ -543,16 +623,34 @@ export function DashboardCalendar({
 
   // 3日表示（時間軸付き、自分のみ）
   const renderDayView = () => {
-    // 8時〜18時の時間枠
-    const hours = Array.from({ length: 11 }, (_, i) => i + 8);
+    // 時間枠ラベル: ～8:00, 8:00～9:00, ..., 17:00～18:00, 18:00～
+    const hourLabels = [
+      { label: "～8:00", hour: -1 },
+      ...Array.from({ length: 10 }, (_, i) => ({ label: `${i + 8}:00`, hour: i + 8 })),
+      { label: "18:00～", hour: 18 },
+    ];
 
     // イベントを時間枠に配置するヘルパー
     const getEventPosition = (event: CalendarEventWithParticipants) => {
       if (!event.start_time) return null;
       const [startHour, startMin] = event.start_time.split(":").map(Number);
       const startMinutes = startHour * 60 + startMin;
+
+      // ～8:00の枠を考慮（最初の枠の高さ分オフセット）
       const baseMinutes = 8 * 60; // 8:00基準
-      const top = ((startMinutes - baseMinutes) / 60) * 48; // 48px per hour
+      const firstSlotHeight = 48; // ～8:00の枠の高さ
+      let top: number;
+
+      if (startMinutes < baseMinutes) {
+        // 8:00より前のイベント
+        top = 0;
+      } else if (startMinutes >= 18 * 60) {
+        // 18:00以降のイベント
+        top = firstSlotHeight + 10 * 48; // ～8:00 + 10時間分
+      } else {
+        // 8:00～18:00のイベント
+        top = firstSlotHeight + ((startMinutes - baseMinutes) / 60) * 48;
+      }
 
       let height = 48; // デフォルト1時間分
       if (event.end_time) {
@@ -561,7 +659,7 @@ export function DashboardCalendar({
         height = Math.max(24, ((endMinutes - startMinutes) / 60) * 48);
       }
 
-      return { top: Math.max(0, top), height };
+      return { top, height };
     };
 
     // 終日または時間なしイベント
@@ -627,9 +725,9 @@ export function DashboardCalendar({
         <div className="grid grid-cols-[60px_1fr_1fr_1fr]">
           {/* 時間ラベル列 */}
           <div className="border-r">
-            {hours.map((hour) => (
-              <div key={hour} className="h-12 border-b text-xs text-muted-foreground text-right pr-2 pt-0.5">
-                {hour}:00
+            {hourLabels.map((slot, idx) => (
+              <div key={idx} className="h-12 border-b text-xs text-muted-foreground text-right pr-2 pt-0.5">
+                {slot.label}
               </div>
             ))}
           </div>
@@ -638,34 +736,45 @@ export function DashboardCalendar({
           {threeDays.map((date, dayIdx) => {
             const timedEvents = getTimedEvents(date);
             const dateStr = format(date, "yyyy-MM-dd");
-            const isDragOver = dragOverDate === dateStr;
             return (
               <div
                 key={dayIdx}
-                className={`border-r relative cursor-pointer ${
-                  isDragOver ? "bg-blue-100" : ""
-                }`}
-                onClick={() => handleDateClick(date)}
-                onDrop={(e) => handleDrop(date, e)}
-                onDragOver={(e) => handleDragOver(date, e)}
-                onDragLeave={handleDragLeave}
+                className="border-r relative"
               >
-                {/* 時間枠の背景線 */}
-                {hours.map((hour) => (
-                  <div key={hour} className="h-12 border-b hover:bg-muted/30" />
-                ))}
+                {/* 時間枠の背景線（ドロップ可能） */}
+                {hourLabels.map((slot, idx) => {
+                  const isSlotDragOver = dragOverSlot?.date === dateStr && dragOverSlot?.hour === slot.hour;
+                  return (
+                    <div
+                      key={idx}
+                      className={`h-12 border-b cursor-pointer ${
+                        isSlotDragOver ? "bg-blue-200" : "hover:bg-muted/30"
+                      }`}
+                      onClick={() => handleDateClick(date)}
+                      onDrop={(e) => handleTimeSlotDrop(date, slot.hour, e)}
+                      onDragOver={(e) => handleTimeSlotDragOver(date, slot.hour, e)}
+                      onDragLeave={() => setDragOverSlot(null)}
+                    />
+                  );
+                })}
 
-                {/* イベント（絶対配置） */}
+                {/* イベント（絶対配置・ドラッグ可能） */}
                 {timedEvents.map((event) => {
                   const pos = getEventPosition(event);
                   if (!pos) return null;
                   const categoryColor = getCategoryColor(event);
                   const lightBgColor = getLightBgColor(categoryColor);
                   const categoryName = getCategoryName(event);
+                  const isDragging = draggingEventId === event.id;
                   return (
                     <div
                       key={event.id}
-                      className={`absolute left-0.5 right-0.5 rounded px-1 py-0.5 overflow-hidden cursor-pointer hover:opacity-80 border ${lightBgColor}`}
+                      draggable
+                      onDragStart={(e) => handleEventDragStart(event, e)}
+                      onDragEnd={handleEventDragEnd}
+                      className={`absolute left-0.5 right-0.5 rounded px-1 py-0.5 overflow-hidden cursor-grab hover:opacity-80 border ${lightBgColor} ${
+                        isDragging ? "opacity-50 ring-2 ring-primary" : ""
+                      }`}
                       style={{ top: pos.top, height: pos.height }}
                       onClick={(e) => handleEventClick(event, e)}
                     >
