@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -54,6 +54,7 @@ import {
 } from "@/types/database";
 import { EventModal } from "./event-modal";
 import { EventDetailModal } from "./event-detail-modal";
+import { updateEvent } from "./actions";
 
 type ViewMode = "day" | "threeDay" | "week" | "month";
 type EmployeeFilter = "me" | "all" | string; // "me" = 自分のみ, "all" = 全員, string = 特定の社員ID
@@ -87,6 +88,14 @@ export function CalendarView({
   const [selectedEvent, setSelectedEvent] = useState<CalendarEventWithParticipants | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [employeeFilter, setEmployeeFilter] = useState<EmployeeFilter>("all");
+  const [resizingEvent, setResizingEvent] = useState<{
+    eventId: string;
+    edge: "top" | "bottom";
+    startY: number;
+    originalTop: number;
+    originalHeight: number;
+    date: Date;
+  } | null>(null);
 
   // 社員リストをソート（ログインユーザーを先頭に）
   const sortedEmployees = useMemo(() => {
@@ -207,13 +216,108 @@ export function CalendarView({
   };
 
   // イベント更新後
-  const handleEventUpdated = () => {
+  const handleEventUpdated = useCallback(() => {
     router.refresh();
     setShowEventModal(false);
     setShowDetailModal(false);
     // SSRからのデータを再取得するためにページをリロード
     window.location.reload();
-  };
+  }, [router]);
+
+  // イベントリサイズ開始
+  const handleResizeStart = useCallback((
+    event: CalendarEventWithParticipants,
+    edge: "top" | "bottom",
+    e: React.MouseEvent,
+    date: Date,
+    currentTop: number,
+    currentHeight: number
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setResizingEvent({
+      eventId: event.id,
+      edge,
+      startY: e.clientY,
+      originalTop: currentTop,
+      originalHeight: currentHeight,
+      date,
+    });
+  }, []);
+
+  // イベントリサイズ中
+  const handleResizeMove = useCallback(() => {
+    // プレビュー用（現在は使用しない）
+  }, []);
+
+  // イベントリサイズ終了
+  const handleResizeEnd = useCallback(async (e: MouseEvent) => {
+    if (!resizingEvent) return;
+
+    const deltaY = e.clientY - resizingEvent.startY;
+    const deltaMinutes = Math.round(deltaY / 48 * 60 / 15) * 15; // 15分単位
+
+    const event = events.find((ev) => ev.id === resizingEvent.eventId);
+    if (!event || !event.start_time) {
+      setResizingEvent(null);
+      return;
+    }
+
+    const [startH, startM] = event.start_time.split(":").map(Number);
+    const [endH, endM] = (event.end_time || event.start_time).split(":").map(Number);
+
+    let newStartMinutes = startH * 60 + startM;
+    let newEndMinutes = endH * 60 + endM;
+
+    if (resizingEvent.edge === "top") {
+      newStartMinutes += deltaMinutes;
+      if (newEndMinutes - newStartMinutes < 30) {
+        newStartMinutes = newEndMinutes - 30;
+      }
+      if (newStartMinutes < 0) newStartMinutes = 0;
+    } else {
+      newEndMinutes += deltaMinutes;
+      if (newEndMinutes - newStartMinutes < 30) {
+        newEndMinutes = newStartMinutes + 30;
+      }
+      if (newEndMinutes > 24 * 60) newEndMinutes = 24 * 60;
+    }
+
+    const newStartTime = `${String(Math.floor(newStartMinutes / 60)).padStart(2, "0")}:${String(newStartMinutes % 60).padStart(2, "0")}:00`;
+    const newEndTime = `${String(Math.floor(newEndMinutes / 60)).padStart(2, "0")}:${String(newEndMinutes % 60).padStart(2, "0")}:00`;
+
+    setResizingEvent(null);
+
+    // 変更がない場合はスキップ
+    if (newStartTime === event.start_time && newEndTime === event.end_time) {
+      return;
+    }
+
+    const result = await updateEvent(
+      event.id,
+      {
+        start_time: newStartTime,
+        end_time: newEndTime,
+      },
+      event.participants.map((p) => p.id)
+    );
+
+    if (result.success) {
+      handleEventUpdated();
+    }
+  }, [resizingEvent, events, handleEventUpdated]);
+
+  // グローバルマウスイベントのリスナー登録
+  useEffect(() => {
+    if (resizingEvent) {
+      window.addEventListener("mousemove", handleResizeMove);
+      window.addEventListener("mouseup", handleResizeEnd);
+      return () => {
+        window.removeEventListener("mousemove", handleResizeMove);
+        window.removeEventListener("mouseup", handleResizeEnd);
+      };
+    }
+  }, [resizingEvent, handleResizeMove, handleResizeEnd]);
 
   // タイトル
   const getTitle = () => {
@@ -663,13 +767,21 @@ export function CalendarView({
                   const categoryColor = getCategoryColor(event);
                   const lightBgColor = getLightBgColor(categoryColor);
                   const categoryName = getCategoryName(event);
+                  const isResizing = resizingEvent?.eventId === event.id;
                   return (
                     <div
                       key={event.id}
-                      className={`absolute left-0.5 right-0.5 rounded px-1 py-0.5 overflow-hidden cursor-pointer hover:opacity-80 border ${lightBgColor}`}
+                      className={`absolute left-0.5 right-0.5 rounded px-1 py-0.5 overflow-hidden border ${lightBgColor} ${
+                        isResizing ? "ring-2 ring-primary z-10" : "cursor-pointer hover:opacity-80"
+                      }`}
                       style={{ top: pos.top, height: pos.height }}
                       onClick={(e) => handleEventClick(event, e)}
                     >
+                      {/* 上部リサイズハンドル */}
+                      <div
+                        className="absolute top-0 left-0 right-0 h-2 cursor-ns-resize hover:bg-primary/20 z-10"
+                        onMouseDown={(e) => handleResizeStart(event, "top", e, date, pos.top, pos.height)}
+                      />
                       <div className="text-xs font-medium truncate text-black">
                         {event.start_time?.slice(0, 5)} {event.title}
                       </div>
@@ -682,6 +794,11 @@ export function CalendarView({
                           {event.location}
                         </div>
                       )}
+                      {/* 下部リサイズハンドル */}
+                      <div
+                        className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize hover:bg-primary/20 z-10"
+                        onMouseDown={(e) => handleResizeStart(event, "bottom", e, date, pos.top, pos.height)}
+                      />
                     </div>
                   );
                 })}
