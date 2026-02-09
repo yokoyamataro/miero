@@ -15,7 +15,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { ListTodo, User, UsersRound, GripVertical, Clock, AlertTriangle, Pause, ChevronDown, ChevronRight, ExternalLink } from "lucide-react";
+import { ListTodo, User, UsersRound, GripVertical, Clock, AlertTriangle, Pause, ChevronDown, ChevronRight } from "lucide-react";
 import { type Employee } from "@/types/database";
 import { type TaskWithProject } from "./dashboard-actions";
 import Link from "next/link";
@@ -170,7 +170,11 @@ export function DashboardTaskList({
                         )}
                       </Button>
                     </CollapsibleTrigger>
-                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <Link
+                      href={`/projects/${project.id}`}
+                      className="flex items-center gap-2 flex-1 min-w-0 hover:underline"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       {project.is_urgent && (
                         <AlertTriangle className="h-4 w-4 text-destructive flex-shrink-0" />
                       )}
@@ -183,17 +187,10 @@ export function DashboardTaskList({
                       <span className={`font-medium text-sm truncate ${project.is_on_hold ? "text-muted-foreground" : ""}`}>
                         {project.name}
                       </span>
-                      <span className="text-xs text-muted-foreground flex-shrink-0">
-                        ({projectTasks.length})
-                      </span>
-                    </div>
-                    <Link
-                      href={`/projects/${project.id}`}
-                      className="opacity-0 group-hover:opacity-100 p-1 hover:bg-muted rounded flex-shrink-0"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
                     </Link>
+                    <span className="text-xs text-muted-foreground flex-shrink-0">
+                      ({projectTasks.length})
+                    </span>
                   </div>
 
                   {/* タスク一覧 */}
