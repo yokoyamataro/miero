@@ -511,7 +511,7 @@ const CODE_PREFIX_TO_CATEGORY: Record<string, ProjectCategory> = {
 };
 
 // ステータスの有効値
-const VALID_STATUSES: ProjectStatus[] = ["進行中", "進行中", "完了", "中止"];
+const VALID_STATUSES: ProjectStatus[] = ["進行中", "完了"];
 
 // CSV行をパースするヘルパー
 function parseCSVLine(line: string): string[] {

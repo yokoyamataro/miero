@@ -310,7 +310,6 @@ export function ProjectForm({ customerData, employees }: ProjectFormProps) {
                   <SelectContent>
                     <SelectItem value="進行中">進行中</SelectItem>
                     <SelectItem value="完了">完了</SelectItem>
-                    <SelectItem value="中止">中止</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

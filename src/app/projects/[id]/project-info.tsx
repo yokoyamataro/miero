@@ -104,7 +104,7 @@ interface ProjectInfoProps {
   stakeholderSection?: React.ReactNode;
 }
 
-const PROJECT_STATUSES: ProjectStatus[] = ["進行中", "完了", "中止"];
+const PROJECT_STATUSES: ProjectStatus[] = ["進行中", "完了"];
 
 // 日付フォーマット
 function formatDate(dateStr: string | null): string {

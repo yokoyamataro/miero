@@ -24,7 +24,6 @@ interface RelatedProjectsSectionProps {
 const STATUS_COLORS: Record<string, string> = {
   進行中: "bg-green-500",
   完了: "bg-red-500",
-  中止: "bg-gray-400",
 };
 
 const RELATIONSHIP_COLORS = {

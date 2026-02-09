@@ -171,13 +171,14 @@ export function ProjectFilters({ employees, filters, onFiltersChange }: ProjectF
             </button>
             {ALL_STATUSES.map((status) => {
               const active = filters.statuses.has(status);
+              const statusColor = active ? PROJECT_STATUS_COLORS[status] : "";
               return (
                 <button
                   key={status}
                   type="button"
                   onClick={() => toggleStatus(status)}
                   className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                    active ? BTN_ACTIVE : BTN_INACTIVE
+                    active ? `${statusColor} border-transparent` : BTN_INACTIVE
                   }`}
                 >
                   {status}
