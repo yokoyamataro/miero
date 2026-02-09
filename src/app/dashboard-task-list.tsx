@@ -149,14 +149,21 @@ export function DashboardTaskList({
           <div className="space-y-2">
             {tasksByProject.map(({ project, tasks: projectTasks }) => {
               const isCollapsed = collapsedProjects.has(project.id);
+              // 背景色: 緊急=赤系、待機=グレー系
+              const projectBgClass = project.is_urgent
+                ? "bg-red-50 rounded-md"
+                : project.is_on_hold
+                ? "bg-gray-100 rounded-md"
+                : "";
               return (
                 <Collapsible
                   key={project.id}
                   open={!isCollapsed}
                   onOpenChange={() => toggleProject(project.id)}
+                  className={projectBgClass}
                 >
                   {/* 業務ヘッダー */}
-                  <div className="flex items-center gap-1 group">
+                  <div className="flex items-center gap-1 group p-1">
                     <CollapsibleTrigger asChild>
                       <Button
                         variant="ghost"

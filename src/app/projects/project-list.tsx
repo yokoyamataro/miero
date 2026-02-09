@@ -287,8 +287,15 @@ export function ProjectList({ projects, employees, contactDisplayMap, employeeMa
               </TableRow>
             </TableHeader>
             <TableBody>
-              {sorted.map((project) => (
-                <TableRow key={project.id} className="cursor-pointer hover:bg-muted/50 h-8">
+              {sorted.map((project) => {
+                // 背景色: 緊急=赤系、待機=グレー系
+                const rowBgClass = project.is_urgent
+                  ? "bg-red-50 hover:bg-red-100"
+                  : project.is_on_hold
+                  ? "bg-gray-100 hover:bg-gray-200"
+                  : "hover:bg-muted/50";
+                return (
+                <TableRow key={project.id} className={`cursor-pointer h-8 ${rowBgClass}`}>
                   <TableCell className="font-mono text-xs py-1">
                     <Link href={`/projects/${project.id}`} className="block">
                       {project.code}
@@ -320,7 +327,8 @@ export function ProjectList({ projects, employees, contactDisplayMap, employeeMa
                     {project.manager_id ? employeeMap[project.manager_id] || "-" : "-"}
                   </TableCell>
                 </TableRow>
-              ))}
+              );
+              })}
             </TableBody>
           </Table>
         </Card>
