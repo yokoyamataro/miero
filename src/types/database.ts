@@ -17,7 +17,7 @@ export type ProjectCategory =
   | "N_Farmland";
 
 // 業務ステータス
-export type ProjectStatus = "未着手" | "進行中" | "完了" | "中止";
+export type ProjectStatus = "進行中" | "完了" | "中止";
 
 // 社員権限
 export type EmployeeRole = "admin" | "manager" | "staff";
@@ -35,7 +35,6 @@ export const PROJECT_CATEGORY_LABELS: Record<ProjectCategory, string> = {
 
 // ステータスバッジカラー
 export const PROJECT_STATUS_COLORS: Record<ProjectStatus, string> = {
-  未着手: "bg-blue-500 text-white",
   進行中: "bg-green-500 text-white",
   完了: "bg-red-500 text-white",
   中止: "bg-gray-400 text-white",

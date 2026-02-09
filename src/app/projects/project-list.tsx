@@ -67,7 +67,7 @@ function loadFiltersFromStorage(): FilterState {
     return {
       search: "",
       categories: new Set(),
-      statuses: new Set(["未着手", "進行中"] as ProjectStatus[]),
+      statuses: new Set(["進行中"] as ProjectStatus[]),
       managerIds: new Set(),
     };
   }
@@ -78,7 +78,7 @@ function loadFiltersFromStorage(): FilterState {
       return {
         search: parsed.search || "",
         categories: new Set(parsed.categories || []),
-        statuses: new Set(parsed.statuses || ["未着手", "進行中"]),
+        statuses: new Set(parsed.statuses || ["進行中"]),
         managerIds: new Set(parsed.managerIds || []),
       };
     }
@@ -88,7 +88,7 @@ function loadFiltersFromStorage(): FilterState {
   return {
     search: "",
     categories: new Set(),
-    statuses: new Set(["未着手", "進行中"] as ProjectStatus[]),
+    statuses: new Set(["進行中"] as ProjectStatus[]),
     managerIds: new Set(),
   };
 }
