@@ -10,7 +10,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ListTodo, User, UsersRound, GripVertical, Clock, AlertTriangle, Pause } from "lucide-react";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { ListTodo, User, UsersRound, GripVertical, Clock, AlertTriangle, Pause, ChevronDown, ChevronRight, ExternalLink } from "lucide-react";
 import { type Employee } from "@/types/database";
 import { type TaskWithProject } from "./dashboard-actions";
 import Link from "next/link";
@@ -38,6 +43,20 @@ export function DashboardTaskList({
   const [assigneeFilter, setAssigneeFilter] = useState<string>(
     currentEmployeeId || "all"
   );
+  // 折りたたまれている業務IDのSet
+  const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(new Set());
+
+  const toggleProject = (projectId: string) => {
+    setCollapsedProjects((prev) => {
+      const next = new Set(prev);
+      if (next.has(projectId)) {
+        next.delete(projectId);
+      } else {
+        next.add(projectId);
+      }
+      return next;
+    });
+  };
 
   // 社員リストをソート（ログインユーザーを先頭に）
   const sortedEmployees = useMemo(() => {
@@ -127,60 +146,91 @@ export function DashboardTaskList({
             未完了のタスクはありません
           </p>
         ) : (
-          <div className="space-y-4">
-            {tasksByProject.map(({ project, tasks: projectTasks }) => (
-              <div key={project.id}>
-                {/* 業務ヘッダー */}
-                <Link
-                  href={`/projects/${project.id}`}
-                  className="flex items-center gap-2 mb-2 hover:bg-muted px-2 py-1 rounded -mx-2"
+          <div className="space-y-2">
+            {tasksByProject.map(({ project, tasks: projectTasks }) => {
+              const isCollapsed = collapsedProjects.has(project.id);
+              return (
+                <Collapsible
+                  key={project.id}
+                  open={!isCollapsed}
+                  onOpenChange={() => toggleProject(project.id)}
                 >
-                  {project.is_urgent && (
-                    <AlertTriangle className="h-4 w-4 text-destructive flex-shrink-0" />
-                  )}
-                  {project.is_on_hold && (
-                    <Pause className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  )}
-                  <span className="font-mono text-xs text-muted-foreground">
-                    {project.code}
-                  </span>
-                  <span className={`font-medium text-sm truncate ${project.is_on_hold ? "text-muted-foreground" : ""}`}>
-                    {project.name}
-                  </span>
-                </Link>
-
-                {/* タスク一覧 */}
-                <div className="space-y-1 ml-2">
-                  {projectTasks.map((task) => (
-                    <div
-                      key={task.id}
-                      draggable
-                      onDragStart={(e) => {
-                        e.dataTransfer.setData("text/plain", JSON.stringify({
-                          taskId: task.id,
-                          projectId: task.project_id,
-                          projectCode: project.code,
-                          projectName: project.name,
-                          projectLocation: project.location,
-                          taskTitle: task.title,
-                        }));
-                        onDragStart(task);
-                      }}
-                      className="flex items-center gap-2 px-2 py-1.5 rounded border bg-background hover:bg-muted cursor-grab active:cursor-grabbing group"
-                    >
-                      <GripVertical className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 flex-shrink-0" />
-                      <span className="text-sm truncate flex-1">{task.title}</span>
-                      {task.estimated_minutes && (
-                        <span className="text-xs text-muted-foreground flex items-center gap-0.5 flex-shrink-0">
-                          <Clock className="h-3 w-3" />
-                          {formatHours(task.estimated_minutes)}
-                        </span>
+                  {/* 業務ヘッダー */}
+                  <div className="flex items-center gap-1 group">
+                    <CollapsibleTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0 flex-shrink-0"
+                      >
+                        {isCollapsed ? (
+                          <ChevronRight className="h-4 w-4" />
+                        ) : (
+                          <ChevronDown className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </CollapsibleTrigger>
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      {project.is_urgent && (
+                        <AlertTriangle className="h-4 w-4 text-destructive flex-shrink-0" />
                       )}
+                      {project.is_on_hold && (
+                        <Pause className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                      )}
+                      <span className="font-mono text-xs text-muted-foreground flex-shrink-0">
+                        {project.code}
+                      </span>
+                      <span className={`font-medium text-sm truncate ${project.is_on_hold ? "text-muted-foreground" : ""}`}>
+                        {project.name}
+                      </span>
+                      <span className="text-xs text-muted-foreground flex-shrink-0">
+                        ({projectTasks.length})
+                      </span>
                     </div>
-                  ))}
-                </div>
-              </div>
-            ))}
+                    <Link
+                      href={`/projects/${project.id}`}
+                      className="opacity-0 group-hover:opacity-100 p-1 hover:bg-muted rounded flex-shrink-0"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <ExternalLink className="h-3.5 w-3.5 text-muted-foreground" />
+                    </Link>
+                  </div>
+
+                  {/* タスク一覧 */}
+                  <CollapsibleContent>
+                    <div className="space-y-1 ml-7 mt-1">
+                      {projectTasks.map((task) => (
+                        <div
+                          key={task.id}
+                          draggable
+                          onDragStart={(e) => {
+                            e.dataTransfer.setData("text/plain", JSON.stringify({
+                              taskId: task.id,
+                              projectId: task.project_id,
+                              projectCode: project.code,
+                              projectName: project.name,
+                              projectLocation: project.location,
+                              taskTitle: task.title,
+                            }));
+                            onDragStart(task);
+                          }}
+                          className="flex items-center gap-2 px-2 py-1.5 rounded border bg-background hover:bg-muted cursor-grab active:cursor-grabbing group"
+                        >
+                          <GripVertical className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 flex-shrink-0" />
+                          <span className="text-sm truncate flex-1">{task.title}</span>
+                          {task.estimated_minutes && (
+                            <span className="text-xs text-muted-foreground flex items-center gap-0.5 flex-shrink-0">
+                              <Clock className="h-3 w-3" />
+                              {formatHours(task.estimated_minutes)}
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </CollapsibleContent>
+                </Collapsible>
+              );
+            })}
           </div>
         )}
       </CardContent>
