@@ -14,7 +14,7 @@ export default async function Home({
   const rangeEnd = format(addMonths(endOfMonth(today), 1), "yyyy-MM-dd");
 
   // URLパラメータから表示モードと日付を取得
-  const initialView = (params.view as "day" | "week" | "month") || "day";
+  const initialView = (params.view as "dayAll" | "fiveDay" | "weekAll" | "month") || "dayAll";
   const initialDate = params.date || format(today, "yyyy-MM-dd");
 
   // 並列でデータ取得

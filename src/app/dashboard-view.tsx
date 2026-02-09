@@ -13,13 +13,15 @@ import {
 } from "@/types/database";
 import { type TaskWithProject } from "./dashboard-actions";
 
+type ViewMode = "dayAll" | "fiveDay" | "weekAll" | "month";
+
 interface DashboardViewProps {
   events: CalendarEventWithParticipants[];
   employees: Employee[];
   eventCategories: EventCategory[];
   currentEmployeeId: string | null;
   tasks: TaskWithProject[];
-  initialView?: "day" | "week" | "month";
+  initialView?: ViewMode;
   initialDate?: string;
 }
 
@@ -29,7 +31,7 @@ export function DashboardView({
   eventCategories,
   currentEmployeeId,
   tasks,
-  initialView = "day",
+  initialView = "dayAll",
   initialDate,
 }: DashboardViewProps) {
   const router = useRouter();
