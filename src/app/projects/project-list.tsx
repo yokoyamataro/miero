@@ -20,6 +20,9 @@ import {
 } from "@/types/database";
 import { ProjectFilters, type FilterState, NULL_MARKER } from "./project-filters";
 
+// 有効なステータスの一覧
+const VALID_STATUSES = new Set(Object.keys(PROJECT_STATUS_COLORS) as ProjectStatus[]);
+
 // ソート用の型
 type SortKey = "code" | "status" | "is_urgent" | "is_on_hold" | "customer" | "name" | "location" | "manager";
 
@@ -75,10 +78,15 @@ function loadFiltersFromStorage(): FilterState {
     const saved = localStorage.getItem(FILTER_STORAGE_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
+      // 無効なステータス（削除された「未着手」など）を除外
+      const savedStatuses = (parsed.statuses || ["進行中"]) as string[];
+      const validStatuses = savedStatuses.filter(
+        (s) => VALID_STATUSES.has(s as ProjectStatus) || s === NULL_MARKER
+      ) as (ProjectStatus | typeof NULL_MARKER)[];
       return {
         search: parsed.search || "",
         categories: new Set(parsed.categories || []),
-        statuses: new Set(parsed.statuses || ["進行中"]),
+        statuses: new Set(validStatuses.length > 0 ? validStatuses : ["進行中"] as ProjectStatus[]),
         managerIds: new Set(parsed.managerIds || []),
       };
     }
