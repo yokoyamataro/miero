@@ -162,11 +162,10 @@ export function EmployeeForm({ employee, isEdit = false }: EmployeeFormProps) {
                 placeholder="例: yamada@example.com"
                 defaultValue={employee?.email || ""}
                 required
-                disabled={isEdit} // 編集時はメール変更不可（認証と紐づいているため）
               />
               {isEdit && (
                 <p className="text-xs text-muted-foreground mt-1">
-                  メールアドレスは変更できません
+                  変更するとログイン時のメールアドレスも更新されます
                 </p>
               )}
             </div>

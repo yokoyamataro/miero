@@ -94,12 +94,42 @@ export async function createEmployee(data: EmployeeData) {
 export async function updateEmployee(id: string, data: EmployeeData) {
   const supabase = await createClient();
 
+  // 現在の社員情報を取得
+  const { data: currentEmployee } = await supabase
+    .from("employees")
+    .select("email, auth_id")
+    .eq("id", id)
+    .single();
+
+  // メールアドレスが変更された場合、Supabase Authも更新
+  if (currentEmployee?.auth_id && currentEmployee.email !== data.email) {
+    try {
+      const adminClient = createAdminClient();
+      const { error: authError } = await adminClient.auth.admin.updateUserById(
+        currentEmployee.auth_id,
+        { email: data.email }
+      );
+
+      if (authError) {
+        console.error("Error updating auth email:", authError);
+        if (authError.message.includes("already been registered")) {
+          return { error: "このメールアドレスは既に使用されています" };
+        }
+        return { error: "メールアドレスの更新に失敗しました: " + authError.message };
+      }
+    } catch (error) {
+      console.error("Error updating auth email:", error);
+      return { error: "メールアドレスの更新に失敗しました" };
+    }
+  }
+
+  // 社員テーブルを更新
   const { error } = await supabase
     .from("employees")
     .update({
       name: data.name,
+      email: data.email,
       role: data.role,
-      // メールは変更しない（認証と紐づいているため）
     })
     .eq("id", id);
 
