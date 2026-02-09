@@ -253,7 +253,7 @@ function SortableTaskItem({
           value={task.assigned_to || "none"}
           onValueChange={handleAssigneeChange}
         >
-          <SelectTrigger className="w-28 h-7">
+          <SelectTrigger className="w-44 h-7">
             <SelectValue>
               {assignee?.name || <span className="text-muted-foreground">未割当</span>}
             </SelectValue>

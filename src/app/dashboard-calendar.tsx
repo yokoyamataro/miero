@@ -101,6 +101,9 @@ export function DashboardCalendar({
     previewHeight: number;
   } | null>(null);
   const [justFinishedResizing, setJustFinishedResizing] = useState(false);
+  const [hideWeekends, setHideWeekends] = useState(false);
+  const [selectedStartTime, setSelectedStartTime] = useState<{ hour: string; minute: string } | null>(null);
+  const [selectedEndTime, setSelectedEndTime] = useState<{ hour: string; minute: string } | null>(null);
 
   // 社員リストをソート
   const sortedEmployees = useMemo(() => {
@@ -132,10 +135,23 @@ export function DashboardCalendar({
     return eachDayOfInterval({ start: weekStart, end: addDays(weekStart, 6) });
   }, [currentDate]);
 
-  // 5日表示の日付を生成（今日を含む5日間）
+  // 5日表示の日付を生成（土日非表示オプション対応）
   const fiveDays = useMemo(() => {
+    if (hideWeekends) {
+      // 土日を除いて5日間を生成
+      const days: Date[] = [];
+      let current = currentDate;
+      while (days.length < 5) {
+        const dayOfWeek = current.getDay();
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+          days.push(current);
+        }
+        current = addDays(current, 1);
+      }
+      return days;
+    }
     return eachDayOfInterval({ start: currentDate, end: addDays(currentDate, 4) });
-  }, [currentDate]);
+  }, [currentDate, hideWeekends]);
 
   // 日付ごとのイベントを取得
   const getEventsForDate = (date: Date) => {
@@ -216,10 +232,45 @@ export function DashboardCalendar({
   };
 
   // 日付クリックでイベント作成
-  const handleDateClick = (date: Date) => {
+  const handleDateClick = (date: Date, startTime?: { hour: string; minute: string }, endTime?: { hour: string; minute: string }) => {
     setSelectedDate(date);
     setSelectedEvent(null);
+    setSelectedStartTime(startTime || null);
+    setSelectedEndTime(endTime || null);
     setShowEventModal(true);
+  };
+
+  // 時間枠クリックで時刻付きイベント作成
+  const handleTimeSlotClick = (date: Date, hour: number) => {
+    let startHour: string;
+    let startMinute = "00";
+    let endHour: string;
+    let endMinute = "30";
+
+    if (hour === -1) {
+      // ～8:00枠
+      startHour = "07";
+      endHour = "07";
+    } else if (hour === 18) {
+      // 18:00～枠
+      startHour = "18";
+      endHour = "18";
+    } else {
+      startHour = String(hour).padStart(2, "0");
+      // 30分後を終了時刻に
+      if (hour === 23) {
+        endHour = "23";
+        endMinute = "30";
+      } else {
+        endHour = String(hour).padStart(2, "0");
+      }
+    }
+
+    handleDateClick(
+      date,
+      { hour: startHour, minute: startMinute },
+      { hour: endHour, minute: endMinute }
+    );
   };
 
   // イベントクリックで詳細表示（リサイズ直後は無視）
@@ -905,7 +956,7 @@ export function DashboardCalendar({
                       className={`h-12 border-b cursor-pointer ${
                         isSlotDragOver ? "bg-blue-200" : isLunchTime ? "bg-gray-100" : "hover:bg-muted/30"
                       }`}
-                      onClick={() => handleDateClick(currentDate)}
+                      onClick={() => handleTimeSlotClick(currentDate, slot.hour)}
                       onDrop={(e) => handleTimeSlotDrop(currentDate, slot.hour, e)}
                       onDragOver={(e) => handleTimeSlotDragOver(currentDate, slot.hour, e)}
                       onDragLeave={() => setDragOverSlot(null)}
@@ -1058,7 +1109,7 @@ export function DashboardCalendar({
                       className={`h-12 border-b cursor-pointer ${
                         isSlotDragOver ? "bg-blue-200" : isLunchTime ? "bg-gray-100" : "hover:bg-muted/30"
                       }`}
-                      onClick={() => handleDateClick(date)}
+                      onClick={() => handleTimeSlotClick(date, slot.hour)}
                       onDrop={(e) => handleTimeSlotDrop(date, slot.hour, e)}
                       onDragOver={(e) => handleTimeSlotDragOver(date, slot.hour, e)}
                       onDragLeave={() => setDragOverSlot(null)}
@@ -1158,6 +1209,17 @@ export function DashboardCalendar({
               <User className="h-4 w-4 mr-1" />
               5日
             </Button>
+            {viewMode === "fiveDay" && (
+              <Button
+                variant={hideWeekends ? "default" : "ghost"}
+                size="sm"
+                className="rounded-none border-r"
+                onClick={() => setHideWeekends(!hideWeekends)}
+                title={hideWeekends ? "土日を表示" : "土日を非表示"}
+              >
+                {hideWeekends ? "平日" : "全日"}
+              </Button>
+            )}
             <Button
               variant={viewMode === "weekAll" ? "default" : "ghost"}
               size="sm"
@@ -1204,13 +1266,21 @@ export function DashboardCalendar({
       {/* イベント作成・編集モーダル */}
       <EventModal
         open={showEventModal}
-        onOpenChange={setShowEventModal}
+        onOpenChange={(open) => {
+          setShowEventModal(open);
+          if (!open) {
+            setSelectedStartTime(null);
+            setSelectedEndTime(null);
+          }
+        }}
         employees={employees}
         eventCategories={eventCategories}
         selectedDate={selectedDate}
         event={selectedEvent}
         onSaved={handleEventSaved}
         currentEmployeeId={currentEmployeeId}
+        initialStartTime={selectedStartTime}
+        initialEndTime={selectedEndTime}
       />
 
       {/* イベント詳細モーダル */}

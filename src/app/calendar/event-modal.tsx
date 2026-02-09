@@ -32,6 +32,8 @@ interface EventModalProps {
   event: CalendarEventWithParticipants | null;
   onSaved: (savedEvent: CalendarEventWithParticipants, isNew: boolean) => void;
   currentEmployeeId: string | null;
+  initialStartTime?: { hour: string; minute: string } | null;
+  initialEndTime?: { hour: string; minute: string } | null;
 }
 
 // 時間オプション (0-23)
@@ -62,6 +64,8 @@ export function EventModal({
   event,
   onSaved,
   currentEmployeeId,
+  initialStartTime,
+  initialEndTime,
 }: EventModalProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -130,11 +134,12 @@ export function EventModal({
       setDescription("");
       setCategoryId(eventCategories[0]?.id || "");
       setStartDate(dateStr);
-      setStartHour("");
-      setStartMinute("");
+      // 初期時刻が指定されている場合はそれを使用
+      setStartHour(initialStartTime?.hour || "");
+      setStartMinute(initialStartTime?.minute || "");
       setEndDate(dateStr); // デフォルトで終了日＝開始日
-      setEndHour("");
-      setEndMinute("");
+      setEndHour(initialEndTime?.hour || "");
+      setEndMinute(initialEndTime?.minute || "");
       setAllDay(false);
       setLocation("");
       setMapUrl("");
@@ -145,7 +150,7 @@ export function EventModal({
       setLinkedTaskId(null);
       setLinkedProjectCode(null);
     }
-  }, [event, selectedDate, open, eventCategories, currentEmployeeId]);
+  }, [event, selectedDate, open, eventCategories, currentEmployeeId, initialStartTime, initialEndTime]);
 
   // 業務ToDoを読み込む
   const loadProjectsWithTasks = async () => {
