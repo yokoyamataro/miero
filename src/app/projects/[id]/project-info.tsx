@@ -820,7 +820,14 @@ function CustomerDetailSection({
         {contact.email && (
           <div className="flex items-center gap-2">
             <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-            <span>{contact.email}</span>
+            <a
+              href={`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(contact.email)}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-primary hover:underline"
+            >
+              {contact.email}
+            </a>
           </div>
         )}
         {!account && contactAddress && (

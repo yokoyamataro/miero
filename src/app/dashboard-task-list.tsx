@@ -43,8 +43,11 @@ export function DashboardTaskList({
   const [assigneeFilter, setAssigneeFilter] = useState<string>(
     currentEmployeeId || "all"
   );
-  // 折りたたまれている業務IDのSet
-  const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(new Set());
+  // 折りたたまれている業務IDのSet（デフォルトで全て折りたたみ）
+  const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(() => {
+    // 初期状態で全業務を折りたたむ
+    return new Set(tasks.map((t) => t.project_id));
+  });
 
   const toggleProject = (projectId: string) => {
     setCollapsedProjects((prev) => {
