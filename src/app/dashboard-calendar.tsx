@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useRef } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -310,8 +310,8 @@ export function DashboardCalendar({
     setEvents((prev) => prev.filter((e) => e.id !== deletedEventId));
   }, []);
 
-  // ドロップ時の音を鳴らす
-  const playDropSound = useCallback(() => {
+  // iPod風のカリカリ音を鳴らす（クリック音）
+  const playClickSound = useCallback(() => {
     try {
       const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       const oscillator = audioContext.createOscillator();
@@ -320,36 +320,40 @@ export function DashboardCalendar({
       oscillator.connect(gainNode);
       gainNode.connect(audioContext.destination);
 
-      oscillator.frequency.value = 800;
-      oscillator.type = "sine";
-      gainNode.gain.setValueAtTime(0.1, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(0.01, audioContext.currentTime + 0.1);
+      // 短いクリック音（iPodホイール風）
+      oscillator.frequency.value = 1200;
+      oscillator.type = "square";
+      gainNode.gain.setValueAtTime(0.05, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.03);
 
       oscillator.start(audioContext.currentTime);
-      oscillator.stop(audioContext.currentTime + 0.1);
+      oscillator.stop(audioContext.currentTime + 0.03);
     } catch (err) {
       // 音声再生に失敗しても続行
     }
   }, []);
+
+  // 前回のドラッグオーバー位置を追跡
+  const lastDragOverSlotRef = useRef<{ date: string; hour: number } | null>(null);
 
   // ドロップハンドラー
   const handleDrop = useCallback(
     (date: Date, e: React.DragEvent) => {
       e.preventDefault();
       setDragOverDate(null);
+      lastDragOverSlotRef.current = null;
 
       try {
         const data = e.dataTransfer.getData("text/plain");
         if (data) {
           const taskData = JSON.parse(data) as DroppedTaskData;
-          playDropSound();
           onDropTask(date, taskData);
         }
       } catch (err) {
         console.error("Drop error:", err);
       }
     },
-    [onDropTask, playDropSound]
+    [onDropTask]
   );
 
   const handleDragOver = useCallback((date: Date, e: React.DragEvent) => {
@@ -373,6 +377,7 @@ export function DashboardCalendar({
   const handleEventDragEnd = useCallback(() => {
     setDraggingEventId(null);
     setDragOverSlot(null);
+    lastDragOverSlotRef.current = null;
   }, []);
 
   // 時間枠へのドロップ（イベント移動 or タスクドロップ）
@@ -381,6 +386,7 @@ export function DashboardCalendar({
     e.stopPropagation();
     setDragOverSlot(null);
     setDragOverDate(null);
+    lastDragOverSlotRef.current = null;
 
     // まずタスクのドロップをチェック
     const taskData = e.dataTransfer.getData("text/plain");
@@ -389,8 +395,6 @@ export function DashboardCalendar({
         const parsed = JSON.parse(taskData) as DroppedTaskData;
         if (parsed.taskId) {
           // タスクがドロップされた - 時刻付きで予定作成
-          playDropSound();
-
           let startHour: string;
           let startMinute = "00";
           let endHour: string;
@@ -428,8 +432,6 @@ export function DashboardCalendar({
 
     const event = events.find((ev) => ev.id === eventId);
     if (!event) return;
-
-    playDropSound();
 
     // 新しい開始時刻を計算
     let newStartTime: string;
@@ -486,15 +488,25 @@ export function DashboardCalendar({
         prev.map((e) => (e.id === eventId ? event : e))
       );
     }
-  }, [events, onDropTask, playDropSound]);
+  }, [events, onDropTask, playClickSound]);
 
   // 時間枠へのドラッグオーバー（イベント or タスク）
   const handleTimeSlotDragOver = useCallback((date: Date, hour: number, e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
+
+    const dateStr = format(date, "yyyy-MM-dd");
+    const lastSlot = lastDragOverSlotRef.current;
+
+    // 時間枠が変わったら音を鳴らす
+    if (!lastSlot || lastSlot.date !== dateStr || lastSlot.hour !== hour) {
+      playClickSound();
+      lastDragOverSlotRef.current = { date: dateStr, hour };
+    }
+
     // イベントまたはタスクのドラッグを受け入れる
-    setDragOverSlot({ date: format(date, "yyyy-MM-dd"), hour });
-  }, []);
+    setDragOverSlot({ date: dateStr, hour });
+  }, [playClickSound]);
 
   // イベントリサイズ開始
   const handleResizeStart = useCallback((
