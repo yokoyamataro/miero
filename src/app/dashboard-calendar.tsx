@@ -9,7 +9,6 @@ import {
   ChevronRight,
   Calendar,
   CalendarDays,
-  CalendarRange,
   Plus,
   MapPin,
   Clock,
@@ -18,13 +17,6 @@ import {
   UsersRound,
   Settings,
 } from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   format,
   startOfMonth,
@@ -56,8 +48,7 @@ import { EventDetailModal } from "./calendar/event-detail-modal";
 import { updateEvent } from "./calendar/actions";
 import { type TaskWithProject } from "./dashboard-actions";
 
-type ViewMode = "day" | "week" | "month";
-type EmployeeFilter = "me" | "all" | string;
+type ViewMode = "dayAll" | "fiveDay" | "weekAll" | "month";
 
 interface DashboardCalendarProps {
   initialEvents: CalendarEventWithParticipants[];
@@ -96,7 +87,6 @@ export function DashboardCalendar({
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEventWithParticipants | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [employeeFilter, setEmployeeFilter] = useState<EmployeeFilter>("all");
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const [draggingEventId, setDraggingEventId] = useState<string | null>(null);
   const [dragOverSlot, setDragOverSlot] = useState<{ date: string; hour: number } | null>(null);
@@ -122,21 +112,10 @@ export function DashboardCalendar({
     });
   }, [employees, currentEmployeeId]);
 
-  // フィルタリングされたイベント
+  // フィルタリングされたイベント（全員表示）
   const filteredEvents = useMemo(() => {
-    if (employeeFilter === "all") {
-      return events;
-    }
-
-    const targetEmployeeId = employeeFilter === "me" ? currentEmployeeId : employeeFilter;
-    if (!targetEmployeeId) return events;
-
-    return events.filter((event) => {
-      if (event.created_by === targetEmployeeId) return true;
-      if (event.participants.some((p) => p.id === targetEmployeeId)) return true;
-      return false;
-    });
-  }, [events, employeeFilter, currentEmployeeId]);
+    return events;
+  }, [events]);
 
   // 月表示のカレンダー日付を生成
   const monthDays = useMemo(() => {
@@ -153,9 +132,9 @@ export function DashboardCalendar({
     return eachDayOfInterval({ start: weekStart, end: addDays(weekStart, 6) });
   }, [currentDate]);
 
-  // 3日表示の日付を生成（今日を含む3日間）
-  const threeDays = useMemo(() => {
-    return eachDayOfInterval({ start: currentDate, end: addDays(currentDate, 2) });
+  // 5日表示の日付を生成（今日を含む5日間）
+  const fiveDays = useMemo(() => {
+    return eachDayOfInterval({ start: currentDate, end: addDays(currentDate, 4) });
   }, [currentDate]);
 
   // 日付ごとのイベントを取得
@@ -192,16 +171,10 @@ export function DashboardCalendar({
     });
   };
 
-  // 週表示に表示する社員リスト
+  // 週表示に表示する社員リスト（常に全員）
   const weekViewEmployees = useMemo(() => {
-    if (employeeFilter === "me") {
-      return sortedEmployees.filter((emp) => emp.id === currentEmployeeId);
-    } else if (employeeFilter === "all") {
-      return sortedEmployees;
-    } else {
-      return sortedEmployees.filter((emp) => emp.id === employeeFilter);
-    }
-  }, [sortedEmployees, employeeFilter, currentEmployeeId]);
+    return sortedEmployees;
+  }, [sortedEmployees]);
 
   // ナビゲーション
   const navigatePrev = () => {
@@ -209,11 +182,14 @@ export function DashboardCalendar({
       case "month":
         setCurrentDate(subMonths(currentDate, 1));
         break;
-      case "week":
+      case "weekAll":
         setCurrentDate(subWeeks(currentDate, 1));
         break;
-      case "day":
-        setCurrentDate(subDays(currentDate, 3));
+      case "fiveDay":
+        setCurrentDate(subDays(currentDate, 5));
+        break;
+      case "dayAll":
+        setCurrentDate(subDays(currentDate, 1));
         break;
     }
   };
@@ -223,11 +199,14 @@ export function DashboardCalendar({
       case "month":
         setCurrentDate(addMonths(currentDate, 1));
         break;
-      case "week":
+      case "weekAll":
         setCurrentDate(addWeeks(currentDate, 1));
         break;
-      case "day":
-        setCurrentDate(addDays(currentDate, 3));
+      case "fiveDay":
+        setCurrentDate(addDays(currentDate, 5));
+        break;
+      case "dayAll":
+        setCurrentDate(addDays(currentDate, 1));
         break;
     }
   };
@@ -549,13 +528,15 @@ export function DashboardCalendar({
     switch (viewMode) {
       case "month":
         return format(currentDate, "yyyy年M月", { locale: ja });
-      case "week":
+      case "weekAll":
         const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
         const weekEnd = addDays(weekStart, 6);
         return `${format(weekStart, "M月d日", { locale: ja })} - ${format(weekEnd, "M月d日", { locale: ja })}`;
-      case "day":
-        const dayEnd = addDays(currentDate, 2);
-        return `${format(currentDate, "M月d日", { locale: ja })} - ${format(dayEnd, "M月d日", { locale: ja })}`;
+      case "fiveDay":
+        const fiveDayEnd = addDays(currentDate, 4);
+        return `${format(currentDate, "M月d日", { locale: ja })} - ${format(fiveDayEnd, "M月d日", { locale: ja })}`;
+      case "dayAll":
+        return format(currentDate, "M月d日(E)", { locale: ja });
     }
   };
 
@@ -803,47 +784,191 @@ export function DashboardCalendar({
     </div>
   );
 
-  // 3日表示（時間軸付き、自分のみ）
-  const renderDayView = () => {
-    // 時間枠ラベル: ～8:00, 8:00～9:00, ..., 17:00～18:00, 18:00～
-    const hourLabels = [
-      { label: "～8:00", hour: -1 },
-      ...Array.from({ length: 10 }, (_, i) => ({ label: `${i + 8}:00`, hour: i + 8 })),
-      { label: "18:00～", hour: 18 },
-    ];
+  // 時間枠ラベル（共通）
+  const hourLabels = [
+    { label: "～8:00", hour: -1 },
+    ...Array.from({ length: 10 }, (_, i) => ({ label: `${i + 8}:00`, hour: i + 8 })),
+    { label: "18:00～", hour: 18 },
+  ];
 
-    // イベントを時間枠に配置するヘルパー
-    const getEventPosition = (event: CalendarEventWithParticipants) => {
-      if (!event.start_time) return null;
-      const [startHour, startMin] = event.start_time.split(":").map(Number);
-      const startMinutes = startHour * 60 + startMin;
+  // イベントを時間枠に配置するヘルパー（共通）
+  const getEventPosition = (event: CalendarEventWithParticipants) => {
+    if (!event.start_time) return null;
+    const [startHour, startMin] = event.start_time.split(":").map(Number);
+    const startMinutes = startHour * 60 + startMin;
 
-      // ～8:00の枠を考慮（最初の枠の高さ分オフセット）
-      const baseMinutes = 8 * 60; // 8:00基準
-      const firstSlotHeight = 48; // ～8:00の枠の高さ
-      let top: number;
+    const baseMinutes = 8 * 60;
+    const firstSlotHeight = 48;
+    let top: number;
 
-      if (startMinutes < baseMinutes) {
-        // 8:00より前のイベント
-        top = 0;
-      } else if (startMinutes >= 18 * 60) {
-        // 18:00以降のイベント
-        top = firstSlotHeight + 10 * 48; // ～8:00 + 10時間分
-      } else {
-        // 8:00～18:00のイベント
-        top = firstSlotHeight + ((startMinutes - baseMinutes) / 60) * 48;
-      }
+    if (startMinutes < baseMinutes) {
+      top = 0;
+    } else if (startMinutes >= 18 * 60) {
+      top = firstSlotHeight + 10 * 48;
+    } else {
+      top = firstSlotHeight + ((startMinutes - baseMinutes) / 60) * 48;
+    }
 
-      let height = 48; // デフォルト1時間分
-      if (event.end_time) {
-        const [endHour, endMin] = event.end_time.split(":").map(Number);
-        const endMinutes = endHour * 60 + endMin;
-        height = Math.max(24, ((endMinutes - startMinutes) / 60) * 48);
-      }
+    let height = 48;
+    if (event.end_time) {
+      const [endHour, endMin] = event.end_time.split(":").map(Number);
+      const endMinutes = endHour * 60 + endMin;
+      height = Math.max(24, ((endMinutes - startMinutes) / 60) * 48);
+    }
 
-      return { top, height };
+    return { top, height };
+  };
+
+  // 1日全員表示（時間軸付き、メンバー横並び）
+  const renderDayAllView = () => {
+    // 終日または時間なしイベント
+    const getAllDayEventsForEmployee = (date: Date, employeeId: string) => {
+      return getEventsForDateAndEmployee(date, employeeId).filter((e) => !e.start_time || e.all_day);
     };
 
+    // 時間指定イベント
+    const getTimedEventsForEmployee = (date: Date, employeeId: string) => {
+      return getEventsForDateAndEmployee(date, employeeId).filter((e) => e.start_time && !e.all_day);
+    };
+
+    const dateStr = format(currentDate, "yyyy-MM-dd");
+    const dayOfWeek = currentDate.getDay();
+
+    return (
+      <div className="overflow-auto">
+        {/* ヘッダー: 社員名 */}
+        <div className={`grid border-b`} style={{ gridTemplateColumns: `60px repeat(${sortedEmployees.length}, 1fr)` }}>
+          <div className={`p-2 bg-muted border-r text-center ${
+            dayOfWeek === 0 ? "text-red-500" : dayOfWeek === 6 ? "text-blue-500" : ""
+          }`}>
+            <div className="text-sm font-medium">{format(currentDate, "M/d(E)", { locale: ja })}</div>
+            {isToday(currentDate) && (
+              <span className="inline-block w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs leading-6">
+                今
+              </span>
+            )}
+          </div>
+          {sortedEmployees.map((emp) => (
+            <div key={emp.id} className="p-2 bg-muted border-r text-center text-sm font-medium truncate">
+              {emp.name}
+              {emp.id === currentEmployeeId && <span className="text-xs text-muted-foreground ml-1">(自)</span>}
+            </div>
+          ))}
+        </div>
+
+        {/* 終日イベント行 */}
+        <div className="border-b bg-gray-50" style={{ display: "grid", gridTemplateColumns: `60px repeat(${sortedEmployees.length}, 1fr)` }}>
+          <div className="p-1 border-r text-xs text-muted-foreground text-center">終日</div>
+          {sortedEmployees.map((emp) => {
+            const allDayEvents = getAllDayEventsForEmployee(currentDate, emp.id);
+            const isDragOver = dragOverDate === dateStr;
+            return (
+              <div
+                key={emp.id}
+                className={`p-1 border-r min-h-[32px] cursor-pointer hover:bg-muted/50 ${
+                  isDragOver ? "bg-blue-100 ring-2 ring-blue-400" : ""
+                }`}
+                onClick={() => handleDateClick(currentDate)}
+                onDrop={(e) => handleDrop(currentDate, e)}
+                onDragOver={(e) => handleDragOver(currentDate, e)}
+                onDragLeave={handleDragLeave}
+              >
+                {allDayEvents.map((event) => renderEvent(event, true, true))}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* 時間軸 */}
+        <div style={{ display: "grid", gridTemplateColumns: `60px repeat(${sortedEmployees.length}, 1fr)` }}>
+          {/* 時間ラベル列 */}
+          <div className="border-r">
+            {hourLabels.map((slot, idx) => (
+              <div key={idx} className={`h-12 border-b text-xs text-muted-foreground text-right pr-2 pt-0.5 ${slot.hour === 12 ? "bg-gray-100" : ""}`}>
+                {slot.label}
+              </div>
+            ))}
+          </div>
+
+          {/* 社員ごとのイベント列 */}
+          {sortedEmployees.map((emp) => {
+            const timedEvents = getTimedEventsForEmployee(currentDate, emp.id);
+            return (
+              <div key={emp.id} className="border-r relative">
+                {/* 時間枠の背景線 */}
+                {hourLabels.map((slot, idx) => {
+                  const isSlotDragOver = dragOverSlot?.date === dateStr && dragOverSlot?.hour === slot.hour;
+                  const isLunchTime = slot.hour === 12;
+                  return (
+                    <div
+                      key={idx}
+                      className={`h-12 border-b cursor-pointer ${
+                        isSlotDragOver ? "bg-blue-200" : isLunchTime ? "bg-gray-100" : "hover:bg-muted/30"
+                      }`}
+                      onClick={() => handleDateClick(currentDate)}
+                      onDrop={(e) => handleTimeSlotDrop(currentDate, slot.hour, e)}
+                      onDragOver={(e) => handleTimeSlotDragOver(currentDate, slot.hour, e)}
+                      onDragLeave={() => setDragOverSlot(null)}
+                    />
+                  );
+                })}
+
+                {/* イベント */}
+                {timedEvents.map((event) => {
+                  const pos = getEventPosition(event);
+                  if (!pos) return null;
+                  const categoryColor = getCategoryColor(event);
+                  const lightBgColor = getLightBgColor(categoryColor);
+                  const categoryName = getCategoryName(event);
+                  const isDragging = draggingEventId === event.id;
+                  const isResizing = resizingEvent?.eventId === event.id;
+                  const displayTop = isResizing ? resizingEvent.previewTop : pos.top;
+                  const displayHeight = isResizing ? resizingEvent.previewHeight : pos.height;
+                  return (
+                    <div
+                      key={event.id}
+                      draggable={!isResizing}
+                      onDragStart={(e) => !isResizing && handleEventDragStart(event, e)}
+                      onDragEnd={handleEventDragEnd}
+                      className={`absolute left-0.5 right-0.5 rounded px-1 py-0.5 overflow-hidden border ${lightBgColor} ${
+                        isDragging ? "opacity-50 ring-2 ring-primary" : ""
+                      } ${isResizing ? "ring-2 ring-primary z-10" : "cursor-grab hover:opacity-80"}`}
+                      style={{ top: displayTop, height: displayHeight }}
+                      onClick={(e) => handleEventClick(event, e)}
+                    >
+                      <div
+                        className="absolute top-0 left-0 right-0 h-2 cursor-ns-resize hover:bg-primary/20 z-10"
+                        onMouseDown={(e) => handleResizeStart(event, "top", e, currentDate, pos.top, pos.height)}
+                      />
+                      <div className="text-xs font-medium truncate text-black">
+                        {event.start_time?.slice(0, 5)} {event.title}
+                      </div>
+                      {categoryName && displayHeight >= 36 && (
+                        <span className={`${categoryColor} text-white px-1 rounded text-[10px]`}>{categoryName}</span>
+                      )}
+                      {event.location && displayHeight >= 48 && (
+                        <div className="text-[10px] text-black truncate flex items-center gap-0.5">
+                          <MapPin className="h-2.5 w-2.5" />
+                          {event.location}
+                        </div>
+                      )}
+                      <div
+                        className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize hover:bg-primary/20 z-10"
+                        onMouseDown={(e) => handleResizeStart(event, "bottom", e, currentDate, pos.top, pos.height)}
+                      />
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  // 5日表示（時間軸付き、自分のみ）
+  const renderFiveDayView = () => {
     // 終日または時間なしイベント
     const getAllDayEvents = (date: Date) => {
       return getMyEventsForDate(date).filter((e) => !e.start_time || e.all_day);
@@ -856,10 +981,10 @@ export function DashboardCalendar({
 
     return (
       <div className="overflow-auto">
-        {/* ヘッダー: 3日分の日付 */}
-        <div className="grid grid-cols-[60px_1fr_1fr_1fr] border-b">
+        {/* ヘッダー: 5日分の日付 */}
+        <div className="grid grid-cols-[60px_1fr_1fr_1fr_1fr_1fr] border-b">
           <div className="p-2 bg-muted border-r text-center text-xs font-medium">時間</div>
-          {threeDays.map((date, idx) => {
+          {fiveDays.map((date, idx) => {
             const dayOfWeek = date.getDay();
             return (
               <div
@@ -880,9 +1005,9 @@ export function DashboardCalendar({
         </div>
 
         {/* 終日イベント行 */}
-        <div className="grid grid-cols-[60px_1fr_1fr_1fr] border-b bg-gray-50">
+        <div className="grid grid-cols-[60px_1fr_1fr_1fr_1fr_1fr] border-b bg-gray-50">
           <div className="p-1 border-r text-xs text-muted-foreground text-center">終日</div>
-          {threeDays.map((date, idx) => {
+          {fiveDays.map((date, idx) => {
             const allDayEvents = getAllDayEvents(date);
             const dateStr = format(date, "yyyy-MM-dd");
             const isDragOver = dragOverDate === dateStr;
@@ -904,7 +1029,7 @@ export function DashboardCalendar({
         </div>
 
         {/* 時間軸 */}
-        <div className="grid grid-cols-[60px_1fr_1fr_1fr]">
+        <div className="grid grid-cols-[60px_1fr_1fr_1fr_1fr_1fr]">
           {/* 時間ラベル列 */}
           <div className="border-r">
             {hourLabels.map((slot, idx) => (
@@ -914,8 +1039,8 @@ export function DashboardCalendar({
             ))}
           </div>
 
-          {/* 3日分のイベント列 */}
-          {threeDays.map((date, dayIdx) => {
+          {/* 5日分のイベント列 */}
+          {fiveDays.map((date, dayIdx) => {
             const timedEvents = getTimedEvents(date);
             const dateStr = format(date, "yyyy-MM-dd");
             return (
@@ -950,7 +1075,6 @@ export function DashboardCalendar({
                   const categoryName = getCategoryName(event);
                   const isDragging = draggingEventId === event.id;
                   const isResizing = resizingEvent?.eventId === event.id;
-                  // リサイズ中はプレビュー位置を使用
                   const displayTop = isResizing ? resizingEvent.previewTop : pos.top;
                   const displayHeight = isResizing ? resizingEvent.previewHeight : pos.height;
                   return (
@@ -965,7 +1089,6 @@ export function DashboardCalendar({
                       style={{ top: displayTop, height: displayHeight }}
                       onClick={(e) => handleEventClick(event, e)}
                     >
-                      {/* 上部リサイズハンドル */}
                       <div
                         className="absolute top-0 left-0 right-0 h-2 cursor-ns-resize hover:bg-primary/20 z-10"
                         onMouseDown={(e) => handleResizeStart(event, "top", e, date, pos.top, pos.height)}
@@ -982,7 +1105,6 @@ export function DashboardCalendar({
                           {event.location}
                         </div>
                       )}
-                      {/* 下部リサイズハンドル */}
                       <div
                         className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize hover:bg-primary/20 z-10"
                         onMouseDown={(e) => handleResizeStart(event, "bottom", e, date, pos.top, pos.height)}
@@ -1016,53 +1138,31 @@ export function DashboardCalendar({
         </div>
 
         <div className="flex gap-2 flex-wrap">
-          {/* 社員フィルター */}
-          <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
-            <SelectTrigger className="w-[140px] h-8">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">
-                <span className="flex items-center gap-2">
-                  <UsersRound className="h-4 w-4" />
-                  全員
-                </span>
-              </SelectItem>
-              {currentEmployeeId && (
-                <SelectItem value="me">
-                  <span className="flex items-center gap-2">
-                    <User className="h-4 w-4" />
-                    自分
-                  </span>
-                </SelectItem>
-              )}
-              {sortedEmployees.map((emp) => (
-                <SelectItem key={emp.id} value={emp.id}>
-                  <span className="flex items-center gap-2">
-                    <User className="h-4 w-4 opacity-50" />
-                    {emp.name}
-                  </span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-
-          {/* 表示切替 */}
+          {/* 表示切替: 1日（全員）/5日（個人）/週全員/月 */}
           <div className="flex border rounded-md">
             <Button
-              variant={viewMode === "day" ? "default" : "ghost"}
+              variant={viewMode === "dayAll" ? "default" : "ghost"}
               size="sm"
               className="rounded-r-none"
-              onClick={() => setViewMode("day")}
+              onClick={() => setViewMode("dayAll")}
             >
-              <CalendarRange className="h-4 w-4 mr-1" />
-              日
+              <UsersRound className="h-4 w-4 mr-1" />
+              1日
             </Button>
             <Button
-              variant={viewMode === "week" ? "default" : "ghost"}
+              variant={viewMode === "fiveDay" ? "default" : "ghost"}
               size="sm"
               className="rounded-none border-x"
-              onClick={() => setViewMode("week")}
+              onClick={() => setViewMode("fiveDay")}
+            >
+              <User className="h-4 w-4 mr-1" />
+              5日
+            </Button>
+            <Button
+              variant={viewMode === "weekAll" ? "default" : "ghost"}
+              size="sm"
+              className="rounded-none border-x"
+              onClick={() => setViewMode("weekAll")}
             >
               <CalendarDays className="h-4 w-4 mr-1" />
               週
@@ -1096,8 +1196,9 @@ export function DashboardCalendar({
       {/* カレンダー本体 */}
       <CardContent className="p-0 flex-1 overflow-auto">
         {viewMode === "month" && renderMonthView()}
-        {viewMode === "week" && renderWeekView()}
-        {viewMode === "day" && renderDayView()}
+        {viewMode === "weekAll" && renderWeekView()}
+        {viewMode === "dayAll" && renderDayAllView()}
+        {viewMode === "fiveDay" && renderFiveDayView()}
       </CardContent>
 
       {/* イベント作成・編集モーダル */}
