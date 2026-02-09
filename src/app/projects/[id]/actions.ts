@@ -293,7 +293,8 @@ export async function deleteTaskTemplateSet(
 // テンプレートセットからタスクを一括作成
 export async function createTasksFromTemplateSet(
   projectId: string,
-  setId: string
+  setId: string,
+  defaultAssigneeId?: string | null
 ): Promise<{ success?: boolean; error?: string; created?: number }> {
   const supabase = await createClient();
 
@@ -331,6 +332,7 @@ export async function createTasksFromTemplateSet(
     estimated_minutes: item.estimated_minutes,
     is_completed: false,
     sort_order: currentSortOrder++,
+    assigned_to: defaultAssigneeId || null,
   }));
 
   const { error: insertError } = await supabase

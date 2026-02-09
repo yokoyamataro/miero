@@ -68,6 +68,7 @@ interface TaskListProps {
   projectId: string;
   tasks: Task[];
   employees: Employee[];
+  defaultAssigneeId?: string | null;
 }
 
 // 分を小数時間に変換してフォーマット（例: 90分 → "1.5h"）
@@ -460,10 +461,12 @@ function TemplateModal({
   projectId,
   open,
   onOpenChange,
+  defaultAssigneeId,
 }: {
   projectId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  defaultAssigneeId?: string | null;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -483,7 +486,7 @@ function TemplateModal({
 
   const handleLoadSet = (setId: string) => {
     startTransition(async () => {
-      const result = await createTasksFromTemplateSet(projectId, setId);
+      const result = await createTasksFromTemplateSet(projectId, setId, defaultAssigneeId);
       if (result.success) {
         router.refresh();
         onOpenChange(false);
@@ -653,10 +656,12 @@ function AddTaskModal({
   projectId,
   open,
   onOpenChange,
+  defaultAssigneeId,
 }: {
   projectId: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  defaultAssigneeId?: string | null;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -683,6 +688,7 @@ function AddTaskModal({
         project_id: projectId,
         title: title.trim(),
         estimated_minutes: estimatedMinutes,
+        assigned_to: defaultAssigneeId || null,
       });
       router.refresh();
       onOpenChange(false);
@@ -740,7 +746,7 @@ function AddTaskModal({
   );
 }
 
-export function TaskList({ projectId, tasks, employees }: TaskListProps) {
+export function TaskList({ projectId, tasks, employees, defaultAssigneeId }: TaskListProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [localTasks, setLocalTasks] = useState(tasks);
@@ -876,6 +882,7 @@ export function TaskList({ projectId, tasks, employees }: TaskListProps) {
         projectId={projectId}
         open={showTemplateModal}
         onOpenChange={setShowTemplateModal}
+        defaultAssigneeId={defaultAssigneeId}
       />
 
       {/* テンプレート保存モーダル */}
@@ -891,6 +898,7 @@ export function TaskList({ projectId, tasks, employees }: TaskListProps) {
         projectId={projectId}
         open={showAddModal}
         onOpenChange={setShowAddModal}
+        defaultAssigneeId={defaultAssigneeId}
       />
     </Card>
   );

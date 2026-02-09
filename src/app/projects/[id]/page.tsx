@@ -192,6 +192,7 @@ export default async function ProjectDetailPage({
             projectId={id}
             tasks={typedTasks}
             employees={typedEmployees}
+            defaultAssigneeId={typedProject.manager_id}
           />
 
           <CommentSection
