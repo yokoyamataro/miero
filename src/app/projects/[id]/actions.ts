@@ -15,6 +15,8 @@ import {
   type TaskTemplateItem,
   type TaskTemplateSetWithItems,
   type Task,
+  type Industry,
+  DEFAULT_INDUSTRIES,
 } from "@/types/database";
 
 // ============================================
@@ -36,6 +38,7 @@ export async function updateProject(
     fee_tax_excluded?: number | null;
     location?: string | null;
     location_detail?: string | null;
+    notes?: string | null;
   }
 ) {
   const supabase = await createClient();
@@ -794,6 +797,7 @@ export async function createIndividualContact(data: {
   first_name: string;
   last_name_kana?: string | null;
   first_name_kana?: string | null;
+  birth_date?: string | null;
   email?: string | null;
   phone?: string | null;
   postal_code?: string | null;
@@ -801,6 +805,7 @@ export async function createIndividualContact(data: {
   city?: string | null;
   street?: string | null;
   building?: string | null;
+  notes?: string | null;
 }): Promise<{ success?: boolean; error?: string; contactId?: string }> {
   const supabase = await createClient();
 
@@ -811,11 +816,13 @@ export async function createIndividualContact(data: {
       first_name: data.first_name,
       last_name_kana: data.last_name_kana || null,
       first_name_kana: data.first_name_kana || null,
+      birth_date: data.birth_date || null,
       email: data.email || null,
       phone: data.phone || null,
       postal_code: data.postal_code || null,
       prefecture: data.prefecture || null,
       city: data.city || null,
+      notes: data.notes || null,
       street: data.street || null,
       building: data.building || null,
       account_id: null,
@@ -951,4 +958,171 @@ export async function addContactToAccount(data: {
     success: true,
     contactId: (contact as { id: string }).id,
   };
+}
+
+// ============================================
+// 業種一覧取得
+// ============================================
+export async function getIndustries(): Promise<Industry[]> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("industries" as never)
+    .select("*")
+    .order("sort_order", { ascending: true });
+
+  if (error) {
+    console.error("Error fetching industries:", error);
+    const now = new Date().toISOString();
+    return DEFAULT_INDUSTRIES.map((name, i) => ({
+      id: `default-${i}`,
+      name,
+      sort_order: i,
+      created_at: now,
+      updated_at: now,
+    }));
+  }
+
+  return (data as Industry[]) || [];
+}
+
+// ============================================
+// 法人+担当者を作成（共通モーダル用）
+// ============================================
+export interface AccountFormData {
+  company_name: string;
+  company_name_kana: string | null;
+  corporate_number: string | null;
+  main_phone: string | null;
+  fax: string | null;
+  postal_code: string | null;
+  prefecture: string | null;
+  city: string | null;
+  street: string | null;
+  building: string | null;
+  industry: string | null;
+  notes: string | null;
+}
+
+export interface ContactFormData {
+  id?: string;
+  last_name: string;
+  first_name: string;
+  last_name_kana: string | null;
+  first_name_kana: string | null;
+  phone: string | null;
+  email: string | null;
+  department: string | null;
+  position: string | null;
+  is_primary: boolean;
+  branch_id: string | null;
+}
+
+export interface BranchFormData {
+  id?: string;
+  name: string;
+  phone: string | null;
+  fax: string | null;
+  postal_code: string | null;
+  prefecture: string | null;
+  city: string | null;
+  street: string | null;
+  building: string | null;
+}
+
+export async function createAccountWithContacts(
+  accountData: AccountFormData,
+  contacts: ContactFormData[],
+  branches: BranchFormData[]
+): Promise<{ error?: string; accountId?: string; primaryContactId?: string }> {
+  const supabase = await createClient();
+
+  // 法人を作成
+  const { data: account, error: accountError } = await supabase
+    .from("accounts" as never)
+    .insert({
+      company_name: accountData.company_name,
+      company_name_kana: accountData.company_name_kana,
+      corporate_number: accountData.corporate_number,
+      main_phone: accountData.main_phone,
+      fax: accountData.fax,
+      postal_code: accountData.postal_code,
+      prefecture: accountData.prefecture,
+      city: accountData.city,
+      street: accountData.street,
+      building: accountData.building,
+      industry: accountData.industry,
+      notes: accountData.notes,
+    } as never)
+    .select("id")
+    .single();
+
+  if (accountError || !account) {
+    console.error("Error creating account:", accountError);
+    return { error: "法人の作成に失敗しました" };
+  }
+
+  const accountId = (account as { id: string }).id;
+
+  // 支店を作成
+  const branchIdMap: Record<string, string> = {};
+  for (const branch of branches) {
+    if (!branch.name.trim()) continue;
+
+    const { data: newBranch, error: branchError } = await supabase
+      .from("branches" as never)
+      .insert({
+        account_id: accountId,
+        name: branch.name,
+        phone: branch.phone,
+        fax: branch.fax,
+        postal_code: branch.postal_code,
+        prefecture: branch.prefecture,
+        city: branch.city,
+        street: branch.street,
+        building: branch.building,
+      } as never)
+      .select("id")
+      .single();
+
+    if (!branchError && newBranch) {
+      branchIdMap[branch.id || ""] = (newBranch as { id: string }).id;
+    }
+  }
+
+  // 担当者を作成
+  let primaryContactId: string | undefined;
+  for (const contact of contacts) {
+    if (!contact.last_name.trim() && !contact.first_name.trim()) continue;
+
+    const branchId = contact.branch_id ? branchIdMap[contact.branch_id] || null : null;
+
+    const { data: newContact, error: contactError } = await supabase
+      .from("contacts" as never)
+      .insert({
+        account_id: accountId,
+        branch_id: branchId,
+        last_name: contact.last_name,
+        first_name: contact.first_name,
+        last_name_kana: contact.last_name_kana,
+        first_name_kana: contact.first_name_kana,
+        phone: contact.phone,
+        email: contact.email,
+        department: contact.department,
+        position: contact.position,
+        is_primary: contact.is_primary,
+      } as never)
+      .select("id")
+      .single();
+
+    if (!contactError && newContact) {
+      if (contact.is_primary) {
+        primaryContactId = (newContact as { id: string }).id;
+      } else if (!primaryContactId) {
+        primaryContactId = (newContact as { id: string }).id;
+      }
+    }
+  }
+
+  return { accountId, primaryContactId };
 }

@@ -18,7 +18,8 @@ import { TaskList } from "./task-list";
 import { CommentSection } from "./comment-section";
 import { ProjectInfo, type CustomerData, type CorporateContact } from "./project-info";
 import { StakeholderSection } from "./stakeholder-section";
-import { getCurrentEmployeeId, getStakeholderTags, getProjectStakeholders } from "./actions";
+import { ProjectNotes } from "./project-notes";
+import { getCurrentEmployeeId, getStakeholderTags, getProjectStakeholders, getIndustries } from "./actions";
 
 
 
@@ -55,6 +56,7 @@ export default async function ProjectDetailPage({
     currentEmployeeId,
     stakeholderTags,
     projectStakeholders,
+    industries,
   ] = await Promise.all([
     project.contact_id
       ? supabase.from("contacts" as never).select("*").eq("id", project.contact_id).single()
@@ -96,6 +98,7 @@ export default async function ProjectDetailPage({
     getCurrentEmployeeId(),
     getStakeholderTags(),
     getProjectStakeholders(id),
+    getIndustries(),
   ]);
 
   const typedProject = project as Project;
@@ -175,6 +178,7 @@ export default async function ProjectDetailPage({
             customerData={customerData}
             currentEmployeeId={currentEmployeeId}
             taskTimeTotals={taskTimeTotals}
+            industries={industries}
             stakeholderSection={
               <StakeholderSection
                 projectId={id}
@@ -186,8 +190,13 @@ export default async function ProjectDetailPage({
           />
         </div>
 
-        {/* 右カラム: タスク & コメント */}
+        {/* 右カラム: ノート & タスク & コメント */}
         <div className="lg:col-span-2 space-y-6">
+          <ProjectNotes
+            projectId={id}
+            notes={typedProject.notes}
+          />
+
           <TaskList
             projectId={id}
             tasks={typedTasks}

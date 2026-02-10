@@ -57,7 +57,12 @@ interface DashboardCalendarProps {
   initialView: ViewMode;
   initialDate: string;
   currentEmployeeId: string | null;
-  onDropTask: (date: Date, taskData: DroppedTaskData) => void;
+  onDropTask: (
+    date: Date,
+    taskData: DroppedTaskData,
+    startTime?: { hour: string; minute: string },
+    endTime?: { hour: string; minute: string }
+  ) => void;
 }
 
 export interface DroppedTaskData {
@@ -411,14 +416,13 @@ export function DashboardCalendar({
             endHour = String(hour).padStart(2, "0");
           }
 
-          // 時刻付きでonDropTaskを呼び出すため、handleDateClickを使用
-          setSelectedDate(date);
-          setSelectedEvent(null);
-          setSelectedStartTime({ hour: startHour, minute: startMinute });
-          setSelectedEndTime({ hour: endHour, minute: endMinute });
-
-          // DroppedTaskDataをセットしてモーダルを開く（親コンポーネントに通知）
-          onDropTask(date, parsed);
+          // 時刻情報付きで親コンポーネントに通知
+          onDropTask(
+            date,
+            parsed,
+            { hour: startHour, minute: startMinute },
+            { hour: endHour, minute: endMinute }
+          );
           return;
         }
       } catch {

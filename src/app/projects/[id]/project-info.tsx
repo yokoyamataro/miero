@@ -60,7 +60,9 @@ import {
   type Account,
   type Employee,
 } from "@/types/database";
-import { updateProject, deleteProject, createComment, updateContact, updateAccount, createIndividualContact, createCorporateContact, addContactToAccount } from "./actions";
+import { updateProject, deleteProject, createComment, updateContact, updateAccount, createIndividualContact, createCorporateContact, addContactToAccount, createAccountWithContacts, type AccountFormData, type ContactFormData, type BranchFormData } from "./actions";
+import { AddIndividualModal, AddAccountModal } from "@/components/customer-modal";
+import type { Industry } from "@/types/database";
 import { Phone, Mail, MapPin as MapPinIcon, Pencil, Printer } from "lucide-react";
 import { Label } from "@/components/ui/label";
 
@@ -101,6 +103,7 @@ interface ProjectInfoProps {
     estimatedMinutes: number;
     actualMinutes: number;
   };
+  industries: Industry[];
   stakeholderSection?: React.ReactNode;
 }
 
@@ -127,7 +130,7 @@ function formatHours(minutes: number): string {
 }
 
 // 顧客選択モーダル（2段階選択 + 新規追加）
-type ContactSelectStep = "list" | "accountContacts" | "newType" | "newIndividual" | "newCorporate";
+type ContactSelectStep = "list" | "accountContacts" | "newType";
 
 export function ContactSelectModal({
   open,
@@ -135,12 +138,14 @@ export function ContactSelectModal({
   customerData,
   currentContactId,
   onSelect,
+  industries,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   customerData: CustomerData;
   currentContactId: string | null;
   onSelect: (contactId: string | null) => void;
+  industries: Industry[];
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -148,48 +153,14 @@ export function ContactSelectModal({
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedAccount, setSelectedAccount] = useState<AccountOption | null>(null);
 
-  // 新規個人フォーム
-  const [individualForm, setIndividualForm] = useState({
-    last_name: "",
-    first_name: "",
-    last_name_kana: "",
-    first_name_kana: "",
-    phone: "",
-    email: "",
-  });
-
-  // 新規法人フォーム
-  const [corporateForm, setCorporateForm] = useState({
-    company_name: "",
-    company_name_kana: "",
-    main_phone: "",
-    contact_last_name: "",
-    contact_first_name: "",
-    contact_phone: "",
-    contact_email: "",
-  });
+  // 新規追加モーダル
+  const [showAddIndividualModal, setShowAddIndividualModal] = useState(false);
+  const [showAddAccountModal, setShowAddAccountModal] = useState(false);
 
   const reset = () => {
     setStep("list");
     setSearchQuery("");
     setSelectedAccount(null);
-    setIndividualForm({
-      last_name: "",
-      first_name: "",
-      last_name_kana: "",
-      first_name_kana: "",
-      phone: "",
-      email: "",
-    });
-    setCorporateForm({
-      company_name: "",
-      company_name_kana: "",
-      main_phone: "",
-      contact_last_name: "",
-      contact_first_name: "",
-      contact_phone: "",
-      contact_email: "",
-    });
   };
 
   // 検索フィルタリング
@@ -224,8 +195,8 @@ export function ContactSelectModal({
     if (step === "accountContacts") {
       setSelectedAccount(null);
       setStep("list");
-    } else if (step === "newType" || step === "newIndividual" || step === "newCorporate") {
-      setStep(step === "newType" ? "list" : "newType");
+    } else if (step === "newType") {
+      setStep("list");
     }
   };
 
@@ -238,61 +209,20 @@ export function ContactSelectModal({
     );
   }, [selectedAccount, searchQuery]);
 
-  // 新規個人を作成
-  const handleCreateIndividual = () => {
-    if (!individualForm.last_name || !individualForm.first_name) return;
-
-    startTransition(async () => {
-      const result = await createIndividualContact({
-        last_name: individualForm.last_name,
-        first_name: individualForm.first_name,
-        last_name_kana: individualForm.last_name_kana || null,
-        first_name_kana: individualForm.first_name_kana || null,
-        phone: individualForm.phone || null,
-        email: individualForm.email || null,
-      });
-
-      if (result.error) {
-        alert(result.error);
-        return;
-      }
-
-      if (result.contactId) {
-        onSelect(result.contactId);
-        onOpenChange(false);
-        reset();
-        router.refresh();
-      }
-    });
+  // 新規個人顧客が作成されたとき
+  const handleIndividualCreated = (contactId: string) => {
+    onSelect(contactId);
+    onOpenChange(false);
+    reset();
+    router.refresh();
   };
 
-  // 新規法人を作成
-  const handleCreateCorporate = () => {
-    if (!corporateForm.company_name || !corporateForm.contact_last_name || !corporateForm.contact_first_name) return;
-
-    startTransition(async () => {
-      const result = await createCorporateContact({
-        company_name: corporateForm.company_name,
-        company_name_kana: corporateForm.company_name_kana || null,
-        main_phone: corporateForm.main_phone || null,
-        contact_last_name: corporateForm.contact_last_name,
-        contact_first_name: corporateForm.contact_first_name,
-        contact_phone: corporateForm.contact_phone || null,
-        contact_email: corporateForm.contact_email || null,
-      });
-
-      if (result.error) {
-        alert(result.error);
-        return;
-      }
-
-      if (result.contactId) {
-        onSelect(result.contactId);
-        onOpenChange(false);
-        reset();
-        router.refresh();
-      }
-    });
+  // 新規法人+担当者が作成されたとき
+  const handleAccountCreated = (contactId: string) => {
+    onSelect(contactId);
+    onOpenChange(false);
+    reset();
+    router.refresh();
   };
 
   // タイトル
@@ -313,29 +243,11 @@ export function ContactSelectModal({
             <Button variant="ghost" size="sm" onClick={handleBack} className="h-8 w-8 p-0">
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            新規顧客を追加
-          </div>
-        );
-      case "newIndividual":
-        return (
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={handleBack} className="h-8 w-8 p-0">
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            個人を追加
-          </div>
-        );
-      case "newCorporate":
-        return (
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={handleBack} className="h-8 w-8 p-0">
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            法人を追加
+            新規依頼人を追加
           </div>
         );
       default:
-        return "顧客を選択";
+        return "依頼人を選択";
     }
   };
 
@@ -370,7 +282,7 @@ export function ContactSelectModal({
               )}
             </div>
 
-            {/* 顧客リスト */}
+            {/* 依頼人リスト */}
             <div className="flex-1 overflow-y-auto space-y-4 mt-4">
               {/* 新規追加ボタン */}
               <Button
@@ -379,7 +291,7 @@ export function ContactSelectModal({
                 onClick={() => setStep("newType")}
               >
                 <Plus className="h-4 w-4" />
-                新規顧客を追加
+                新規依頼人を追加
               </Button>
 
               {/* 未選択オプション */}
@@ -447,7 +359,7 @@ export function ContactSelectModal({
 
               {filteredAccounts.length === 0 && filteredIndividuals.length === 0 && searchQuery && (
                 <div className="text-center text-muted-foreground py-4">
-                  該当する顧客がありません
+                  該当する依頼人がありません
                 </div>
               )}
             </div>
@@ -526,7 +438,9 @@ export function ContactSelectModal({
             <Button
               variant="outline"
               className="w-full justify-start gap-3 h-auto py-4"
-              onClick={() => setStep("newIndividual")}
+              onClick={() => {
+                setShowAddIndividualModal(true);
+              }}
             >
               <User className="h-5 w-5" />
               <div className="text-left">
@@ -537,7 +451,9 @@ export function ContactSelectModal({
             <Button
               variant="outline"
               className="w-full justify-start gap-3 h-auto py-4"
-              onClick={() => setStep("newCorporate")}
+              onClick={() => {
+                setShowAddAccountModal(true);
+              }}
             >
               <Building2 className="h-5 w-5" />
               <div className="text-left">
@@ -547,151 +463,24 @@ export function ContactSelectModal({
             </Button>
           </div>
         )}
-
-        {step === "newIndividual" && (
-          <div className="flex-1 overflow-y-auto space-y-4 mt-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label htmlFor="ind_last_name">姓 *</Label>
-                <Input
-                  id="ind_last_name"
-                  value={individualForm.last_name}
-                  onChange={(e) => setIndividualForm({ ...individualForm, last_name: e.target.value })}
-                  autoFocus
-                />
-              </div>
-              <div>
-                <Label htmlFor="ind_first_name">名 *</Label>
-                <Input
-                  id="ind_first_name"
-                  value={individualForm.first_name}
-                  onChange={(e) => setIndividualForm({ ...individualForm, first_name: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label htmlFor="ind_last_name_kana">姓（カナ）</Label>
-                <Input
-                  id="ind_last_name_kana"
-                  value={individualForm.last_name_kana}
-                  onChange={(e) => setIndividualForm({ ...individualForm, last_name_kana: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label htmlFor="ind_first_name_kana">名（カナ）</Label>
-                <Input
-                  id="ind_first_name_kana"
-                  value={individualForm.first_name_kana}
-                  onChange={(e) => setIndividualForm({ ...individualForm, first_name_kana: e.target.value })}
-                />
-              </div>
-              <div className="col-span-2">
-                <Label htmlFor="ind_phone">電話番号</Label>
-                <Input
-                  id="ind_phone"
-                  value={individualForm.phone}
-                  onChange={(e) => setIndividualForm({ ...individualForm, phone: e.target.value })}
-                />
-              </div>
-              <div className="col-span-2">
-                <Label htmlFor="ind_email">メールアドレス</Label>
-                <Input
-                  id="ind_email"
-                  type="email"
-                  value={individualForm.email}
-                  onChange={(e) => setIndividualForm({ ...individualForm, email: e.target.value })}
-                />
-              </div>
-            </div>
-            <Button
-              className="w-full"
-              disabled={!individualForm.last_name || !individualForm.first_name || isPending}
-              onClick={handleCreateIndividual}
-            >
-              追加して選択
-            </Button>
-          </div>
-        )}
-
-        {step === "newCorporate" && (
-          <div className="flex-1 overflow-y-auto space-y-4 mt-4">
-            <div className="space-y-3">
-              <h4 className="text-sm font-medium border-b pb-1">法人情報</h4>
-              <div>
-                <Label htmlFor="corp_name">法人名 *</Label>
-                <Input
-                  id="corp_name"
-                  value={corporateForm.company_name}
-                  onChange={(e) => setCorporateForm({ ...corporateForm, company_name: e.target.value })}
-                  autoFocus
-                />
-              </div>
-              <div>
-                <Label htmlFor="corp_name_kana">フリガナ</Label>
-                <Input
-                  id="corp_name_kana"
-                  value={corporateForm.company_name_kana}
-                  onChange={(e) => setCorporateForm({ ...corporateForm, company_name_kana: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label htmlFor="corp_phone">代表電話</Label>
-                <Input
-                  id="corp_phone"
-                  value={corporateForm.main_phone}
-                  onChange={(e) => setCorporateForm({ ...corporateForm, main_phone: e.target.value })}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-3">
-              <h4 className="text-sm font-medium border-b pb-1">担当者情報</h4>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <Label htmlFor="corp_contact_last_name">姓 *</Label>
-                  <Input
-                    id="corp_contact_last_name"
-                    value={corporateForm.contact_last_name}
-                    onChange={(e) => setCorporateForm({ ...corporateForm, contact_last_name: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="corp_contact_first_name">名 *</Label>
-                  <Input
-                    id="corp_contact_first_name"
-                    value={corporateForm.contact_first_name}
-                    onChange={(e) => setCorporateForm({ ...corporateForm, contact_first_name: e.target.value })}
-                  />
-                </div>
-              </div>
-              <div>
-                <Label htmlFor="corp_contact_phone">電話番号</Label>
-                <Input
-                  id="corp_contact_phone"
-                  value={corporateForm.contact_phone}
-                  onChange={(e) => setCorporateForm({ ...corporateForm, contact_phone: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label htmlFor="corp_contact_email">メールアドレス</Label>
-                <Input
-                  id="corp_contact_email"
-                  type="email"
-                  value={corporateForm.contact_email}
-                  onChange={(e) => setCorporateForm({ ...corporateForm, contact_email: e.target.value })}
-                />
-              </div>
-            </div>
-
-            <Button
-              className="w-full"
-              disabled={!corporateForm.company_name || !corporateForm.contact_last_name || !corporateForm.contact_first_name || isPending}
-              onClick={handleCreateCorporate}
-            >
-              追加して選択
-            </Button>
-          </div>
-        )}
       </DialogContent>
+
+      {/* 個人追加モーダル */}
+      <AddIndividualModal
+        open={showAddIndividualModal}
+        onOpenChange={setShowAddIndividualModal}
+        onSaved={handleIndividualCreated}
+        createIndividualContact={createIndividualContact}
+      />
+
+      {/* 法人追加モーダル */}
+      <AddAccountModal
+        open={showAddAccountModal}
+        onOpenChange={setShowAddAccountModal}
+        onSaved={handleAccountCreated}
+        industries={industries}
+        createAccount={createAccountWithContacts}
+      />
     </Dialog>
   );
 }
@@ -711,14 +500,14 @@ function CustomerDetailSection({
   if (!contact) {
     return (
       <div className="text-muted-foreground text-sm">
-        顧客が選択されていません
+        依頼人が選択されていません
         <Button
           variant="link"
           size="sm"
           className="ml-2 h-auto p-0"
           onClick={onChangeClick}
         >
-          顧客を選択
+          依頼人を選択
         </Button>
       </div>
     );
@@ -1330,6 +1119,7 @@ export function ProjectInfo({
   customerData,
   currentEmployeeId,
   taskTimeTotals,
+  industries,
   stakeholderSection,
 }: ProjectInfoProps) {
   const router = useRouter();
@@ -1506,7 +1296,7 @@ export function ProjectInfo({
           <div className="flex items-start gap-3">
             <Building2 className="h-5 w-5 text-muted-foreground mt-0.5" />
             <div className="flex-1">
-              <div className="text-sm text-muted-foreground mb-2">顧客</div>
+              <div className="text-sm text-muted-foreground mb-2">依頼人</div>
               <CustomerDetailSection
                 contact={contact}
                 account={account}
@@ -1626,6 +1416,7 @@ export function ProjectInfo({
         customerData={customerData}
         currentContactId={project.contact_id}
         onSelect={handleContactChange}
+        industries={industries}
       />
 
       {/* 顧客編集モーダル */}

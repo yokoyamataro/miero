@@ -38,12 +38,21 @@ export function DashboardView({
   const [showEventModal, setShowEventModal] = useState(false);
   const [droppedDate, setDroppedDate] = useState<Date | null>(null);
   const [droppedTaskData, setDroppedTaskData] = useState<DroppedTaskData | null>(null);
+  const [droppedStartTime, setDroppedStartTime] = useState<{ hour: string; minute: string } | null>(null);
+  const [droppedEndTime, setDroppedEndTime] = useState<{ hour: string; minute: string } | null>(null);
   const [draggingTask, setDraggingTask] = useState<TaskWithProject | null>(null);
 
   // タスクをカレンダーにドロップしたとき
-  const handleDropTask = useCallback((date: Date, taskData: DroppedTaskData) => {
+  const handleDropTask = useCallback((
+    date: Date,
+    taskData: DroppedTaskData,
+    startTime?: { hour: string; minute: string },
+    endTime?: { hour: string; minute: string }
+  ) => {
     setDroppedDate(date);
     setDroppedTaskData(taskData);
+    setDroppedStartTime(startTime || null);
+    setDroppedEndTime(endTime || null);
     setShowEventModal(true);
   }, []);
 
@@ -57,6 +66,8 @@ export function DashboardView({
     setShowEventModal(false);
     setDroppedDate(null);
     setDroppedTaskData(null);
+    setDroppedStartTime(null);
+    setDroppedEndTime(null);
     router.refresh();
     window.location.reload();
   };
@@ -70,9 +81,9 @@ export function DashboardView({
         category: "その他",
         event_category_id: eventCategories[0]?.id || null,
         start_date: format(droppedDate!, "yyyy-MM-dd"),
-        start_time: null,
+        start_time: droppedStartTime ? `${droppedStartTime.hour}:${droppedStartTime.minute}:00` : null,
         end_date: format(droppedDate!, "yyyy-MM-dd"),
-        end_time: null,
+        end_time: droppedEndTime ? `${droppedEndTime.hour}:${droppedEndTime.minute}:00` : null,
         all_day: false,
         location: null,
         map_url: null,
@@ -129,6 +140,8 @@ export function DashboardView({
           if (!open) {
             setDroppedDate(null);
             setDroppedTaskData(null);
+            setDroppedStartTime(null);
+            setDroppedEndTime(null);
           }
         }}
         employees={employees}
@@ -137,6 +150,8 @@ export function DashboardView({
         event={presetEvent}
         onSaved={handleEventSaved}
         currentEmployeeId={currentEmployeeId}
+        initialStartTime={droppedStartTime}
+        initialEndTime={droppedEndTime}
       />
     </div>
   );
