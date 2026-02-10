@@ -743,3 +743,75 @@ export interface DocumentTemplateInsert {
   description?: string | null;
   sort_order?: number;
 }
+
+// ============================================
+// BusinessEntity (事業主体)
+// ============================================
+export interface BusinessEntity {
+  id: string;
+  name: string;
+  code: string; // Y, T, L
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BusinessEntityInsert {
+  id?: string;
+  name: string;
+  code: string;
+  sort_order?: number;
+}
+
+// ============================================
+// Invoice (請求書)
+// ============================================
+export interface Invoice {
+  id: string;
+  invoice_number: string; // Y-A260001-01 形式
+  project_id: string;
+  business_entity_id: string;
+  sequence_number: number;
+  invoice_date: string;
+  recipient_contact_id: string | null;
+  person_in_charge_id: string | null;
+  fee_tax_excluded: number;
+  expenses: number;
+  total_amount: number;
+  pdf_path: string | null;
+  notes: string | null;
+  is_accounting_registered: boolean;
+  is_payment_received: boolean;
+  payment_received_date: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+}
+
+export interface InvoiceInsert {
+  id?: string;
+  invoice_number: string;
+  project_id: string;
+  business_entity_id: string;
+  sequence_number?: number;
+  invoice_date: string;
+  recipient_contact_id?: string | null;
+  person_in_charge_id?: string | null;
+  fee_tax_excluded?: number;
+  expenses?: number;
+  total_amount?: number;
+  pdf_path?: string | null;
+  notes?: string | null;
+  is_accounting_registered?: boolean;
+  is_payment_received?: boolean;
+  payment_received_date?: string | null;
+}
+
+// 請求書（関連情報付き）
+export interface InvoiceWithDetails extends Invoice {
+  project: Project;
+  businessEntity: BusinessEntity;
+  recipientContact: Contact | null;
+  recipientAccount: Account | null;
+  personInCharge: Employee | null;
+}

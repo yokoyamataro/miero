@@ -10,6 +10,7 @@ import {
   Menu,
   RefreshCw,
   Home,
+  Receipt,
 } from "lucide-react";
 import { format, addHours } from "date-fns";
 import { ja } from "date-fns/locale";
@@ -28,6 +29,7 @@ const navItems = [
   { href: "/projects", label: "業務", icon: FolderKanban },
   { href: "/customers", label: "顧客", icon: UserCircle },
   { href: "/employees", label: "社員", icon: Users },
+  { href: "/invoices", label: "請求", icon: Receipt },
 ];
 
 export async function Header() {

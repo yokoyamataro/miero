@@ -13,13 +13,16 @@ import {
   type CommentAcknowledgement,
   type StakeholderTag,
   type ProjectStakeholderWithDetails,
+  type BusinessEntity,
 } from "@/types/database";
 import { TaskList } from "./task-list";
 import { CommentSection } from "./comment-section";
 import { ProjectInfo, type CustomerData, type CorporateContact } from "./project-info";
 import { StakeholderSection } from "./stakeholder-section";
 import { ProjectNotes } from "./project-notes";
+import { InvoiceSection } from "./invoice-section";
 import { getCurrentEmployeeId, getStakeholderTags, getProjectStakeholders, getIndustries } from "./actions";
+import { getBusinessEntities, getProjectInvoices } from "@/app/invoices/actions";
 
 
 
@@ -57,6 +60,8 @@ export default async function ProjectDetailPage({
     stakeholderTags,
     projectStakeholders,
     industries,
+    businessEntities,
+    projectInvoices,
   ] = await Promise.all([
     project.contact_id
       ? supabase.from("contacts" as never).select("*").eq("id", project.contact_id).single()
@@ -99,6 +104,8 @@ export default async function ProjectDetailPage({
     getStakeholderTags(),
     getProjectStakeholders(id),
     getIndustries(),
+    getBusinessEntities(),
+    getProjectInvoices(id),
   ]);
 
   const typedProject = project as Project;
@@ -187,6 +194,17 @@ export default async function ProjectDetailPage({
                 customerData={customerData}
               />
             }
+          />
+
+          {/* 請求管理セクション */}
+          <InvoiceSection
+            projectId={id}
+            projectCode={typedProject.code}
+            invoices={projectInvoices}
+            businessEntities={businessEntities}
+            employees={typedEmployees}
+            customerData={customerData}
+            defaultRecipientContactId={typedProject.contact_id}
           />
         </div>
 
