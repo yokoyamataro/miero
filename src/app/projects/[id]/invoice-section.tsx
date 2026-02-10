@@ -52,6 +52,8 @@ import {
   deleteInvoice,
   toggleAccountingRegistered,
   togglePaymentReceived,
+  getInvoicePdfUrl,
+  uploadInvoicePdf,
 } from "@/app/invoices/actions";
 import type { CustomerData } from "./project-info";
 
@@ -230,6 +232,15 @@ export function InvoiceSection({
     });
   };
 
+  const handleOpenPdf = async (pdfPath: string) => {
+    const { url, error } = await getInvoicePdfUrl(pdfPath);
+    if (error || !url) {
+      alert("PDFを開けませんでした");
+      return;
+    }
+    window.open(url, "_blank");
+  };
+
   // 相手先の選択肢を作成
   const recipientOptions: { id: string; label: string }[] = [];
   customerData.accounts.forEach((acc) => {
@@ -321,6 +332,7 @@ export function InvoiceSection({
                             size="sm"
                             className="h-7 w-7 p-0"
                             title="PDFを開く"
+                            onClick={() => handleOpenPdf(invoice.pdf_path!)}
                           >
                             <FileText className="h-4 w-4" />
                           </Button>

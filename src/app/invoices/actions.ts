@@ -378,3 +378,65 @@ export async function togglePaymentReceived(
     payment_received_date: isReceived ? (paymentDate || new Date().toISOString().split("T")[0]) : null,
   });
 }
+
+// ============================================
+// PDF署名付きURL取得
+// ============================================
+export async function getInvoicePdfUrl(pdfPath: string): Promise<{ url?: string; error?: string }> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase.storage
+    .from("invoices")
+    .createSignedUrl(pdfPath, 60 * 60); // 1時間有効
+
+  if (error) {
+    console.error("Error creating signed URL:", error);
+    return { error: "PDFのURLを取得できませんでした" };
+  }
+
+  return { url: data.signedUrl };
+}
+
+// ============================================
+// PDFアップロード
+// ============================================
+export async function uploadInvoicePdf(
+  invoiceId: string,
+  formData: FormData
+): Promise<{ pdfPath?: string; error?: string }> {
+  const supabase = await createClient();
+
+  const file = formData.get("file") as File;
+  if (!file) {
+    return { error: "ファイルが選択されていません" };
+  }
+
+  // ファイル名を生成（invoiceId_timestamp.pdf）
+  const timestamp = Date.now();
+  const fileName = `${invoiceId}_${timestamp}.pdf`;
+
+  const { error: uploadError } = await supabase.storage
+    .from("invoices")
+    .upload(fileName, file, {
+      contentType: "application/pdf",
+      upsert: false,
+    });
+
+  if (uploadError) {
+    console.error("Error uploading PDF:", uploadError);
+    return { error: "PDFのアップロードに失敗しました" };
+  }
+
+  // 請求書レコードを更新
+  const { error: updateError } = await supabase
+    .from("invoices" as never)
+    .update({ pdf_path: fileName, updated_at: new Date().toISOString() } as never)
+    .eq("id", invoiceId);
+
+  if (updateError) {
+    console.error("Error updating invoice:", updateError);
+    return { error: "請求書の更新に失敗しました" };
+  }
+
+  return { pdfPath: fileName };
+}

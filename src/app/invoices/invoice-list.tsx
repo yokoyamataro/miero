@@ -39,6 +39,7 @@ import {
 import {
   toggleAccountingRegistered,
   togglePaymentReceived,
+  getInvoicePdfUrl,
 } from "./actions";
 
 interface InvoiceListProps {
@@ -140,6 +141,15 @@ export function InvoiceList({
       await togglePaymentReceived(invoiceId, !current);
       router.refresh();
     });
+  };
+
+  const handleOpenPdf = async (pdfPath: string) => {
+    const { url, error } = await getInvoicePdfUrl(pdfPath);
+    if (error || !url) {
+      alert("PDFを開けませんでした");
+      return;
+    }
+    window.open(url, "_blank");
   };
 
   const clearFilters = () => {
@@ -338,11 +348,24 @@ export function InvoiceList({
                         />
                       </TableCell>
                       <TableCell>
-                        <Link href={`/projects/${invoice.project_id}`}>
-                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
-                            <ExternalLink className="h-4 w-4" />
-                          </Button>
-                        </Link>
+                        <div className="flex items-center gap-1">
+                          {invoice.pdf_path && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0"
+                              title="PDFを開く"
+                              onClick={() => handleOpenPdf(invoice.pdf_path!)}
+                            >
+                              <FileText className="h-4 w-4" />
+                            </Button>
+                          )}
+                          <Link href={`/projects/${invoice.project_id}`}>
+                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                              <ExternalLink className="h-4 w-4" />
+                            </Button>
+                          </Link>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
