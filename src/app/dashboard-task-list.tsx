@@ -15,7 +15,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { ListTodo, User, UsersRound, GripVertical, Clock, AlertTriangle, Pause, ChevronDown, ChevronRight } from "lucide-react";
+import { ListTodo, User, UsersRound, GripVertical, Clock, AlertTriangle, Pause, ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { type Employee } from "@/types/database";
 import { type TaskWithProject } from "./dashboard-actions";
 import Link from "next/link";
@@ -110,6 +110,16 @@ export function DashboardTaskList({
 
   return (
     <Card className="h-full flex flex-col">
+      {/* 新規業務登録ボタン */}
+      <div className="px-4 pt-4">
+        <Link href="/projects/new">
+          <Button className="w-full h-12 text-base" size="lg">
+            <Plus className="h-5 w-5 mr-2" />
+            新規業務登録
+          </Button>
+        </Link>
+      </div>
+
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg flex items-center gap-2">

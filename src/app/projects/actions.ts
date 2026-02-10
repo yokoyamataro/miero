@@ -14,6 +14,10 @@ const CATEGORY_PREFIX: Record<ProjectCategory, string> = {
   E_Corporate: "E",
   F_Drone: "F",
   N_Farmland: "N",
+  S_General: "S",
+  K_Association: "K",
+  V_Training: "V",
+  O_Other: "O",
 };
 
 // 次の業務コードを取得
