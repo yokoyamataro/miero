@@ -422,14 +422,14 @@ export function InvoiceSection({
             <div className="space-y-2">
               <Label>相手先</Label>
               <Select
-                value={formData.recipient_contact_id}
-                onValueChange={(v) => setFormData({ ...formData, recipient_contact_id: v })}
+                value={formData.recipient_contact_id || "__none__"}
+                onValueChange={(v) => setFormData({ ...formData, recipient_contact_id: v === "__none__" ? "" : v })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="相手先を選択" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">未選択</SelectItem>
+                  <SelectItem value="__none__">未選択</SelectItem>
                   {recipientOptions.map((opt) => (
                     <SelectItem key={opt.id} value={opt.id}>
                       {opt.label}
@@ -443,14 +443,14 @@ export function InvoiceSection({
             <div className="space-y-2">
               <Label>請求担当者</Label>
               <Select
-                value={formData.person_in_charge_id}
-                onValueChange={(v) => setFormData({ ...formData, person_in_charge_id: v })}
+                value={formData.person_in_charge_id || "__none__"}
+                onValueChange={(v) => setFormData({ ...formData, person_in_charge_id: v === "__none__" ? "" : v })}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="担当者を選択" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">未選択</SelectItem>
+                  <SelectItem value="__none__">未選択</SelectItem>
                   {employees.map((emp) => (
                     <SelectItem key={emp.id} value={emp.id}>
                       {emp.name}
