@@ -77,17 +77,21 @@ export async function createIndividualContact(data: IndividualContactFormData) {
     notes: data.notes || null,
   };
 
-  const { error } = await supabase
+  const { data: insertedContact, error } = await supabase
     .from("contacts" as never)
-    .insert(contactInsert as never);
+    .insert(contactInsert as never)
+    .select()
+    .single();
 
   if (error) {
     console.error("Error creating contact:", error);
     return { error: error.message };
   }
 
+  const contactId = (insertedContact as { id: string }).id;
+
   revalidatePath("/contacts");
-  return { success: true };
+  return { success: true, contactId };
 }
 
 export async function updateIndividualContact(

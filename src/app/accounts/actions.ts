@@ -171,6 +171,8 @@ export async function createAccount(
     }
   }
 
+  let primaryContactId: string | null = null;
+
   if (contacts.length > 0) {
     const contactsToInsert = contacts.map((c) => ({
       account_id: accountId,
@@ -186,18 +188,27 @@ export async function createAccount(
       is_primary: c.is_primary,
     }));
 
-    const { error: contactsError } = await supabase
+    const { data: insertedContacts, error: contactsError } = await supabase
       .from("contacts" as never)
-      .insert(contactsToInsert as never);
+      .insert(contactsToInsert as never)
+      .select();
 
     if (contactsError) {
       console.error("Error creating contacts:", contactsError);
       return { error: contactsError.message };
     }
+
+    // 主要担当者のIDを取得
+    if (insertedContacts && insertedContacts.length > 0) {
+      const primary = (insertedContacts as Array<{ id: string; is_primary: boolean }>).find(
+        (c) => c.is_primary
+      );
+      primaryContactId = primary?.id || (insertedContacts[0] as { id: string }).id;
+    }
   }
 
   revalidatePath("/accounts");
-  return { success: true };
+  return { success: true, accountId, primaryContactId };
 }
 
 export async function updateAccount(

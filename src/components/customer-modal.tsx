@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/select";
 import { Loader2, Plus, X, Star, Building, Search, ChevronLeft } from "lucide-react";
 import type { Industry } from "@/types/database";
-import { estimatePostalCode } from "@/lib/ai/postal-code";
+import { estimatePostalCode, lookupAddressByPostalCode } from "@/lib/ai/postal-code";
 
 // 法人格のカナパターン
 const CORPORATE_TITLE_KANA = [
@@ -127,7 +127,7 @@ interface IndividualContactFormData {
 interface AddIndividualModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSaved: (contactId: string) => void;
+  onSaved: (contactId: string, name: string) => void;
   createIndividualContact: (data: IndividualContactFormData) => Promise<{ error?: string; contactId?: string }>;
 }
 
@@ -139,6 +139,7 @@ export function AddIndividualModal({
 }: AddIndividualModalProps) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
+  const [lookingUpAddress, setLookingUpAddress] = useState(false);
 
   const [formData, setFormData] = useState<IndividualContactFormData>({
     last_name: "",
@@ -180,6 +181,35 @@ export function AddIndividualModal({
     onOpenChange(false);
   };
 
+  // 郵便番号から住所を検索
+  const handleLookupAddress = async () => {
+    if (!formData.postal_code) {
+      setError("郵便番号を入力してください");
+      return;
+    }
+
+    setLookingUpAddress(true);
+    setError(null);
+
+    try {
+      const result = await lookupAddressByPostalCode(formData.postal_code);
+      if (result.prefecture) {
+        setFormData({
+          ...formData,
+          prefecture: result.prefecture,
+          city: result.city,
+          street: result.street,
+        });
+      } else {
+        setError(result.error || "住所を取得できませんでした");
+      }
+    } catch {
+      setError("住所の取得に失敗しました");
+    } finally {
+      setLookingUpAddress(false);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!formData.last_name.trim() || !formData.first_name.trim()) {
       setError("姓と名は必須です");
@@ -191,7 +221,8 @@ export function AddIndividualModal({
       if (result.error) {
         setError(result.error);
       } else if (result.contactId) {
-        onSaved(result.contactId);
+        const name = `${formData.last_name} ${formData.first_name}`.trim();
+        onSaved(result.contactId, name);
         handleClose();
       }
     });
@@ -292,12 +323,29 @@ export function AddIndividualModal({
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <div>
                 <Label htmlFor="ind_postal_code">郵便番号</Label>
-                <Input
-                  id="ind_postal_code"
-                  value={formData.postal_code || ""}
-                  onChange={(e) => setFormData({ ...formData, postal_code: e.target.value || null })}
-                  placeholder="093-0000"
-                />
+                <div className="flex gap-2">
+                  <Input
+                    id="ind_postal_code"
+                    value={formData.postal_code || ""}
+                    onChange={(e) => setFormData({ ...formData, postal_code: e.target.value || null })}
+                    placeholder="093-0000"
+                    className="flex-1"
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={handleLookupAddress}
+                    disabled={lookingUpAddress}
+                    title="郵便番号から住所を検索"
+                  >
+                    {lookingUpAddress ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Search className="h-4 w-4" />
+                    )}
+                  </Button>
+                </div>
               </div>
               <div>
                 <Label htmlFor="ind_prefecture">都道府県</Label>
@@ -373,7 +421,7 @@ export function AddIndividualModal({
 interface AddAccountModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSaved: (contactId: string, accountId: string) => void;
+  onSaved: (contactId: string, accountId: string, companyName: string, contactName: string) => void;
   industries: Industry[];
   createAccount: (
     data: AccountFormData,
@@ -392,6 +440,7 @@ export function AddAccountModal({
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [estimatingPostalCode, setEstimatingPostalCode] = useState(false);
+  const [lookingUpAddress, setLookingUpAddress] = useState(false);
   const [industry, setIndustry] = useState<string>("");
 
   const [accountData, setAccountData] = useState<AccountFormData>({
@@ -583,6 +632,35 @@ export function AddAccountModal({
     }
   };
 
+  // 郵便番号から住所を検索
+  const handleLookupAddress = async () => {
+    if (!accountData.postal_code) {
+      setError("郵便番号を入力してください");
+      return;
+    }
+
+    setLookingUpAddress(true);
+    setError(null);
+
+    try {
+      const result = await lookupAddressByPostalCode(accountData.postal_code);
+      if (result.prefecture) {
+        setAccountData({
+          ...accountData,
+          prefecture: result.prefecture,
+          city: result.city,
+          street: result.street,
+        });
+      } else {
+        setError(result.error || "住所を取得できませんでした");
+      }
+    } catch {
+      setError("住所の取得に失敗しました");
+    } finally {
+      setLookingUpAddress(false);
+    }
+  };
+
   const handleSubmit = async () => {
     if (!accountData.company_name.trim()) {
       setError("会社名は必須です");
@@ -600,7 +678,12 @@ export function AddAccountModal({
       if (result.error) {
         setError(result.error);
       } else if (result.primaryContactId && result.accountId) {
-        onSaved(result.primaryContactId, result.accountId);
+        // 主要担当者の名前を取得
+        const primaryContact = validContacts.find((c) => c.is_primary) || validContacts[0];
+        const contactName = primaryContact
+          ? `${primaryContact.last_name} ${primaryContact.first_name}`.trim()
+          : "";
+        onSaved(result.primaryContactId, result.accountId, accountData.company_name, contactName);
         handleClose();
       }
     });
@@ -716,11 +799,11 @@ export function AddAccountModal({
                     type="button"
                     variant="outline"
                     size="icon"
-                    onClick={handleEstimatePostalCode}
-                    disabled={estimatingPostalCode}
-                    title="住所から郵便番号を検索"
+                    onClick={handleLookupAddress}
+                    disabled={lookingUpAddress}
+                    title="郵便番号から住所を検索"
                   >
-                    {estimatingPostalCode ? (
+                    {lookingUpAddress ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <Search className="h-4 w-4" />

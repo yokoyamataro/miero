@@ -210,7 +210,7 @@ export function ContactSelectModal({
   }, [selectedAccount, searchQuery]);
 
   // 新規個人顧客が作成されたとき
-  const handleIndividualCreated = (contactId: string) => {
+  const handleIndividualCreated = (contactId: string, _name: string) => {
     onSelect(contactId);
     onOpenChange(false);
     reset();
@@ -218,7 +218,7 @@ export function ContactSelectModal({
   };
 
   // 新規法人+担当者が作成されたとき
-  const handleAccountCreated = (contactId: string) => {
+  const handleAccountCreated = (contactId: string, _accountId: string, _companyName: string, _contactName: string) => {
     onSelect(contactId);
     onOpenChange(false);
     reset();

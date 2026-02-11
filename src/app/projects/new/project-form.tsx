@@ -15,30 +15,31 @@ import {
   SelectGroup,
   SelectLabel,
 } from "@/components/ui/select";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog";
 import { ArrowLeft, Loader2, Plus } from "lucide-react";
 import {
   PROJECT_CATEGORY_LABELS,
   PROJECT_AREA_GROUPS,
   type ProjectCategory,
   type ProjectStatus,
+  type Industry,
 } from "@/types/database";
 import {
   createProject,
-  createQuickAccount,
-  createQuickIndividual,
   getNextProjectCode,
   type CreateProjectData,
   type CustomerData,
   type AccountWithContacts,
   type IndividualContact,
 } from "../actions";
+import {
+  AddAccountModal,
+  AddIndividualModal,
+  type AccountFormData,
+  type ContactFormData,
+  type BranchFormData,
+} from "@/components/customer-modal";
+import { createAccount } from "@/app/accounts/actions";
+import { createIndividualContact, type IndividualContactFormData } from "@/app/contacts/actions";
 
 interface Employee {
   id: string;
@@ -48,9 +49,10 @@ interface Employee {
 interface ProjectFormProps {
   customerData: CustomerData;
   employees: Employee[];
+  industries: Industry[];
 }
 
-export function ProjectForm({ customerData, employees }: ProjectFormProps) {
+export function ProjectForm({ customerData, employees, industries }: ProjectFormProps) {
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
   const [category, setCategory] = useState<ProjectCategory | "">("");
@@ -85,71 +87,65 @@ export function ProjectForm({ customerData, employees }: ProjectFormProps) {
   // 新規顧客追加モーダル
   const [showAccountModal, setShowAccountModal] = useState(false);
   const [showIndividualModal, setShowIndividualModal] = useState(false);
-  const [isCreatingCustomer, setIsCreatingCustomer] = useState(false);
-
-  // 新規法人フォーム
-  const [newAccountName, setNewAccountName] = useState("");
-  const [newContactLastName, setNewContactLastName] = useState("");
-  const [newContactFirstName, setNewContactFirstName] = useState("");
-
-  // 新規個人フォーム
-  const [newIndividualLastName, setNewIndividualLastName] = useState("");
-  const [newIndividualFirstName, setNewIndividualFirstName] = useState("");
 
   // 選択した法人の担当者リスト
   const selectedAccount = accounts.find((a) => a.id === selectedAccountId);
 
-  // 新規法人追加
-  const handleCreateAccount = async () => {
-    if (!newAccountName.trim()) return;
+  // 新規法人追加（モーダルから呼ばれる）
+  const handleCreateAccount = async (
+    data: AccountFormData,
+    contacts: ContactFormData[],
+    branches: BranchFormData[]
+  ): Promise<{ error?: string; accountId?: string; primaryContactId?: string }> => {
+    const result = await createAccount(data, contacts, branches);
+    if (result.error) {
+      return { error: result.error };
+    }
+    return {
+      accountId: result.accountId || undefined,
+      primaryContactId: result.primaryContactId || undefined,
+    };
+  };
 
-    setIsCreatingCustomer(true);
-    const result = await createQuickAccount({
-      company_name: newAccountName.trim(),
-      contact_last_name: newContactLastName.trim() || undefined,
-      contact_first_name: newContactFirstName.trim() || undefined,
-    });
-    setIsCreatingCustomer(false);
-
-    if (result.success && result.account) {
-      // 新しい法人をリストに追加
-      setAccounts((prev) => [result.account!, ...prev]);
-      // 新しい法人を選択
-      setSelectedAccountId(result.account.id);
-      // 担当者がいれば選択
-      if (result.account.contacts.length > 0) {
-        setContactId(result.account.contacts[0].id);
-      }
-      // モーダルを閉じてフォームをリセット
-      setShowAccountModal(false);
-      setNewAccountName("");
-      setNewContactLastName("");
-      setNewContactFirstName("");
+  // 法人保存後のコールバック
+  const handleAccountSaved = (contactId: string, accountId: string, companyName: string, contactName: string) => {
+    // 新しい法人をリストに追加
+    const newAccount: AccountWithContacts = {
+      id: accountId,
+      companyName: companyName,
+      contacts: contactId ? [{ id: contactId, name: contactName || "(担当者)" }] : [],
+    };
+    setAccounts((prev) => [newAccount, ...prev]);
+    // 新しい法人を選択
+    setSelectedAccountId(accountId);
+    // 担当者を選択
+    if (contactId) {
+      setContactId(contactId);
     }
   };
 
-  // 新規個人追加
-  const handleCreateIndividual = async () => {
-    if (!newIndividualLastName.trim() || !newIndividualFirstName.trim()) return;
-
-    setIsCreatingCustomer(true);
-    const result = await createQuickIndividual({
-      last_name: newIndividualLastName.trim(),
-      first_name: newIndividualFirstName.trim(),
-    });
-    setIsCreatingCustomer(false);
-
-    if (result.success && result.individual) {
-      // 新しい個人をリストに追加
-      setIndividuals((prev) => [result.individual!, ...prev]);
-      // 法人選択を解除して個人を選択
-      setSelectedAccountId("none");
-      setContactId(result.individual.id);
-      // モーダルを閉じてフォームをリセット
-      setShowIndividualModal(false);
-      setNewIndividualLastName("");
-      setNewIndividualFirstName("");
+  // 新規個人追加（モーダルから呼ばれる）
+  const handleCreateIndividualContact = async (
+    data: IndividualContactFormData
+  ): Promise<{ error?: string; contactId?: string }> => {
+    const result = await createIndividualContact(data);
+    if (result.error) {
+      return { error: result.error };
     }
+    return { contactId: result.contactId };
+  };
+
+  // 個人保存後のコールバック
+  const handleIndividualSaved = (contactId: string, name: string) => {
+    // 新しい個人をリストに追加
+    const newIndividual: IndividualContact = {
+      id: contactId,
+      name: name,
+    };
+    setIndividuals((prev) => [newIndividual, ...prev]);
+    // 法人選択を解除して個人を選択
+    setSelectedAccountId("none");
+    setContactId(contactId);
   };
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -460,112 +456,21 @@ export function ProjectForm({ customerData, employees }: ProjectFormProps) {
       </form>
 
       {/* 新規法人追加モーダル */}
-      <Dialog open={showAccountModal} onOpenChange={setShowAccountModal}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>新規法人を追加</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div>
-              <Label htmlFor="new_account_name">法人名 *</Label>
-              <Input
-                id="new_account_name"
-                value={newAccountName}
-                onChange={(e) => setNewAccountName(e.target.value)}
-                placeholder="例: 株式会社〇〇"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="new_contact_last_name">担当者 姓</Label>
-                <Input
-                  id="new_contact_last_name"
-                  value={newContactLastName}
-                  onChange={(e) => setNewContactLastName(e.target.value)}
-                  placeholder="例: 山田"
-                />
-              </div>
-              <div>
-                <Label htmlFor="new_contact_first_name">担当者 名</Label>
-                <Input
-                  id="new_contact_first_name"
-                  value={newContactFirstName}
-                  onChange={(e) => setNewContactFirstName(e.target.value)}
-                  placeholder="例: 太郎"
-                />
-              </div>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              担当者は後から追加・編集できます
-            </p>
-          </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setShowAccountModal(false)}
-            >
-              キャンセル
-            </Button>
-            <Button
-              type="button"
-              onClick={handleCreateAccount}
-              disabled={isCreatingCustomer || !newAccountName.trim()}
-            >
-              {isCreatingCustomer && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              追加
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <AddAccountModal
+        open={showAccountModal}
+        onOpenChange={setShowAccountModal}
+        onSaved={handleAccountSaved}
+        industries={industries}
+        createAccount={handleCreateAccount}
+      />
 
       {/* 新規個人追加モーダル */}
-      <Dialog open={showIndividualModal} onOpenChange={setShowIndividualModal}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>新規個人を追加</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="new_individual_last_name">姓 *</Label>
-                <Input
-                  id="new_individual_last_name"
-                  value={newIndividualLastName}
-                  onChange={(e) => setNewIndividualLastName(e.target.value)}
-                  placeholder="例: 山田"
-                />
-              </div>
-              <div>
-                <Label htmlFor="new_individual_first_name">名 *</Label>
-                <Input
-                  id="new_individual_first_name"
-                  value={newIndividualFirstName}
-                  onChange={(e) => setNewIndividualFirstName(e.target.value)}
-                  placeholder="例: 太郎"
-                />
-              </div>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setShowIndividualModal(false)}
-            >
-              キャンセル
-            </Button>
-            <Button
-              type="button"
-              onClick={handleCreateIndividual}
-              disabled={isCreatingCustomer || !newIndividualLastName.trim() || !newIndividualFirstName.trim()}
-            >
-              {isCreatingCustomer && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-              追加
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <AddIndividualModal
+        open={showIndividualModal}
+        onOpenChange={setShowIndividualModal}
+        onSaved={handleIndividualSaved}
+        createIndividualContact={handleCreateIndividualContact}
+      />
     </>
   );
 }
