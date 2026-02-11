@@ -100,7 +100,7 @@ export function DashboardTaskList({
     );
   }, [tasks, assigneeFilter]);
 
-  // 業務ごとにグループ化
+  // 業務ごとにグループ化（関連業務が連続するようにソート）
   const tasksByProject = useMemo(() => {
     const grouped: Record<string, { project: TaskWithProject["project"]; tasks: TaskWithProject[] }> = {};
     for (const task of filteredTasks) {
@@ -112,8 +112,37 @@ export function DashboardTaskList({
       }
       grouped[task.project_id].tasks.push(task);
     }
+
+    const projectEntries = Object.values(grouped);
+
+    // 訪問済みの業務IDセット
+    const visited = new Set<string>();
+    const result: typeof projectEntries = [];
+
+    // 関連業務を深さ優先で収集する関数
+    const collectRelatedProjects = (projectId: string, entries: typeof projectEntries) => {
+      if (visited.has(projectId)) return;
+
+      const entry = entries.find((e) => e.project.id === projectId);
+      if (!entry) return;
+
+      visited.add(projectId);
+      result.push(entry);
+
+      // 関連業務を再帰的に追加（code降順でソート）
+      const relatedIds = entry.project.relatedProjectIds || [];
+      const relatedEntries = relatedIds
+        .map((id) => entries.find((e) => e.project.id === id))
+        .filter((e): e is NonNullable<typeof e> => e !== undefined && !visited.has(e.project.id))
+        .sort((a, b) => b.project.code.localeCompare(a.project.code));
+
+      for (const relatedEntry of relatedEntries) {
+        collectRelatedProjects(relatedEntry.project.id, entries);
+      }
+    };
+
     // 緊急を先頭に、待機を最後に、その後はcode順にソート
-    return Object.values(grouped).sort((a, b) => {
+    const sortedEntries = [...projectEntries].sort((a, b) => {
       // 緊急を先頭に
       if (a.project.is_urgent !== b.project.is_urgent) {
         return a.project.is_urgent ? -1 : 1;
@@ -124,6 +153,13 @@ export function DashboardTaskList({
       }
       return b.project.code.localeCompare(a.project.code);
     });
+
+    // ソート順に関連業務を収集
+    for (const entry of sortedEntries) {
+      collectRelatedProjects(entry.project.id, sortedEntries);
+    }
+
+    return result;
   }, [filteredTasks]);
 
   return (

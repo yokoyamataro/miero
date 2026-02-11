@@ -9,7 +9,9 @@ import {
 
 // タスク＋業務情報の型
 export type TaskWithProject = Task & {
-  project: Pick<Project, "id" | "code" | "name" | "location" | "is_urgent" | "is_on_hold">;
+  project: Pick<Project, "id" | "code" | "name" | "location" | "is_urgent" | "is_on_hold"> & {
+    relatedProjectIds?: string[]; // 関連業務のIDリスト
+  };
 };
 
 // 未完了タスク一覧を取得（業務情報付き）
@@ -53,12 +55,38 @@ export async function getIncompleteTasks(
 
   const projectMap = new Map((projects || []).map((p) => [p.id, p]));
 
+  // 関連業務を取得
+  const { data: relatedProjects } = await supabase
+    .from("related_projects" as never)
+    .select("project_id, related_project_id")
+    .or(`project_id.in.(${projectIds.join(",")}),related_project_id.in.(${projectIds.join(",")})`);
+
+  // 業務IDごとの関連業務IDマップを作成
+  const relatedProjectsMap = new Map<string, string[]>();
+  if (relatedProjects) {
+    for (const rel of relatedProjects as { project_id: string; related_project_id: string }[]) {
+      // 双方向で登録
+      if (!relatedProjectsMap.has(rel.project_id)) {
+        relatedProjectsMap.set(rel.project_id, []);
+      }
+      relatedProjectsMap.get(rel.project_id)!.push(rel.related_project_id);
+
+      if (!relatedProjectsMap.has(rel.related_project_id)) {
+        relatedProjectsMap.set(rel.related_project_id, []);
+      }
+      relatedProjectsMap.get(rel.related_project_id)!.push(rel.project_id);
+    }
+  }
+
   // タスクに業務情報を付与
   return typedTasks
     .filter((task) => projectMap.has(task.project_id))
     .map((task) => ({
       ...task,
-      project: projectMap.get(task.project_id)!,
+      project: {
+        ...projectMap.get(task.project_id)!,
+        relatedProjectIds: relatedProjectsMap.get(task.project_id) || [],
+      },
     }));
 }
 
