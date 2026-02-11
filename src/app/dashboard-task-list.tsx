@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -15,9 +17,15 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { ListTodo, User, UsersRound, GripVertical, Clock, AlertTriangle, Pause, ChevronDown, ChevronRight, Plus } from "lucide-react";
+import { ListTodo, User, UsersRound, GripVertical, Clock, AlertTriangle, Pause, ChevronDown, ChevronRight, Plus, Info } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { type Employee } from "@/types/database";
-import { type TaskWithProject } from "./dashboard-actions";
+import { type TaskWithProject, toggleTaskComplete } from "./dashboard-actions";
 import Link from "next/link";
 
 interface DashboardTaskListProps {
@@ -40,9 +48,19 @@ export function DashboardTaskList({
   currentEmployeeId,
   onDragStart,
 }: DashboardTaskListProps) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
   const [assigneeFilter, setAssigneeFilter] = useState<string>(
     currentEmployeeId || "all"
   );
+
+  // タスク完了トグル
+  const handleToggleComplete = (taskId: string, currentStatus: boolean) => {
+    startTransition(async () => {
+      await toggleTaskComplete(taskId, !currentStatus);
+      router.refresh();
+    });
+  };
   // 折りたたまれている業務IDのSet（デフォルトで全て折りたたみ）
   const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(() => {
     // 初期状態で全業務を折りたたむ
@@ -127,7 +145,7 @@ export function DashboardTaskList({
             タスク
           </CardTitle>
           <Select value={assigneeFilter} onValueChange={setAssigneeFilter}>
-            <SelectTrigger className="w-[140px] h-8">
+            <SelectTrigger className="w-[280px] h-8">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -233,8 +251,27 @@ export function DashboardTaskList({
                           }}
                           className="flex items-center gap-2 px-2 py-1.5 rounded border bg-background hover:bg-muted cursor-grab active:cursor-grabbing group"
                         >
+                          <Checkbox
+                            checked={task.is_completed}
+                            onCheckedChange={() => handleToggleComplete(task.id, task.is_completed)}
+                            disabled={isPending}
+                            className="flex-shrink-0"
+                            onClick={(e) => e.stopPropagation()}
+                          />
                           <GripVertical className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 flex-shrink-0" />
                           <span className="text-sm truncate flex-1">{task.title}</span>
+                          {task.description && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Info className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0 cursor-help" />
+                                </TooltipTrigger>
+                                <TooltipContent side="top" className="max-w-xs">
+                                  <p className="text-sm whitespace-pre-wrap">{task.description}</p>
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
                           {task.estimated_minutes && (
                             <span className="text-xs text-muted-foreground flex items-center gap-0.5 flex-shrink-0">
                               <Clock className="h-3 w-3" />

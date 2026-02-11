@@ -94,3 +94,23 @@ export async function getEmployees(): Promise<Employee[]> {
 
   return (employees as Employee[]) || [];
 }
+
+// タスクの完了状態を切り替え
+export async function toggleTaskComplete(
+  taskId: string,
+  isCompleted: boolean
+): Promise<{ error?: string }> {
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("tasks" as never)
+    .update({ is_completed: isCompleted, updated_at: new Date().toISOString() } as never)
+    .eq("id", taskId);
+
+  if (error) {
+    console.error("Error updating task:", error);
+    return { error: "タスクの更新に失敗しました" };
+  }
+
+  return {};
+}
