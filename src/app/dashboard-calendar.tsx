@@ -163,22 +163,24 @@ export function DashboardCalendar({
     return eachDayOfInterval({ start: currentDate, end: addDays(currentDate, 4) });
   }, [currentDate, hideWeekends]);
 
+  // 日付が範囲内かどうかをチェック（時刻を無視して日付のみで比較）
+  const isDateInRange = (date: Date, startDateStr: string, endDateStr: string | null) => {
+    const dateStr = format(date, "yyyy-MM-dd");
+    const endStr = endDateStr || startDateStr;
+    return dateStr >= startDateStr && dateStr <= endStr;
+  };
+
   // 日付ごとのイベントを取得
   const getEventsForDate = (date: Date) => {
     return filteredEvents.filter((event) => {
-      const startDate = parseISO(event.start_date);
-      const endDate = event.end_date ? parseISO(event.end_date) : startDate;
-      return date >= startDate && date <= endDate;
+      return isDateInRange(date, event.start_date, event.end_date);
     });
   };
 
   // 週表示用：日付×社員ごとのイベントを取得
   const getEventsForDateAndEmployee = (date: Date, employeeId: string) => {
     return filteredEvents.filter((event) => {
-      const startDate = parseISO(event.start_date);
-      const endDate = event.end_date ? parseISO(event.end_date) : startDate;
-      const isInDateRange = date >= startDate && date <= endDate;
-      if (!isInDateRange) return false;
+      if (!isDateInRange(date, event.start_date, event.end_date)) return false;
       return event.created_by === employeeId ||
              event.participants.some((p) => p.id === employeeId);
     });
@@ -188,10 +190,7 @@ export function DashboardCalendar({
   const getMyEventsForDate = (date: Date) => {
     if (!currentEmployeeId) return [];
     return filteredEvents.filter((event) => {
-      const startDate = parseISO(event.start_date);
-      const endDate = event.end_date ? parseISO(event.end_date) : startDate;
-      const isInDateRange = date >= startDate && date <= endDate;
-      if (!isInDateRange) return false;
+      if (!isDateInRange(date, event.start_date, event.end_date)) return false;
       return event.created_by === currentEmployeeId ||
              event.participants.some((p) => p.id === currentEmployeeId);
     });
