@@ -44,10 +44,7 @@ export default function LoginPage() {
           <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-primary mb-4">
             <FolderKanban className="h-8 w-8 text-primary-foreground" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">業務管理システム</h1>
-          <p className="text-sm text-gray-600 mt-1">
-            測量・登記・行政書士業務・ドローン事業
-          </p>
+          <h1 className="text-2xl font-bold text-gray-900">横山グループ業務管理システム</h1>
         </div>
 
         {/* ログインカード */}
@@ -106,7 +103,15 @@ export default function LoginPage() {
 
         {/* フッター */}
         <p className="text-center text-xs text-gray-500 mt-6">
-          © 2025 業務管理システム
+          &copy; 2025{" "}
+          <a
+            href="https://yokoyama-s.jp"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:underline"
+          >
+            有限会社横山測量設計事務所
+          </a>
         </p>
       </div>
     </main>
