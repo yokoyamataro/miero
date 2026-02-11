@@ -11,7 +11,7 @@ import {
   type Employee,
   type EventCategory,
 } from "@/types/database";
-import { type TaskWithProject } from "./dashboard-actions";
+import { type TaskWithProject, type PersonalTask } from "./dashboard-actions";
 
 type ViewMode = "dayAll" | "fiveDay" | "weekAll" | "month";
 
@@ -21,6 +21,7 @@ interface DashboardViewProps {
   eventCategories: EventCategory[];
   currentEmployeeId: string | null;
   tasks: TaskWithProject[];
+  personalTasks: PersonalTask[];
   initialView?: ViewMode;
   initialDate?: string;
 }
@@ -31,6 +32,7 @@ export function DashboardView({
   eventCategories,
   currentEmployeeId,
   tasks,
+  personalTasks,
   initialView = "dayAll",
   initialDate,
 }: DashboardViewProps) {
@@ -125,6 +127,7 @@ export function DashboardView({
         <div className="min-h-0">
           <DashboardTaskList
             tasks={tasks}
+            personalTasks={personalTasks}
             employees={employees}
             currentEmployeeId={currentEmployeeId}
             onDragStart={handleDragStart}

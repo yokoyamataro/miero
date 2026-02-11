@@ -405,8 +405,9 @@ export async function getActiveProjectsWithTasks(): Promise<ProjectWithTasks[]> 
 
   const allTasks = (tasks as Task[]) || [];
 
-  // プロジェクトにタスクを紐付け
+  // プロジェクトにタスクを紐付け（project_idがnullのタスクは除外）
   const tasksByProjectId = allTasks.reduce((acc, task) => {
+    if (task.project_id === null) return acc;
     if (!acc[task.project_id]) acc[task.project_id] = [];
     acc[task.project_id].push(task);
     return acc;

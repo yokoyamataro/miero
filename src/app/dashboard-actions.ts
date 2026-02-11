@@ -7,24 +7,26 @@ import {
   type Employee,
 } from "@/types/database";
 
-// タスク＋業務情報の型
-export type TaskWithProject = Task & {
+// タスク＋業務情報の型（project_idは必ず存在）
+export type TaskWithProject = Omit<Task, "project_id"> & {
+  project_id: string;  // 業務タスクなのでnullはない
   project: Pick<Project, "id" | "code" | "name" | "location" | "is_urgent" | "is_on_hold"> & {
     relatedProjectIds?: string[]; // 関連業務のIDリスト
   };
 };
 
-// 未完了タスク一覧を取得（業務情報付き）
+// 未完了タスク一覧を取得（業務情報付き）※業務タスクのみ
 export async function getIncompleteTasks(
   assignedToFilter?: string | null // null=全員, string=特定社員ID
 ): Promise<TaskWithProject[]> {
   const supabase = await createClient();
 
-  // 未完了タスクを取得
+  // 未完了タスクを取得（project_idがあるものだけ）
   let query = supabase
     .from("tasks" as never)
     .select("*")
     .eq("is_completed", false)
+    .not("project_id", "is", null)
     .order("sort_order", { ascending: true });
 
   if (assignedToFilter) {
@@ -42,12 +44,12 @@ export async function getIncompleteTasks(
   if (typedTasks.length === 0) return [];
 
   // 関連する業務を取得（完了以外）
-  const projectIds = Array.from(new Set(typedTasks.map((t) => t.project_id)));
+  const projectIds = Array.from(new Set(typedTasks.map((t) => t.project_id).filter((id): id is string => id !== null)));
   const { data: projects, error: projectsError } = await supabase
     .from("projects")
     .select("id, code, name, location, status, is_urgent, is_on_hold")
     .in("id", projectIds)
-    .neq("status", "completed");
+    .neq("status", "完了");
 
   if (projectsError) {
     console.error("Error fetching projects:", projectsError);
@@ -81,7 +83,9 @@ export async function getIncompleteTasks(
 
   // タスクに業務情報を付与
   return typedTasks
-    .filter((task) => projectMap.has(task.project_id))
+    .filter((task): task is Task & { project_id: string } =>
+      task.project_id !== null && projectMap.has(task.project_id)
+    )
     .map((task) => ({
       ...task,
       project: {
@@ -89,6 +93,98 @@ export async function getIncompleteTasks(
         relatedProjectIds: relatedProjectsMap.get(task.project_id) || [],
       },
     }));
+}
+
+// 個人タスク（業務に紐づかないタスク）の型
+export type PersonalTask = Task;
+
+// 未完了の個人タスク一覧を取得
+export async function getIncompletePersonalTasks(
+  assignedToFilter?: string | null // null=全員, string=特定社員ID
+): Promise<PersonalTask[]> {
+  const supabase = await createClient();
+
+  // 未完了の個人タスクを取得（project_id = null）
+  let query = supabase
+    .from("tasks" as never)
+    .select("*")
+    .eq("is_completed", false)
+    .is("project_id", null)
+    .order("sort_order", { ascending: true });
+
+  if (assignedToFilter) {
+    query = query.eq("assigned_to", assignedToFilter);
+  }
+
+  const { data: tasks, error: tasksError } = await query;
+
+  if (tasksError || !tasks) {
+    console.error("Error fetching personal tasks:", tasksError);
+    return [];
+  }
+
+  return tasks as PersonalTask[];
+}
+
+// 個人タスクを作成
+export async function createPersonalTask(data: {
+  title: string;
+  description?: string | null;
+  assigned_to: string | null;
+  due_date?: string | null;
+  estimated_minutes?: number | null;
+}): Promise<{ task?: PersonalTask; error?: string }> {
+  const supabase = await createClient();
+
+  // 個人タスクの最大sort_orderを取得
+  const { data: maxOrderResult } = await supabase
+    .from("tasks" as never)
+    .select("sort_order")
+    .is("project_id", null)
+    .order("sort_order", { ascending: false })
+    .limit(1);
+
+  const maxOrder = maxOrderResult && (maxOrderResult as { sort_order: number }[])[0]?.sort_order || 0;
+
+  const { data: task, error } = await supabase
+    .from("tasks" as never)
+    .insert({
+      project_id: null,
+      title: data.title,
+      description: data.description || null,
+      assigned_to: data.assigned_to,
+      due_date: data.due_date || null,
+      estimated_minutes: data.estimated_minutes || null,
+      sort_order: maxOrder + 1,
+      is_completed: false,
+    } as never)
+    .select()
+    .single();
+
+  if (error) {
+    console.error("Error creating personal task:", error);
+    return { error: "個人タスクの作成に失敗しました" };
+  }
+
+  return { task: task as PersonalTask };
+}
+
+// 個人タスクを削除
+export async function deletePersonalTask(taskId: string): Promise<{ error?: string }> {
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("tasks" as never)
+    .delete()
+    .eq("id", taskId)
+    .is("project_id", null);
+
+  if (error) {
+    console.error("Error deleting personal task:", error);
+    return { error: "個人タスクの削除に失敗しました" };
+  }
+
+  return {};
 }
 
 // 現在のユーザーの社員IDを取得

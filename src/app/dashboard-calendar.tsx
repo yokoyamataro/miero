@@ -16,6 +16,8 @@ import {
   User,
   UsersRound,
   Settings,
+  ChevronsLeftRight,
+  ChevronsRightLeft,
 } from "lucide-react";
 import {
   format,
@@ -106,7 +108,9 @@ export function DashboardCalendar({
     previewHeight: number;
   } | null>(null);
   const [justFinishedResizing, setJustFinishedResizing] = useState(false);
-  const [hideWeekends, setHideWeekends] = useState(false);
+  // 土日の折りたたみ状態（個別に管理）
+  const [hideSaturday, setHideSaturday] = useState(false);
+  const [hideSunday, setHideSunday] = useState(false);
   const [selectedStartTime, setSelectedStartTime] = useState<{ hour: string; minute: string } | null>(null);
   const [selectedEndTime, setSelectedEndTime] = useState<{ hour: string; minute: string } | null>(null);
 
@@ -140,23 +144,22 @@ export function DashboardCalendar({
     return eachDayOfInterval({ start: weekStart, end: addDays(weekStart, 6) });
   }, [currentDate]);
 
-  // 5日表示の日付を生成（土日非表示オプション対応）
+  // 5日表示の日付を生成（土日の折りたたみ状態を含めた情報）
+  const fiveDaysData = useMemo(() => {
+    const baseDays = eachDayOfInterval({ start: currentDate, end: addDays(currentDate, 4) });
+    return baseDays.map((date) => {
+      const dayOfWeek = date.getDay();
+      const isSaturday = dayOfWeek === 6;
+      const isSunday = dayOfWeek === 0;
+      const isCollapsed = (isSaturday && hideSaturday) || (isSunday && hideSunday);
+      return { date, isSaturday, isSunday, isCollapsed };
+    });
+  }, [currentDate, hideSaturday, hideSunday]);
+
+  // 折りたたまれていない日のみを取得
   const fiveDays = useMemo(() => {
-    if (hideWeekends) {
-      // 土日を除いて5日間を生成
-      const days: Date[] = [];
-      let current = currentDate;
-      while (days.length < 5) {
-        const dayOfWeek = current.getDay();
-        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-          days.push(current);
-        }
-        current = addDays(current, 1);
-      }
-      return days;
-    }
-    return eachDayOfInterval({ start: currentDate, end: addDays(currentDate, 4) });
-  }, [currentDate, hideWeekends]);
+    return fiveDaysData.filter((d) => !d.isCollapsed).map((d) => d.date);
+  }, [fiveDaysData]);
 
   // 日付ごとのイベントを取得
   const getEventsForDate = (date: Date) => {
@@ -1112,42 +1115,93 @@ export function DashboardCalendar({
       return getMyEventsForDate(date).filter((e) => e.start_time && !e.all_day);
     };
 
+    // 展開されている日の数
+    const visibleDaysCount = fiveDays.length;
+    // グリッド列定義を動的に生成
+    const gridCols = `60px repeat(${visibleDaysCount}, 1fr)`;
+
+    // 折りたたまれた土日を取得
+    const collapsedWeekendDays = fiveDaysData.filter((d) => d.isCollapsed);
+    const hasCollapsedSaturday = collapsedWeekendDays.some((d) => d.isSaturday);
+    const hasCollapsedSunday = collapsedWeekendDays.some((d) => d.isSunday);
+
     return (
       <div className="overflow-auto">
-        {/* ヘッダー: 5日分の日付 */}
-        <div className="grid grid-cols-[60px_1fr_1fr_1fr_1fr_1fr] border-b">
-          <div className="p-2 bg-muted border-r text-center text-xs font-medium">時間</div>
-          {fiveDays.map((date, idx) => {
+        {/* ヘッダー: 日付（折りたたみボタン付き） */}
+        <div className="border-b flex">
+          <div className="p-2 bg-muted border-r text-center text-xs font-medium w-[60px] flex-shrink-0">時間</div>
+          {fiveDaysData.map((dayData, idx) => {
+            const { date, isSaturday, isSunday, isCollapsed } = dayData;
             const dayOfWeek = date.getDay();
+
+            // 折りたたまれている場合は小さい折りたたみボタンを表示
+            if (isCollapsed) {
+              return (
+                <div
+                  key={idx}
+                  className={`bg-muted border-r flex items-center justify-center cursor-pointer hover:bg-muted/70 w-8 flex-shrink-0 ${
+                    isSunday ? "text-red-500" : isSaturday ? "text-blue-500" : ""
+                  }`}
+                  onClick={() => {
+                    if (isSaturday) setHideSaturday(false);
+                    if (isSunday) setHideSunday(false);
+                  }}
+                  title={isSaturday ? "土曜日を展開" : "日曜日を展開"}
+                >
+                  <ChevronsLeftRight className="h-4 w-4" />
+                </div>
+              );
+            }
+
             return (
               <div
                 key={idx}
-                className={`p-2 bg-muted border-r text-center ${
-                  dayOfWeek === 0 ? "text-red-500" : dayOfWeek === 6 ? "text-blue-500" : ""
+                className={`p-2 bg-muted border-r text-center flex-1 ${
+                  isSunday ? "text-red-500" : isSaturday ? "text-blue-500" : ""
                 }`}
               >
-                <div className="text-sm font-medium">{format(date, "M/d(E)", { locale: ja })}</div>
-                {isToday(date) && (
-                  <span className="inline-block w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs leading-6">
-                    今
-                  </span>
-                )}
+                <div className="flex items-center justify-center gap-1">
+                  <span className="text-sm font-medium">{format(date, "M/d(E)", { locale: ja })}</span>
+                  {isToday(date) && (
+                    <span className="inline-block w-5 h-5 rounded-full bg-primary text-primary-foreground text-xs leading-5">
+                      今
+                    </span>
+                  )}
+                  {/* 土日に折りたたみボタン */}
+                  {(isSaturday || isSunday) && (
+                    <button
+                      className="ml-1 p-0.5 rounded hover:bg-muted-foreground/20"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (isSaturday) setHideSaturday(true);
+                        if (isSunday) setHideSunday(true);
+                      }}
+                      title={isSaturday ? "土曜日を折りたたむ" : "日曜日を折りたたむ"}
+                    >
+                      <ChevronsRightLeft className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
               </div>
             );
           })}
         </div>
 
         {/* 終日イベント行 */}
-        <div className="grid grid-cols-[60px_1fr_1fr_1fr_1fr_1fr] border-b bg-gray-50">
-          <div className="p-1 border-r text-xs text-muted-foreground text-center">終日</div>
-          {fiveDays.map((date, idx) => {
+        <div className="border-b bg-gray-50 flex">
+          <div className="p-1 border-r text-xs text-muted-foreground text-center w-[60px] flex-shrink-0">終日</div>
+          {fiveDaysData.map((dayData, idx) => {
+            const { date, isSaturday, isSunday, isCollapsed } = dayData;
+            if (isCollapsed) {
+              return <div key={idx} className="border-r w-8 flex-shrink-0" />;
+            }
             const allDayEvents = getAllDayEvents(date);
             const dateStr = format(date, "yyyy-MM-dd");
             const isDragOver = dragOverDate === dateStr;
             return (
               <div
                 key={idx}
-                className={`p-1 border-r min-h-[32px] cursor-pointer hover:bg-muted/50 ${
+                className={`p-1 border-r min-h-[32px] cursor-pointer hover:bg-muted/50 flex-1 ${
                   isDragOver ? "bg-blue-100 ring-2 ring-blue-400" : ""
                 }`}
                 onClick={() => handleDateClick(date)}
@@ -1162,9 +1216,9 @@ export function DashboardCalendar({
         </div>
 
         {/* 時間軸 */}
-        <div className="grid grid-cols-[60px_1fr_1fr_1fr_1fr_1fr]">
+        <div className="flex">
           {/* 時間ラベル列 */}
-          <div className="border-r">
+          <div className="border-r w-[60px] flex-shrink-0">
             {hourLabels.map((slot, idx) => (
               <div key={idx} className={`h-12 border-b text-xs text-muted-foreground text-right pr-2 pt-0.5 ${slot.hour === 12 ? "bg-gray-100" : ""}`}>
                 {slot.label}
@@ -1172,14 +1226,27 @@ export function DashboardCalendar({
             ))}
           </div>
 
-          {/* 5日分のイベント列 */}
-          {fiveDays.map((date, dayIdx) => {
+          {/* 5日分のイベント列（折りたたみ対応） */}
+          {fiveDaysData.map((dayData, dayIdx) => {
+            const { date, isSaturday, isSunday, isCollapsed } = dayData;
+
+            // 折りたたまれている場合は細い列を表示
+            if (isCollapsed) {
+              return (
+                <div key={dayIdx} className="border-r w-8 flex-shrink-0">
+                  {hourLabels.map((slot, idx) => (
+                    <div key={idx} className={`h-12 border-b ${slot.hour === 12 ? "bg-gray-100" : ""}`} />
+                  ))}
+                </div>
+              );
+            }
+
             const timedEvents = getTimedEvents(date);
             const dateStr = format(date, "yyyy-MM-dd");
             return (
               <div
                 key={dayIdx}
-                className="border-r relative"
+                className="border-r relative flex-1"
               >
                 {/* 時間枠の背景線（ドロップ可能） */}
                 {hourLabels.map((slot, idx) => {
@@ -1291,17 +1358,6 @@ export function DashboardCalendar({
               <User className="h-4 w-4 mr-1" />
               5日
             </Button>
-            {viewMode === "fiveDay" && (
-              <Button
-                variant={hideWeekends ? "default" : "ghost"}
-                size="sm"
-                className="rounded-none border-r"
-                onClick={() => setHideWeekends(!hideWeekends)}
-                title={hideWeekends ? "土日を表示" : "土日を非表示"}
-              >
-                {hideWeekends ? "平日" : "全日"}
-              </Button>
-            )}
             <Button
               variant={viewMode === "weekAll" ? "default" : "ghost"}
               size="sm"

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -17,7 +18,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { ListTodo, User, UsersRound, GripVertical, Clock, AlertTriangle, Pause, ChevronDown, ChevronRight, Plus, Info } from "lucide-react";
+import { ListTodo, User, UsersRound, GripVertical, Clock, AlertTriangle, Pause, ChevronDown, ChevronRight, Plus, Info, Trash2, UserCheck } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -25,11 +26,12 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { type Employee } from "@/types/database";
-import { type TaskWithProject, toggleTaskComplete } from "./dashboard-actions";
+import { type TaskWithProject, type PersonalTask, toggleTaskComplete, createPersonalTask, deletePersonalTask } from "./dashboard-actions";
 import Link from "next/link";
 
 interface DashboardTaskListProps {
   tasks: TaskWithProject[];
+  personalTasks: PersonalTask[];
   employees: Employee[];
   currentEmployeeId: string | null;
   onDragStart: (task: TaskWithProject) => void;
@@ -44,6 +46,7 @@ function formatHours(minutes: number | null): string {
 
 export function DashboardTaskList({
   tasks,
+  personalTasks,
   employees,
   currentEmployeeId,
   onDragStart,
@@ -54,6 +57,10 @@ export function DashboardTaskList({
     currentEmployeeId || "all"
   );
 
+  // 個人タスク追加用
+  const [newPersonalTaskTitle, setNewPersonalTaskTitle] = useState("");
+  const [isAddingPersonalTask, setIsAddingPersonalTask] = useState(false);
+
   // タスク完了トグル
   const handleToggleComplete = (taskId: string, currentStatus: boolean) => {
     startTransition(async () => {
@@ -61,11 +68,37 @@ export function DashboardTaskList({
       router.refresh();
     });
   };
+
+  // 個人タスク追加
+  const handleAddPersonalTask = () => {
+    if (!newPersonalTaskTitle.trim()) return;
+    startTransition(async () => {
+      await createPersonalTask({
+        title: newPersonalTaskTitle.trim(),
+        assigned_to: currentEmployeeId,
+      });
+      setNewPersonalTaskTitle("");
+      setIsAddingPersonalTask(false);
+      router.refresh();
+    });
+  };
+
+  // 個人タスク削除
+  const handleDeletePersonalTask = (taskId: string) => {
+    startTransition(async () => {
+      await deletePersonalTask(taskId);
+      router.refresh();
+    });
+  };
+
   // 折りたたまれている業務IDのSet（デフォルトで全て折りたたみ）
   const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(() => {
     // 初期状態で全業務を折りたたむ
     return new Set(tasks.map((t) => t.project_id));
   });
+
+  // 個人タスクの折りたたみ状態
+  const [personalTasksCollapsed, setPersonalTasksCollapsed] = useState(false);
 
   const toggleProject = (projectId: string) => {
     setCollapsedProjects((prev) => {
@@ -99,6 +132,16 @@ export function DashboardTaskList({
       task.assigned_to === assigneeFilter || task.assigned_to === null
     );
   }, [tasks, assigneeFilter]);
+
+  // フィルタリングされた個人タスク
+  const filteredPersonalTasks = useMemo(() => {
+    if (assigneeFilter === "all") {
+      return personalTasks;
+    }
+    return personalTasks.filter((task) =>
+      task.assigned_to === assigneeFilter || task.assigned_to === null
+    );
+  }, [personalTasks, assigneeFilter]);
 
   // 業務ごとにグループ化（関連業務が連続するようにソート）
   const tasksByProject = useMemo(() => {
@@ -208,121 +251,257 @@ export function DashboardTaskList({
       </CardHeader>
 
       <CardContent className="flex-1 overflow-y-auto pt-0">
-        {tasksByProject.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-8">
-            未完了のタスクはありません
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {tasksByProject.map(({ project, tasks: projectTasks }) => {
-              const isCollapsed = collapsedProjects.has(project.id);
-              // 背景色: 緊急=赤系、待機=グレー系
-              const projectBgClass = project.is_urgent
-                ? "bg-red-50 rounded-md"
-                : project.is_on_hold
-                ? "bg-gray-100 rounded-md"
-                : "";
-              return (
-                <Collapsible
-                  key={project.id}
-                  open={!isCollapsed}
-                  onOpenChange={() => toggleProject(project.id)}
-                  className={projectBgClass}
-                >
-                  {/* 業務ヘッダー */}
-                  <div className="flex items-center gap-1 group p-1">
-                    <CollapsibleTrigger asChild>
+        <div className="space-y-2">
+          {/* 業務タスク */}
+          {tasksByProject.length === 0 && filteredPersonalTasks.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-8">
+              未完了のタスクはありません
+            </p>
+          ) : (
+            <>
+              {tasksByProject.map(({ project, tasks: projectTasks }) => {
+                const isCollapsed = collapsedProjects.has(project.id);
+                // 背景色: 緊急=赤系、待機=グレー系
+                const projectBgClass = project.is_urgent
+                  ? "bg-red-50 rounded-md"
+                  : project.is_on_hold
+                  ? "bg-gray-100 rounded-md"
+                  : "";
+                return (
+                  <Collapsible
+                    key={project.id}
+                    open={!isCollapsed}
+                    onOpenChange={() => toggleProject(project.id)}
+                    className={projectBgClass}
+                  >
+                    {/* 業務ヘッダー */}
+                    <div className="flex items-center gap-1 group p-1">
+                      <CollapsibleTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 flex-shrink-0"
+                        >
+                          {isCollapsed ? (
+                            <ChevronRight className="h-4 w-4" />
+                          ) : (
+                            <ChevronDown className="h-4 w-4" />
+                          )}
+                        </Button>
+                      </CollapsibleTrigger>
+                      <Link
+                        href={`/projects/${project.id}`}
+                        className="flex items-center gap-2 flex-1 min-w-0 hover:underline"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {project.is_urgent && (
+                          <AlertTriangle className="h-4 w-4 text-destructive flex-shrink-0" />
+                        )}
+                        {project.is_on_hold && (
+                          <Pause className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        )}
+                        <span className="font-mono text-xs text-muted-foreground flex-shrink-0">
+                          {project.code}
+                        </span>
+                        <span className={`font-medium text-sm truncate ${project.is_on_hold ? "text-muted-foreground" : ""}`}>
+                          {project.name}
+                        </span>
+                      </Link>
+                      <span className="text-xs text-muted-foreground flex-shrink-0">
+                        ({projectTasks.length})
+                      </span>
+                    </div>
+
+                    {/* タスク一覧 */}
+                    <CollapsibleContent>
+                      <div className="space-y-1 ml-7 mt-1">
+                        {projectTasks.map((task) => (
+                          <div
+                            key={task.id}
+                            draggable
+                            onDragStart={(e) => {
+                              e.dataTransfer.setData("text/plain", JSON.stringify({
+                                taskId: task.id,
+                                projectId: task.project_id,
+                                projectCode: project.code,
+                                projectName: project.name,
+                                projectLocation: project.location,
+                                taskTitle: task.title,
+                              }));
+                              onDragStart(task);
+                            }}
+                            className="flex items-center gap-2 px-2 py-1.5 rounded border bg-background hover:bg-muted cursor-grab active:cursor-grabbing group"
+                          >
+                            <Checkbox
+                              checked={task.is_completed}
+                              onCheckedChange={() => handleToggleComplete(task.id, task.is_completed)}
+                              disabled={isPending}
+                              className="flex-shrink-0"
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                            <GripVertical className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 flex-shrink-0" />
+                            <span className="text-sm truncate flex-1">{task.title}</span>
+                            {task.description && (
+                              <TooltipProvider>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Info className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0 cursor-help" />
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top" className="max-w-xs">
+                                    <p className="text-sm whitespace-pre-wrap">{task.description}</p>
+                                  </TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
+                            {task.estimated_minutes && (
+                              <span className="text-xs text-muted-foreground flex items-center gap-0.5 flex-shrink-0">
+                                <Clock className="h-3 w-3" />
+                                {formatHours(task.estimated_minutes)}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
+                );
+              })}
+
+              {/* 個人タスク */}
+              <Collapsible
+                open={!personalTasksCollapsed}
+                onOpenChange={() => setPersonalTasksCollapsed(!personalTasksCollapsed)}
+                className="bg-blue-50 rounded-md"
+              >
+                {/* 個人タスクヘッダー */}
+                <div className="flex items-center gap-1 group p-1">
+                  <CollapsibleTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 w-7 p-0 flex-shrink-0"
+                    >
+                      {personalTasksCollapsed ? (
+                        <ChevronRight className="h-4 w-4" />
+                      ) : (
+                        <ChevronDown className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </CollapsibleTrigger>
+                  <div className="flex items-center gap-2 flex-1 min-w-0">
+                    <UserCheck className="h-4 w-4 text-blue-500 flex-shrink-0" />
+                    <span className="font-medium text-sm text-blue-700">
+                      個人タスク
+                    </span>
+                  </div>
+                  <span className="text-xs text-muted-foreground flex-shrink-0">
+                    ({filteredPersonalTasks.length})
+                  </span>
+                </div>
+
+                {/* 個人タスク一覧 */}
+                <CollapsibleContent>
+                  <div className="space-y-1 ml-7 mt-1">
+                    {filteredPersonalTasks.map((task) => (
+                      <div
+                        key={task.id}
+                        className="flex items-center gap-2 px-2 py-1.5 rounded border bg-background hover:bg-muted group"
+                      >
+                        <Checkbox
+                          checked={task.is_completed}
+                          onCheckedChange={() => handleToggleComplete(task.id, task.is_completed)}
+                          disabled={isPending}
+                          className="flex-shrink-0"
+                        />
+                        <span className="text-sm truncate flex-1">{task.title}</span>
+                        {task.description && (
+                          <TooltipProvider>
+                            <Tooltip>
+                              <TooltipTrigger asChild>
+                                <Info className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0 cursor-help" />
+                              </TooltipTrigger>
+                              <TooltipContent side="top" className="max-w-xs">
+                                <p className="text-sm whitespace-pre-wrap">{task.description}</p>
+                              </TooltipContent>
+                            </Tooltip>
+                          </TooltipProvider>
+                        )}
+                        {task.estimated_minutes && (
+                          <span className="text-xs text-muted-foreground flex items-center gap-0.5 flex-shrink-0">
+                            <Clock className="h-3 w-3" />
+                            {formatHours(task.estimated_minutes)}
+                          </span>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 flex-shrink-0 text-destructive hover:text-destructive"
+                          onClick={() => handleDeletePersonalTask(task.id)}
+                          disabled={isPending}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    ))}
+
+                    {/* 個人タスク追加フォーム */}
+                    {isAddingPersonalTask ? (
+                      <div className="flex items-center gap-2 px-2 py-1.5">
+                        <Input
+                          type="text"
+                          placeholder="タスク名を入力..."
+                          value={newPersonalTaskTitle}
+                          onChange={(e) => setNewPersonalTaskTitle(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              handleAddPersonalTask();
+                            } else if (e.key === "Escape") {
+                              setIsAddingPersonalTask(false);
+                              setNewPersonalTaskTitle("");
+                            }
+                          }}
+                          className="h-8 text-sm flex-1"
+                          autoFocus
+                          disabled={isPending}
+                        />
+                        <Button
+                          size="sm"
+                          className="h-8"
+                          onClick={handleAddPersonalTask}
+                          disabled={isPending || !newPersonalTaskTitle.trim()}
+                        >
+                          追加
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8"
+                          onClick={() => {
+                            setIsAddingPersonalTask(false);
+                            setNewPersonalTaskTitle("");
+                          }}
+                          disabled={isPending}
+                        >
+                          キャンセル
+                        </Button>
+                      </div>
+                    ) : (
                       <Button
                         variant="ghost"
                         size="sm"
-                        className="h-7 w-7 p-0 flex-shrink-0"
+                        className="w-full justify-start text-muted-foreground h-8"
+                        onClick={() => setIsAddingPersonalTask(true)}
                       >
-                        {isCollapsed ? (
-                          <ChevronRight className="h-4 w-4" />
-                        ) : (
-                          <ChevronDown className="h-4 w-4" />
-                        )}
+                        <Plus className="h-4 w-4 mr-1" />
+                        個人タスクを追加
                       </Button>
-                    </CollapsibleTrigger>
-                    <Link
-                      href={`/projects/${project.id}`}
-                      className="flex items-center gap-2 flex-1 min-w-0 hover:underline"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      {project.is_urgent && (
-                        <AlertTriangle className="h-4 w-4 text-destructive flex-shrink-0" />
-                      )}
-                      {project.is_on_hold && (
-                        <Pause className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                      )}
-                      <span className="font-mono text-xs text-muted-foreground flex-shrink-0">
-                        {project.code}
-                      </span>
-                      <span className={`font-medium text-sm truncate ${project.is_on_hold ? "text-muted-foreground" : ""}`}>
-                        {project.name}
-                      </span>
-                    </Link>
-                    <span className="text-xs text-muted-foreground flex-shrink-0">
-                      ({projectTasks.length})
-                    </span>
+                    )}
                   </div>
-
-                  {/* タスク一覧 */}
-                  <CollapsibleContent>
-                    <div className="space-y-1 ml-7 mt-1">
-                      {projectTasks.map((task) => (
-                        <div
-                          key={task.id}
-                          draggable
-                          onDragStart={(e) => {
-                            e.dataTransfer.setData("text/plain", JSON.stringify({
-                              taskId: task.id,
-                              projectId: task.project_id,
-                              projectCode: project.code,
-                              projectName: project.name,
-                              projectLocation: project.location,
-                              taskTitle: task.title,
-                            }));
-                            onDragStart(task);
-                          }}
-                          className="flex items-center gap-2 px-2 py-1.5 rounded border bg-background hover:bg-muted cursor-grab active:cursor-grabbing group"
-                        >
-                          <Checkbox
-                            checked={task.is_completed}
-                            onCheckedChange={() => handleToggleComplete(task.id, task.is_completed)}
-                            disabled={isPending}
-                            className="flex-shrink-0"
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                          <GripVertical className="h-4 w-4 text-muted-foreground opacity-0 group-hover:opacity-100 flex-shrink-0" />
-                          <span className="text-sm truncate flex-1">{task.title}</span>
-                          {task.description && (
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <Info className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0 cursor-help" />
-                                </TooltipTrigger>
-                                <TooltipContent side="top" className="max-w-xs">
-                                  <p className="text-sm whitespace-pre-wrap">{task.description}</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          )}
-                          {task.estimated_minutes && (
-                            <span className="text-xs text-muted-foreground flex items-center gap-0.5 flex-shrink-0">
-                              <Clock className="h-3 w-3" />
-                              {formatHours(task.estimated_minutes)}
-                            </span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </CollapsibleContent>
-                </Collapsible>
-              );
-            })}
-          </div>
-        )}
+                </CollapsibleContent>
+              </Collapsible>
+            </>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

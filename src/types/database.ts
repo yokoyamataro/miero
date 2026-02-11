@@ -256,7 +256,7 @@ export interface ProjectWithRelations extends Project {
 // ============================================
 export interface Task {
   id: string;
-  project_id: string;
+  project_id: string | null;  // null = 個人タスク（プロジェクトに紐づかない）
   title: string;
   description: string | null;
   is_completed: boolean;
@@ -273,7 +273,7 @@ export interface Task {
 
 export interface TaskInsert {
   id?: string;
-  project_id: string;
+  project_id?: string | null;  // null = 個人タスク
   title: string;
   description?: string | null;
   is_completed?: boolean;
