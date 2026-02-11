@@ -106,9 +106,17 @@ export async function updateTask(
 ) {
   const supabase = await createClient();
 
+  // is_completedが設定されている場合はcompleted_atも設定
+  const updatesWithCompletedAt = {
+    ...updates,
+    ...(updates.is_completed !== undefined && {
+      completed_at: updates.is_completed ? new Date().toISOString() : null,
+    }),
+  };
+
   const { data, error } = await supabase
     .from("tasks" as never)
-    .update(updates as never)
+    .update(updatesWithCompletedAt as never)
     .eq("id", taskId)
     .select("project_id")
     .single();

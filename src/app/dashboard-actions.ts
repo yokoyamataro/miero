@@ -102,9 +102,14 @@ export async function toggleTaskComplete(
 ): Promise<{ error?: string }> {
   const supabase = await createClient();
 
+  const now = new Date().toISOString();
   const { error } = await supabase
     .from("tasks" as never)
-    .update({ is_completed: isCompleted, updated_at: new Date().toISOString() } as never)
+    .update({
+      is_completed: isCompleted,
+      completed_at: isCompleted ? now : null,  // 完了時は日時を記録、未完了に戻す時はnull
+      updated_at: now,
+    } as never)
     .eq("id", taskId);
 
   if (error) {

@@ -68,14 +68,6 @@ export function ProjectFilters({ employees, filters, onFiltersChange }: ProjectF
     onFiltersChange({ ...filters, statuses: next });
   };
 
-  const toggleAllStatuses = () => {
-    const allItems = [...ALL_STATUSES, NULL_MARKER] as (ProjectStatus | typeof NULL_MARKER)[];
-    if (filters.statuses.size === allItems.length) {
-      onFiltersChange({ ...filters, statuses: new Set() });
-    } else {
-      onFiltersChange({ ...filters, statuses: new Set(allItems) });
-    }
-  };
 
   // 担当者
   const toggleManager = (id: string) => {
@@ -102,7 +94,6 @@ export function ProjectFilters({ employees, filters, onFiltersChange }: ProjectF
   };
 
   const allCategoriesSelected = filters.categories.size === ALL_CATEGORIES.length + 1;
-  const allStatusesSelected = filters.statuses.size === ALL_STATUSES.length + 1;
   const allManagersSelected = filters.managerIds.size === employees.length + 1;
 
   return (
@@ -160,15 +151,6 @@ export function ProjectFilters({ employees, filters, onFiltersChange }: ProjectF
         {/* ステータス */}
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-xs text-muted-foreground mr-1">ステータス</span>
-          <button
-              type="button"
-              onClick={toggleAllStatuses}
-              className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                allStatusesSelected ? BTN_ACTIVE : BTN_INACTIVE
-              }`}
-            >
-              全て
-            </button>
             {ALL_STATUSES.map((status) => {
               const active = filters.statuses.has(status);
               const statusColor = active ? PROJECT_STATUS_COLORS[status] : "";
@@ -185,15 +167,6 @@ export function ProjectFilters({ employees, filters, onFiltersChange }: ProjectF
                 </button>
               );
             })}
-            <button
-              type="button"
-              onClick={() => toggleStatus(NULL_MARKER)}
-              className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                filters.statuses.has(NULL_MARKER) ? BTN_ACTIVE : BTN_INACTIVE
-              }`}
-            >
-              指定なし
-            </button>
         </div>
 
         {/* 担当者 */}

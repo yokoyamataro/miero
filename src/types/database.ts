@@ -268,6 +268,7 @@ export interface Task {
   title: string;
   description: string | null;
   is_completed: boolean;
+  completed_at: string | null;  // 完了日時
   due_date: string | null;
   assigned_to: string | null;
   sort_order: number;
@@ -284,6 +285,7 @@ export interface TaskInsert {
   title: string;
   description?: string | null;
   is_completed?: boolean;
+  completed_at?: string | null;
   due_date?: string | null;
   assigned_to?: string | null;
   sort_order?: number;
