@@ -172,9 +172,6 @@ export function InvoiceSection({
     if (!entity) return;
 
     startTransition(async () => {
-      // TODO: PDFアップロード処理（Supabase Storage）
-      const pdfPath = null;
-
       if (editingInvoice) {
         // 更新
         const result = await updateInvoice(editingInvoice.id, {
@@ -190,8 +187,18 @@ export function InvoiceSection({
           alert(result.error);
           return;
         }
+
+        // PDFがあればアップロード
+        if (pdfFile) {
+          const pdfFormData = new FormData();
+          pdfFormData.append("file", pdfFile);
+          const uploadResult = await uploadInvoicePdf(editingInvoice.id, pdfFormData);
+          if (uploadResult.error) {
+            alert(uploadResult.error);
+          }
+        }
       } else {
-        // 新規作成
+        // 新規作成（まずPDFなしで作成）
         const result = await createInvoice({
           project_id: projectId,
           project_code: projectCode,
@@ -203,12 +210,22 @@ export function InvoiceSection({
           fee_tax_excluded: formData.fee_tax_excluded,
           expenses: formData.expenses,
           total_amount: formData.total_amount,
-          pdf_path: pdfPath,
+          pdf_path: null,
           notes: formData.notes || null,
         });
         if (result.error) {
           alert(result.error);
           return;
+        }
+
+        // PDFがあればアップロード
+        if (pdfFile && result.invoice) {
+          const pdfFormData = new FormData();
+          pdfFormData.append("file", pdfFile);
+          const uploadResult = await uploadInvoicePdf(result.invoice.id, pdfFormData);
+          if (uploadResult.error) {
+            alert(uploadResult.error);
+          }
         }
       }
 
