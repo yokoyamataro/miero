@@ -86,8 +86,13 @@ export function DashboardCalendar({
   onDropTask,
 }: DashboardCalendarProps) {
   const [viewMode, setViewMode] = useState<ViewMode>(initialView);
-  const [currentDate, setCurrentDate] = useState(parseISO(initialDate));
+  const [currentDate, setCurrentDate] = useState(() => new Date()); // 常に今日で初期化
   const [events, setEvents] = useState(initialEvents);
+
+  // マウント時に今日の日付を設定（ホームに戻った時、ログイン後に本日を表示）
+  useEffect(() => {
+    setCurrentDate(new Date());
+  }, []);
   const [showEventModal, setShowEventModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEventWithParticipants | null>(null);
