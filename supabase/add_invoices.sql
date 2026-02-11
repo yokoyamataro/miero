@@ -27,6 +27,7 @@ ON CONFLICT (code) DO NOTHING;
 -- RLS
 ALTER TABLE business_entities ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Authenticated can view business_entities" ON business_entities;
 CREATE POLICY "Authenticated can view business_entities" ON business_entities
   FOR SELECT TO authenticated USING (true);
 
@@ -83,15 +84,19 @@ CREATE INDEX IF NOT EXISTS idx_invoices_deleted_at ON invoices(deleted_at);
 -- RLS
 ALTER TABLE invoices ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Authenticated can view invoices" ON invoices;
 CREATE POLICY "Authenticated can view invoices" ON invoices
   FOR SELECT TO authenticated USING (true);
 
+DROP POLICY IF EXISTS "Authenticated can insert invoices" ON invoices;
 CREATE POLICY "Authenticated can insert invoices" ON invoices
   FOR INSERT TO authenticated WITH CHECK (true);
 
+DROP POLICY IF EXISTS "Authenticated can update invoices" ON invoices;
 CREATE POLICY "Authenticated can update invoices" ON invoices
   FOR UPDATE TO authenticated USING (true);
 
+DROP POLICY IF EXISTS "Authenticated can delete invoices" ON invoices;
 CREATE POLICY "Authenticated can delete invoices" ON invoices
   FOR DELETE TO authenticated USING (true);
 
