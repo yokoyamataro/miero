@@ -41,12 +41,13 @@ export async function getIncompleteTasks(
   const typedTasks = tasks as Task[];
   if (typedTasks.length === 0) return [];
 
-  // 関連する業務を取得
+  // 関連する業務を取得（完了以外）
   const projectIds = Array.from(new Set(typedTasks.map((t) => t.project_id)));
   const { data: projects, error: projectsError } = await supabase
     .from("projects")
     .select("id, code, name, location, status, is_urgent, is_on_hold")
-    .in("id", projectIds);
+    .in("id", projectIds)
+    .neq("status", "completed");
 
   if (projectsError) {
     console.error("Error fetching projects:", projectsError);
