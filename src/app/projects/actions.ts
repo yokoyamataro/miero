@@ -69,7 +69,6 @@ export interface CreateProjectData {
   fee_tax_excluded: number | null;
   location: string | null;
   location_detail: string | null;
-  details: Record<string, unknown>;
 }
 
 export async function createProject(data: CreateProjectData) {
@@ -87,7 +86,6 @@ export async function createProject(data: CreateProjectData) {
     fee_tax_excluded: data.fee_tax_excluded || 0,
     location: data.location || null,
     location_detail: data.location_detail || null,
-    details: data.details,
   });
 
   if (error) {
@@ -813,12 +811,6 @@ export async function importProjectsFromCSV(csvContent: string): Promise<{
         continue;
       }
 
-      // details に詳細を保存
-      const details: Record<string, string> = {};
-      if (notes) {
-        details.notes = notes;
-      }
-
       // 業務を作成
       const { data: projectData, error: insertError } = await supabase
         .from("projects")
@@ -834,7 +826,7 @@ export async function importProjectsFromCSV(csvContent: string): Promise<{
           fee_tax_excluded: feeNumber || 0,
           location: area || null,
           location_detail: locationDetail || null,
-          details,
+          notes: notes || null,
         })
         .select("id")
         .single();
@@ -1012,13 +1004,13 @@ export async function importProjectsFromCSV(csvContent: string): Promise<{
         continue;
       }
 
-      // details に次期改選とコメントを保存
-      const details: Record<string, string> = {};
+      // 次期改選とコメントをnotesに保存
+      const notesLines: string[] = [];
       if (nextElection) {
-        details.next_election = nextElection.trim();
+        notesLines.push(`次期改選: ${nextElection.trim()}`);
       }
       if (comment) {
-        details.comment = comment.trim();
+        notesLines.push(comment.trim());
       }
 
       const { error: insertError } = await supabase.from("projects").insert({
@@ -1033,7 +1025,7 @@ export async function importProjectsFromCSV(csvContent: string): Promise<{
         fee_tax_excluded: feeNumber || 0,
         location: area?.trim() || null,
         location_detail: null,
-        details,
+        notes: notesLines.length > 0 ? notesLines.join("\n") : null,
       });
 
       if (insertError) {
@@ -1147,12 +1139,6 @@ export async function importProjectsFromCSV(csvContent: string): Promise<{
         continue;
       }
 
-      // details に業務の区分を保存
-      const details: Record<string, string> = {};
-      if (surveyType) {
-        details.survey_type = surveyType.trim();
-      }
-
       const { error: insertError } = await supabase.from("projects").insert({
         code,
         category: categoryCode,
@@ -1165,7 +1151,7 @@ export async function importProjectsFromCSV(csvContent: string): Promise<{
         fee_tax_excluded: feeNumber || 0,
         location: area?.trim() || null,
         location_detail: null,
-        details,
+        notes: surveyType ? `業務区分: ${surveyType.trim()}` : null,
       });
 
       if (insertError) {
@@ -1248,7 +1234,6 @@ export async function importProjectsFromCSV(csvContent: string): Promise<{
         fee_tax_excluded: feeNumber || 0,
         location: location || null,
         location_detail: null,
-        details: {},
       });
 
       if (insertError) {

@@ -1390,25 +1390,6 @@ export function ProjectInfo({
         </CardContent>
       </Card>
 
-      {/* カテゴリ別詳細 */}
-      {project.details && Object.keys(project.details).length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">カテゴリ別詳細</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <dl className="space-y-2 text-sm">
-              {Object.entries(project.details).map(([key, value]) => (
-                <div key={key} className="flex justify-between">
-                  <dt className="text-muted-foreground">{key}</dt>
-                  <dd>{String(value)}</dd>
-                </div>
-              ))}
-            </dl>
-          </CardContent>
-        </Card>
-      )}
-
       {/* 顧客選択モーダル */}
       <ContactSelectModal
         open={showContactModal}

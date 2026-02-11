@@ -47,71 +47,6 @@ export const PROJECT_STATUS_COLORS: Record<ProjectStatus, string> = {
   完了: "bg-red-500 text-white",
 };
 
-// JSONB details 型定義
-export interface SurveyDetails {
-  survey_type?: string;
-  jv_name?: string;
-}
-
-export interface BoundaryDetails {
-  purpose?: string;
-  referrer?: string;
-  coordinates?: {
-    lat: number;
-    lng: number;
-  };
-  workflow?: {
-    estimate?: boolean;
-    accepted?: boolean;
-    survey?: boolean;
-    staking?: boolean;
-    registration?: boolean;
-    billing?: boolean;
-  };
-}
-
-export interface RegistrationDetails {
-  sub_type?: string;
-  architect?: string;
-  completion_date?: string;
-  settlement_date?: string;
-  mortgage_lender?: string;
-  heirs?: string[];
-}
-
-export interface InheritanceDetails {
-  will_type?: string;
-  will_date?: string;
-  documents_kept?: string;
-  contact_info?: string;
-}
-
-export interface CorporateDetails {
-  purpose?: string;
-  next_election_date?: string;
-}
-
-export interface DroneDetails {
-  items?: string[];
-  cost_price?: number;
-}
-
-export interface FarmlandDetails {
-  application_type?: string;
-  application_date?: string;
-  permission_date?: string;
-  article_type?: string;
-}
-
-export type ProjectDetails =
-  | SurveyDetails
-  | BoundaryDetails
-  | RegistrationDetails
-  | InheritanceDetails
-  | CorporateDetails
-  | DroneDetails
-  | FarmlandDetails;
-
 // ============================================
 // Account (法人・組織)
 // ============================================
@@ -296,7 +231,6 @@ export interface Project {
   location: string | null;
   location_detail: string | null;
   notes: string | null;
-  details: ProjectDetails;
   created_at: string;
   updated_at: string;
 }
@@ -317,7 +251,6 @@ export interface ProjectInsert {
   location?: string | null;
   location_detail?: string | null;
   notes?: string | null;
-  details?: ProjectDetails;
 }
 
 // プロジェクト一覧用（JOINした結果）
