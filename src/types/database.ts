@@ -14,11 +14,7 @@ export type ProjectCategory =
   | "D_Inheritance"
   | "E_Corporate"
   | "F_Drone"
-  | "N_Farmland"
-  | "S_General"
-  | "K_Association"
-  | "V_Training"
-  | "O_Other";
+  | "N_Farmland";
 
 // 業務ステータス
 export type ProjectStatus = "進行中" | "完了";
@@ -35,10 +31,6 @@ export const PROJECT_CATEGORY_LABELS: Record<ProjectCategory, string> = {
   E_Corporate: "E:法人関係",
   F_Drone: "F:ドローン",
   N_Farmland: "N:農地関係",
-  S_General: "S:総務",
-  K_Association: "K:会務",
-  V_Training: "V:研修",
-  O_Other: "O:その他",
 };
 
 // ステータスバッジカラー
