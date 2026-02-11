@@ -42,6 +42,7 @@ export function DashboardView({
   const [droppedTaskData, setDroppedTaskData] = useState<DroppedTaskData | null>(null);
   const [droppedStartTime, setDroppedStartTime] = useState<{ hour: string; minute: string } | null>(null);
   const [droppedEndTime, setDroppedEndTime] = useState<{ hour: string; minute: string } | null>(null);
+  const [droppedTargetEmployeeId, setDroppedTargetEmployeeId] = useState<string | null>(null);
   const [draggingTask, setDraggingTask] = useState<TaskWithProject | null>(null);
 
   // タスクをカレンダーにドロップしたとき
@@ -49,12 +50,14 @@ export function DashboardView({
     date: Date,
     taskData: DroppedTaskData,
     startTime?: { hour: string; minute: string },
-    endTime?: { hour: string; minute: string }
+    endTime?: { hour: string; minute: string },
+    targetEmployeeId?: string
   ) => {
     setDroppedDate(date);
     setDroppedTaskData(taskData);
     setDroppedStartTime(startTime || null);
     setDroppedEndTime(endTime || null);
+    setDroppedTargetEmployeeId(targetEmployeeId || null);
     setShowEventModal(true);
   }, []);
 
@@ -70,11 +73,18 @@ export function DashboardView({
     setDroppedTaskData(null);
     setDroppedStartTime(null);
     setDroppedEndTime(null);
+    setDroppedTargetEmployeeId(null);
     router.refresh();
     window.location.reload();
   };
 
   // ドロップ時のプリセットイベントを作成
+  // ドロップ先の社員を参加者として設定
+  const targetEmployee = droppedTargetEmployeeId
+    ? employees.find((e) => e.id === droppedTargetEmployeeId)
+    : null;
+  const presetParticipants = targetEmployee ? [targetEmployee] : [];
+
   const presetEvent: CalendarEventWithParticipants | null = droppedTaskData
     ? {
         id: "",
@@ -94,7 +104,7 @@ export function DashboardView({
         task_id: droppedTaskData.taskId,
         created_at: "",
         updated_at: "",
-        participants: [],
+        participants: presetParticipants,
         creator: null,
         project: {
           id: droppedTaskData.projectId,
@@ -145,6 +155,7 @@ export function DashboardView({
             setDroppedTaskData(null);
             setDroppedStartTime(null);
             setDroppedEndTime(null);
+            setDroppedTargetEmployeeId(null);
           }
         }}
         employees={employees}

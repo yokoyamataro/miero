@@ -61,7 +61,8 @@ interface DashboardCalendarProps {
     date: Date,
     taskData: DroppedTaskData,
     startTime?: { hour: string; minute: string },
-    endTime?: { hour: string; minute: string }
+    endTime?: { hour: string; minute: string },
+    targetEmployeeId?: string
   ) => void;
 }
 
@@ -347,7 +348,7 @@ export function DashboardCalendar({
 
   // ドロップハンドラー
   const handleDrop = useCallback(
-    (date: Date, e: React.DragEvent) => {
+    (date: Date, e: React.DragEvent, targetEmployeeId?: string) => {
       e.preventDefault();
       setDragOverDate(null);
       lastDragOverSlotRef.current = null;
@@ -356,7 +357,7 @@ export function DashboardCalendar({
         const data = e.dataTransfer.getData("text/plain");
         if (data) {
           const taskData = JSON.parse(data) as DroppedTaskData;
-          onDropTask(date, taskData);
+          onDropTask(date, taskData, undefined, undefined, targetEmployeeId);
         }
       } catch (err) {
         console.error("Drop error:", err);
@@ -390,7 +391,7 @@ export function DashboardCalendar({
   }, []);
 
   // 時間枠へのドロップ（イベント移動 or タスクドロップ）
-  const handleTimeSlotDrop = useCallback(async (date: Date, hour: number, e: React.DragEvent) => {
+  const handleTimeSlotDrop = useCallback(async (date: Date, hour: number, e: React.DragEvent, targetEmployeeId?: string) => {
     e.preventDefault();
     e.stopPropagation();
     setDragOverSlot(null);
@@ -420,12 +421,13 @@ export function DashboardCalendar({
             endHour = String(hour).padStart(2, "0");
           }
 
-          // 時刻情報付きで親コンポーネントに通知
+          // 時刻情報付きで親コンポーネントに通知（ドロップ先社員IDも渡す）
           onDropTask(
             date,
             parsed,
             { hour: startHour, minute: startMinute },
-            { hour: endHour, minute: endMinute }
+            { hour: endHour, minute: endMinute },
+            targetEmployeeId
           );
           return;
         }
@@ -1006,7 +1008,7 @@ export function DashboardCalendar({
                   isDragOver ? "bg-blue-100 ring-2 ring-blue-400" : ""
                 }`}
                 onClick={() => handleDateClick(currentDate)}
-                onDrop={(e) => handleDrop(currentDate, e)}
+                onDrop={(e) => handleDrop(currentDate, e, emp.id)}
                 onDragOver={(e) => handleDragOver(currentDate, e)}
                 onDragLeave={handleDragLeave}
               >
@@ -1043,7 +1045,7 @@ export function DashboardCalendar({
                         isSlotDragOver ? "bg-blue-200" : isLunchTime ? "bg-gray-100" : "hover:bg-muted/30"
                       }`}
                       onClick={() => handleTimeSlotClick(currentDate, slot.hour)}
-                      onDrop={(e) => handleTimeSlotDrop(currentDate, slot.hour, e)}
+                      onDrop={(e) => handleTimeSlotDrop(currentDate, slot.hour, e, emp.id)}
                       onDragOver={(e) => handleTimeSlotDragOver(currentDate, slot.hour, e)}
                       onDragLeave={() => setDragOverSlot(null)}
                     />
