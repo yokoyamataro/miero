@@ -14,6 +14,7 @@ import {
   type StakeholderTag,
   type ProjectStakeholderWithDetails,
   type BusinessEntity,
+  type RelatedProjectWithDetails,
 } from "@/types/database";
 import { TaskList } from "./task-list";
 import { CommentSection } from "./comment-section";
@@ -21,7 +22,8 @@ import { ProjectInfo, type CustomerData, type CorporateContact } from "./project
 import { StakeholderSection } from "./stakeholder-section";
 import { ProjectNotes } from "./project-notes";
 import { InvoiceSection } from "./invoice-section";
-import { getCurrentEmployeeId, getStakeholderTags, getProjectStakeholders, getIndustries } from "./actions";
+import { getCurrentEmployeeId, getStakeholderTags, getProjectStakeholders, getIndustries, getRelatedProjects } from "./actions";
+import { RelatedProjectsSection } from "./related-projects-section";
 import { getBusinessEntities, getProjectInvoices } from "@/app/invoices/actions";
 
 
@@ -62,6 +64,7 @@ export default async function ProjectDetailPage({
     industries,
     businessEntities,
     projectInvoices,
+    relatedProjects,
   ] = await Promise.all([
     project.contact_id
       ? supabase.from("contacts" as never).select("*").eq("id", project.contact_id).single()
@@ -106,6 +109,7 @@ export default async function ProjectDetailPage({
     getIndustries(),
     getBusinessEntities(),
     getProjectInvoices(id),
+    getRelatedProjects(id),
   ]);
 
   const typedProject = project as Project;
@@ -205,6 +209,12 @@ export default async function ProjectDetailPage({
             employees={typedEmployees}
             customerData={customerData}
             defaultRecipientContactId={typedProject.contact_id}
+          />
+
+          {/* 関連業務セクション */}
+          <RelatedProjectsSection
+            projectId={id}
+            relatedProjects={relatedProjects}
           />
         </div>
 

@@ -16,6 +16,7 @@ import {
   type TaskTemplateSetWithItems,
   type Task,
   type Industry,
+  type RelatedProjectWithDetails,
   DEFAULT_INDUSTRIES,
 } from "@/types/database";
 
@@ -1133,4 +1134,163 @@ export async function createAccountWithContacts(
   }
 
   return { accountId, primaryContactId };
+}
+
+// ============================================
+// Related Project Actions (関連業務)
+// ============================================
+
+// 関連業務を取得（双方向）
+export async function getRelatedProjects(
+  projectId: string
+): Promise<RelatedProjectWithDetails[]> {
+  const supabase = await createClient();
+
+  // 関連を取得（project_id側またはrelated_project_id側にある場合）
+  const { data: relations, error } = await supabase
+    .from("related_projects" as never)
+    .select("*")
+    .or(`project_id.eq.${projectId},related_project_id.eq.${projectId}`);
+
+  if (error) {
+    console.error("Error fetching related projects:", error);
+    return [];
+  }
+
+  if (!relations || relations.length === 0) return [];
+
+  // 関連する業務IDを収集（自分以外）
+  const relatedProjectIds = (relations as { id: string; project_id: string; related_project_id: string }[]).map(
+    (r) => (r.project_id === projectId ? r.related_project_id : r.project_id)
+  );
+
+  // 業務情報を取得
+  const { data: projects, error: projectsError } = await supabase
+    .from("projects")
+    .select("id, code, name, category, status")
+    .in("id", relatedProjectIds);
+
+  if (projectsError) {
+    console.error("Error fetching project details:", projectsError);
+    return [];
+  }
+
+  const projectMap = new Map(
+    (projects as { id: string; code: string; name: string; category: ProjectCategory | null; status: ProjectStatus }[])?.map(
+      (p) => [p.id, p]
+    ) || []
+  );
+
+  // 結合
+  return (relations as { id: string; project_id: string; related_project_id: string }[])
+    .map((r) => {
+      const relatedId = r.project_id === projectId ? r.related_project_id : r.project_id;
+      const project = projectMap.get(relatedId);
+      if (!project) return null;
+
+      return {
+        id: r.id,
+        project,
+      } as RelatedProjectWithDetails;
+    })
+    .filter(Boolean) as RelatedProjectWithDetails[];
+}
+
+// 関連業務を追加（双方向リンク）
+export async function addRelatedProject(
+  projectId: string,
+  relatedProjectId: string
+): Promise<{ success?: boolean; error?: string }> {
+  const supabase = await createClient();
+
+  // 自己参照チェック
+  if (projectId === relatedProjectId) {
+    return { error: "同じ業務を関連付けることはできません" };
+  }
+
+  // 既存の関連をチェック（どちらの方向でも）
+  const { data: existing } = await supabase
+    .from("related_projects" as never)
+    .select("id")
+    .or(
+      `and(project_id.eq.${projectId},related_project_id.eq.${relatedProjectId}),and(project_id.eq.${relatedProjectId},related_project_id.eq.${projectId})`
+    )
+    .limit(1);
+
+  if (existing && existing.length > 0) {
+    return { error: "この業務は既に関連付けられています" };
+  }
+
+  // 関連を追加
+  const { error } = await supabase
+    .from("related_projects" as never)
+    .insert({
+      project_id: projectId,
+      related_project_id: relatedProjectId,
+    } as never);
+
+  if (error) {
+    console.error("Error adding related project:", error);
+    return { error: "関連業務の追加に失敗しました" };
+  }
+
+  revalidatePath(`/projects/${projectId}`);
+  revalidatePath(`/projects/${relatedProjectId}`);
+  return { success: true };
+}
+
+// 関連業務を削除
+export async function removeRelatedProject(
+  relationId: string,
+  projectId: string
+): Promise<{ success?: boolean; error?: string }> {
+  const supabase = await createClient();
+
+  // 削除対象の関連を取得（revalidate用）
+  const { data: relation } = await supabase
+    .from("related_projects" as never)
+    .select("project_id, related_project_id")
+    .eq("id", relationId)
+    .single();
+
+  const { error } = await supabase
+    .from("related_projects" as never)
+    .delete()
+    .eq("id", relationId);
+
+  if (error) {
+    console.error("Error removing related project:", error);
+    return { error: "関連業務の削除に失敗しました" };
+  }
+
+  revalidatePath(`/projects/${projectId}`);
+  if (relation) {
+    const rel = relation as { project_id: string; related_project_id: string };
+    const otherProjectId = rel.project_id === projectId ? rel.related_project_id : rel.project_id;
+    revalidatePath(`/projects/${otherProjectId}`);
+  }
+  return { success: true };
+}
+
+// 業務検索（関連業務追加用）
+export async function searchProjectsForRelation(
+  query: string,
+  excludeProjectId: string
+): Promise<{ id: string; code: string; name: string; category: ProjectCategory | null }[]> {
+  const supabase = await createClient();
+
+  // コードまたは名前で検索
+  const { data, error } = await supabase
+    .from("projects")
+    .select("id, code, name, category")
+    .neq("id", excludeProjectId)
+    .or(`code.ilike.%${query}%,name.ilike.%${query}%`)
+    .limit(20);
+
+  if (error) {
+    console.error("Error searching projects:", error);
+    return [];
+  }
+
+  return (data as { id: string; code: string; name: string; category: ProjectCategory | null }[]) || [];
 }

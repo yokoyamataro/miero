@@ -384,6 +384,28 @@ export interface CommentWithAcknowledgements extends Comment {
 }
 
 // ============================================
+// Related Projects (関連業務)
+// ============================================
+export interface RelatedProject {
+  id: string;
+  project_id: string;
+  related_project_id: string;
+  created_at: string;
+}
+
+// 関連業務（業務情報付き）
+export interface RelatedProjectWithDetails {
+  id: string;
+  project: {
+    id: string;
+    code: string;
+    name: string;
+    category: ProjectCategory | null;
+    status: ProjectStatus;
+  };
+}
+
+// ============================================
 // Event Category (イベント区分マスタ)
 // ============================================
 export interface EventCategory {
