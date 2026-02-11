@@ -178,22 +178,20 @@ export function DashboardCalendar({
     });
   };
 
-  // 週表示用：日付×社員ごとのイベントを取得
+  // 週表示用：日付×社員ごとのイベントを取得（参加者のみで判定）
   const getEventsForDateAndEmployee = (date: Date, employeeId: string) => {
     return filteredEvents.filter((event) => {
       if (!isDateInRange(date, event.start_date, event.end_date)) return false;
-      return event.created_by === employeeId ||
-             event.participants.some((p) => p.id === employeeId);
+      return event.participants.some((p) => p.id === employeeId);
     });
   };
 
-  // 3日表示用：自分のイベントのみ取得
+  // 5日表示用：自分のイベントのみ取得（参加者のみで判定）
   const getMyEventsForDate = (date: Date) => {
     if (!currentEmployeeId) return [];
     return filteredEvents.filter((event) => {
       if (!isDateInRange(date, event.start_date, event.end_date)) return false;
-      return event.created_by === currentEmployeeId ||
-             event.participants.some((p) => p.id === currentEmployeeId);
+      return event.participants.some((p) => p.id === currentEmployeeId);
     });
   };
 
