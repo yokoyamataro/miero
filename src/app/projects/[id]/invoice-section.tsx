@@ -177,7 +177,7 @@ export function InvoiceSection({
 
       if (editingInvoice) {
         // 更新
-        await updateInvoice(editingInvoice.id, {
+        const result = await updateInvoice(editingInvoice.id, {
           invoice_date: formData.invoice_date,
           recipient_contact_id: formData.recipient_contact_id || null,
           person_in_charge_id: formData.person_in_charge_id || null,
@@ -186,9 +186,13 @@ export function InvoiceSection({
           total_amount: formData.total_amount,
           notes: formData.notes || null,
         });
+        if (result.error) {
+          alert(result.error);
+          return;
+        }
       } else {
         // 新規作成
-        await createInvoice({
+        const result = await createInvoice({
           project_id: projectId,
           project_code: projectCode,
           business_entity_id: formData.business_entity_id,
@@ -202,6 +206,10 @@ export function InvoiceSection({
           pdf_path: pdfPath,
           notes: formData.notes || null,
         });
+        if (result.error) {
+          alert(result.error);
+          return;
+        }
       }
 
       handleClose();
