@@ -74,13 +74,16 @@ export function DashboardTaskList({
   const handleAddPersonalTask = () => {
     if (!newPersonalTaskTitle.trim()) return;
     startTransition(async () => {
-      await createPersonalTask({
+      const result = await createPersonalTask({
         title: newPersonalTaskTitle.trim(),
         assigned_to: currentEmployeeId,
       });
+      if (result.error) {
+        console.error("Error creating personal task:", result.error);
+        return;
+      }
       setNewPersonalTaskTitle("");
       setIsAddingPersonalTask(false);
-      router.refresh();
       window.location.reload();
     });
   };
