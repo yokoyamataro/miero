@@ -3,7 +3,7 @@
 import { useState, useTransition, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -24,9 +24,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
-  Receipt,
   Search,
-  Filter,
   ExternalLink,
   FileText,
   X,
@@ -38,7 +36,7 @@ import {
 } from "@/types/database";
 import {
   toggleAccountingRegistered,
-  togglePaymentReceived,
+  updatePaymentDate,
   getInvoicePdfUrl,
 } from "./actions";
 
@@ -62,6 +60,21 @@ function formatDate(dateStr: string | null): string {
   return new Date(dateStr).toLocaleDateString("ja-JP");
 }
 
+// 請求月の選択肢を生成（過去12ヶ月 + 未来3ヶ月）
+function generateMonthOptions(): { value: string; label: string }[] {
+  const options: { value: string; label: string }[] = [];
+  const now = new Date();
+
+  for (let i = -12; i <= 3; i++) {
+    const date = new Date(now.getFullYear(), now.getMonth() + i, 1);
+    const value = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+    const label = `${date.getFullYear()}年${date.getMonth() + 1}月`;
+    options.push({ value, label });
+  }
+
+  return options.reverse(); // 新しい月が上に
+}
+
 export function InvoiceList({
   invoices,
   businessEntities,
@@ -75,6 +88,10 @@ export function InvoiceList({
   const [filterEntity, setFilterEntity] = useState<string>("all");
   const [filterAccounting, setFilterAccounting] = useState<string>("all");
   const [filterPayment, setFilterPayment] = useState<string>("all");
+  const [filterMonth, setFilterMonth] = useState<string>("all");
+
+  // 月の選択肢
+  const monthOptions = useMemo(() => generateMonthOptions(), []);
 
   // フィルタリング
   const filteredInvoices = useMemo(() => {
@@ -106,26 +123,36 @@ export function InvoiceList({
         return false;
       }
 
-      // 入金フィルタ
-      if (filterPayment === "received" && !invoice.is_payment_received) {
+      // 入金フィルタ（入金日があれば入金済み）
+      const isPaid = !!invoice.payment_received_date;
+      if (filterPayment === "received" && !isPaid) {
         return false;
       }
-      if (filterPayment === "unreceived" && invoice.is_payment_received) {
+      if (filterPayment === "unreceived" && isPaid) {
         return false;
+      }
+
+      // 請求月フィルタ
+      if (filterMonth !== "all") {
+        const invoiceMonth = invoice.invoice_date.substring(0, 7); // yyyy-MM
+        if (invoiceMonth !== filterMonth) {
+          return false;
+        }
       }
 
       return true;
     });
-  }, [invoices, searchQuery, filterEntity, filterAccounting, filterPayment]);
+  }, [invoices, searchQuery, filterEntity, filterAccounting, filterPayment, filterMonth]);
 
   // 集計
   const totals = useMemo(() => {
+    const paid = filteredInvoices.filter((i) => !!i.payment_received_date);
     return {
       feeTaxExcluded: filteredInvoices.reduce((sum, i) => sum + i.fee_tax_excluded, 0),
       expenses: filteredInvoices.reduce((sum, i) => sum + i.expenses, 0),
       totalAmount: filteredInvoices.reduce((sum, i) => sum + i.total_amount, 0),
       accountingRegistered: filteredInvoices.filter((i) => i.is_accounting_registered).length,
-      paymentReceived: filteredInvoices.filter((i) => i.is_payment_received).length,
+      paymentReceived: paid.length,
     };
   }, [filteredInvoices]);
 
@@ -136,9 +163,9 @@ export function InvoiceList({
     });
   };
 
-  const handleTogglePayment = async (invoiceId: string, current: boolean) => {
+  const handlePaymentDateChange = async (invoiceId: string, date: string) => {
     startTransition(async () => {
-      await togglePaymentReceived(invoiceId, !current);
+      await updatePaymentDate(invoiceId, date || null);
       router.refresh();
     });
   };
@@ -157,10 +184,11 @@ export function InvoiceList({
     setFilterEntity("all");
     setFilterAccounting("all");
     setFilterPayment("all");
+    setFilterMonth("all");
   };
 
   const hasActiveFilters =
-    searchQuery || filterEntity !== "all" || filterAccounting !== "all" || filterPayment !== "all";
+    searchQuery || filterEntity !== "all" || filterAccounting !== "all" || filterPayment !== "all" || filterMonth !== "all";
 
   return (
     <div className="space-y-6">
@@ -179,9 +207,24 @@ export function InvoiceList({
               />
             </div>
 
+            {/* 請求月フィルタ */}
+            <Select value={filterMonth} onValueChange={setFilterMonth}>
+              <SelectTrigger className="w-[150px]">
+                <SelectValue placeholder="請求月" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">すべての月</SelectItem>
+                {monthOptions.map((option) => (
+                  <SelectItem key={option.value} value={option.value}>
+                    {option.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+
             {/* 事業主体フィルタ */}
             <Select value={filterEntity} onValueChange={setFilterEntity}>
-              <SelectTrigger className="w-[200px]">
+              <SelectTrigger className="w-[180px]">
                 <SelectValue placeholder="事業主体" />
               </SelectTrigger>
               <SelectContent>
@@ -194,27 +237,27 @@ export function InvoiceList({
               </SelectContent>
             </Select>
 
-            {/* 会計登録フィルタ */}
-            <Select value={filterAccounting} onValueChange={setFilterAccounting}>
-              <SelectTrigger className="w-[150px]">
-                <SelectValue placeholder="会計登録" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">すべて</SelectItem>
-                <SelectItem value="registered">会計登録済</SelectItem>
-                <SelectItem value="unregistered">未登録</SelectItem>
-              </SelectContent>
-            </Select>
-
             {/* 入金フィルタ */}
             <Select value={filterPayment} onValueChange={setFilterPayment}>
-              <SelectTrigger className="w-[150px]">
+              <SelectTrigger className="w-[130px]">
                 <SelectValue placeholder="入金状況" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">すべて</SelectItem>
                 <SelectItem value="received">入金済</SelectItem>
                 <SelectItem value="unreceived">未入金</SelectItem>
+              </SelectContent>
+            </Select>
+
+            {/* 会計登録フィルタ */}
+            <Select value={filterAccounting} onValueChange={setFilterAccounting}>
+              <SelectTrigger className="w-[130px]">
+                <SelectValue placeholder="会計登録" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">すべて</SelectItem>
+                <SelectItem value="registered">登録済</SelectItem>
+                <SelectItem value="unregistered">未登録</SelectItem>
               </SelectContent>
             </Select>
 
@@ -280,21 +323,56 @@ export function InvoiceList({
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-[140px]">請求書番号</TableHead>
-                    <TableHead>業務</TableHead>
-                    <TableHead>事業主体</TableHead>
+                    <TableHead className="w-[100px]">請求日</TableHead>
+                    <TableHead className="w-[130px]">入金日</TableHead>
                     <TableHead>相手先</TableHead>
-                    <TableHead>請求日</TableHead>
+                    <TableHead>業務名</TableHead>
                     <TableHead className="text-right">請求金額</TableHead>
+                    <TableHead className="w-[80px]">事業主体</TableHead>
                     <TableHead className="text-center w-[60px]">会計</TableHead>
-                    <TableHead className="text-center w-[60px]">入金</TableHead>
-                    <TableHead className="w-[60px]"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredInvoices.map((invoice) => (
-                    <TableRow key={invoice.id}>
+                    <TableRow key={invoice.id} className={invoice.payment_received_date ? "bg-green-50" : ""}>
                       <TableCell className="font-mono text-sm">
-                        {invoice.invoice_number}
+                        <div className="flex items-center gap-1">
+                          {invoice.pdf_path && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0"
+                              title="PDFを開く"
+                              onClick={() => handleOpenPdf(invoice.pdf_path!)}
+                            >
+                              <FileText className="h-4 w-4 text-primary" />
+                            </Button>
+                          )}
+                          <span>{invoice.invoice_number}</span>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {formatDate(invoice.invoice_date)}
+                      </TableCell>
+                      <TableCell>
+                        <Input
+                          type="date"
+                          value={invoice.payment_received_date || ""}
+                          onChange={(e) => handlePaymentDateChange(invoice.id, e.target.value)}
+                          disabled={isPending}
+                          className="h-8 w-[120px] text-sm"
+                        />
+                      </TableCell>
+                      <TableCell className="text-sm">
+                        {invoice.recipientAccount?.company_name && (
+                          <div className="font-medium">{invoice.recipientAccount.company_name}</div>
+                        )}
+                        {invoice.recipientContact && (
+                          <div className={invoice.recipientAccount ? "text-xs text-muted-foreground" : ""}>
+                            {invoice.recipientContact.last_name} {invoice.recipientContact.first_name}
+                          </div>
+                        )}
+                        {!invoice.recipientContact && !invoice.recipientAccount && "-"}
                       </TableCell>
                       <TableCell>
                         <Link
@@ -307,27 +385,13 @@ export function InvoiceList({
                           {invoice.project?.code}
                         </div>
                       </TableCell>
+                      <TableCell className="text-right font-medium">
+                        {formatCurrency(invoice.total_amount)}
+                      </TableCell>
                       <TableCell className="text-sm">
                         <Badge variant="outline" className="font-normal">
                           {invoice.businessEntity?.code}
                         </Badge>
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {invoice.recipientAccount?.company_name && (
-                          <div>{invoice.recipientAccount.company_name}</div>
-                        )}
-                        {invoice.recipientContact && (
-                          <div className={invoice.recipientAccount ? "text-xs text-muted-foreground" : ""}>
-                            {invoice.recipientContact.last_name} {invoice.recipientContact.first_name}
-                          </div>
-                        )}
-                        {!invoice.recipientContact && "-"}
-                      </TableCell>
-                      <TableCell className="text-sm">
-                        {formatDate(invoice.invoice_date)}
-                      </TableCell>
-                      <TableCell className="text-right font-medium">
-                        {formatCurrency(invoice.total_amount)}
                       </TableCell>
                       <TableCell className="text-center">
                         <Checkbox
@@ -337,35 +401,6 @@ export function InvoiceList({
                           }
                           disabled={isPending}
                         />
-                      </TableCell>
-                      <TableCell className="text-center">
-                        <Checkbox
-                          checked={invoice.is_payment_received}
-                          onCheckedChange={() =>
-                            handleTogglePayment(invoice.id, invoice.is_payment_received)
-                          }
-                          disabled={isPending}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex items-center gap-1">
-                          {invoice.pdf_path && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 w-7 p-0"
-                              title="PDFを開く"
-                              onClick={() => handleOpenPdf(invoice.pdf_path!)}
-                            >
-                              <FileText className="h-4 w-4" />
-                            </Button>
-                          )}
-                          <Link href={`/projects/${invoice.project_id}`}>
-                            <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
-                              <ExternalLink className="h-4 w-4" />
-                            </Button>
-                          </Link>
-                        </div>
                       </TableCell>
                     </TableRow>
                   ))}

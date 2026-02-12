@@ -366,7 +366,7 @@ export async function toggleAccountingRegistered(
 }
 
 // ============================================
-// 入金ステータス更新
+// 入金ステータス更新（旧: チェックボックス用、互換性のため残す）
 // ============================================
 export async function togglePaymentReceived(
   invoiceId: string,
@@ -376,6 +376,19 @@ export async function togglePaymentReceived(
   return updateInvoice(invoiceId, {
     is_payment_received: isReceived,
     payment_received_date: isReceived ? (paymentDate || new Date().toISOString().split("T")[0]) : null,
+  });
+}
+
+// ============================================
+// 入金日更新（日付入力で入金済みフラグも自動設定）
+// ============================================
+export async function updatePaymentDate(
+  invoiceId: string,
+  paymentDate: string | null
+): Promise<{ error?: string }> {
+  return updateInvoice(invoiceId, {
+    is_payment_received: !!paymentDate,
+    payment_received_date: paymentDate,
   });
 }
 
