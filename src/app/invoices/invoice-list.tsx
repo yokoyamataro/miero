@@ -24,10 +24,20 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Search,
-  ExternalLink,
   FileText,
   X,
+  Trash2,
 } from "lucide-react";
 import {
   type InvoiceWithDetails,
@@ -38,6 +48,7 @@ import {
   toggleAccountingRegistered,
   updatePaymentDate,
   getInvoicePdfUrl,
+  deleteInvoice,
 } from "./actions";
 
 interface InvoiceListProps {
@@ -60,19 +71,21 @@ function formatDate(dateStr: string | null): string {
   return new Date(dateStr).toLocaleDateString("ja-JP");
 }
 
-// 請求月の選択肢を生成（過去12ヶ月 + 未来3ヶ月）
-function generateMonthOptions(): { value: string; label: string }[] {
-  const options: { value: string; label: string }[] = [];
-  const now = new Date();
+// 年の選択肢を生成（前年～来年）
+function generateYearOptions(): number[] {
+  const currentYear = new Date().getFullYear();
+  return [currentYear - 1, currentYear, currentYear + 1];
+}
 
-  for (let i = -12; i <= 3; i++) {
-    const date = new Date(now.getFullYear(), now.getMonth() + i, 1);
-    const value = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-    const label = `${date.getFullYear()}年${date.getMonth() + 1}月`;
-    options.push({ value, label });
+// 事業主体コードに応じた色を返す
+function getEntityBadgeClass(code: string): string {
+  if (code === "T" || code === "L") {
+    return "bg-blue-100 text-blue-800 border-blue-300";
   }
-
-  return options.reverse(); // 新しい月が上に
+  if (code === "S") {
+    return "bg-green-100 text-green-800 border-green-300";
+  }
+  return "";
 }
 
 export function InvoiceList({
@@ -88,10 +101,14 @@ export function InvoiceList({
   const [filterEntity, setFilterEntity] = useState<string>("all");
   const [filterAccounting, setFilterAccounting] = useState<string>("all");
   const [filterPayment, setFilterPayment] = useState<string>("all");
-  const [filterMonth, setFilterMonth] = useState<string>("all");
+  const [filterYear, setFilterYear] = useState<string>("all");
+  const [filterMonth, setFilterMonth] = useState<number | null>(null);
 
-  // 月の選択肢
-  const monthOptions = useMemo(() => generateMonthOptions(), []);
+  // 削除確認ダイアログ
+  const [deleteTarget, setDeleteTarget] = useState<InvoiceWithDetails | null>(null);
+
+  // 年の選択肢
+  const yearOptions = useMemo(() => generateYearOptions(), []);
 
   // フィルタリング
   const filteredInvoices = useMemo(() => {
@@ -132,17 +149,23 @@ export function InvoiceList({
         return false;
       }
 
-      // 請求月フィルタ
-      if (filterMonth !== "all") {
-        const invoiceMonth = invoice.invoice_date.substring(0, 7); // yyyy-MM
-        if (invoiceMonth !== filterMonth) {
+      // 年・月フィルタ
+      if (filterYear !== "all" || filterMonth !== null) {
+        const invoiceDate = new Date(invoice.invoice_date);
+        const invoiceYear = invoiceDate.getFullYear();
+        const invoiceMonth = invoiceDate.getMonth() + 1;
+
+        if (filterYear !== "all" && invoiceYear !== parseInt(filterYear)) {
+          return false;
+        }
+        if (filterMonth !== null && invoiceMonth !== filterMonth) {
           return false;
         }
       }
 
       return true;
     });
-  }, [invoices, searchQuery, filterEntity, filterAccounting, filterPayment, filterMonth]);
+  }, [invoices, searchQuery, filterEntity, filterAccounting, filterPayment, filterYear, filterMonth]);
 
   // 集計
   const totals = useMemo(() => {
@@ -179,22 +202,42 @@ export function InvoiceList({
     window.open(url, "_blank");
   };
 
+  const handleDeleteClick = (invoice: InvoiceWithDetails) => {
+    setDeleteTarget(invoice);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (!deleteTarget) return;
+    startTransition(async () => {
+      const { error } = await deleteInvoice(deleteTarget.id);
+      if (error) {
+        alert(error);
+      }
+      setDeleteTarget(null);
+      router.refresh();
+    });
+  };
+
   const clearFilters = () => {
     setSearchQuery("");
     setFilterEntity("all");
     setFilterAccounting("all");
     setFilterPayment("all");
-    setFilterMonth("all");
+    setFilterYear("all");
+    setFilterMonth(null);
   };
 
   const hasActiveFilters =
-    searchQuery || filterEntity !== "all" || filterAccounting !== "all" || filterPayment !== "all" || filterMonth !== "all";
+    searchQuery || filterEntity !== "all" || filterAccounting !== "all" || filterPayment !== "all" || filterYear !== "all" || filterMonth !== null;
+
+  const months = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
   return (
     <div className="space-y-6">
       {/* フィルタ */}
       <Card>
-        <CardContent className="pt-6">
+        <CardContent className="pt-6 space-y-4">
+          {/* 1行目: 検索と基本フィルタ */}
           <div className="flex flex-wrap gap-4">
             {/* 検索 */}
             <div className="relative flex-1 min-w-[200px]">
@@ -206,21 +249,6 @@ export function InvoiceList({
                 className="pl-9"
               />
             </div>
-
-            {/* 請求月フィルタ */}
-            <Select value={filterMonth} onValueChange={setFilterMonth}>
-              <SelectTrigger className="w-[150px]">
-                <SelectValue placeholder="請求月" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">すべての月</SelectItem>
-                {monthOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
 
             {/* 事業主体フィルタ */}
             <Select value={filterEntity} onValueChange={setFilterEntity}>
@@ -268,6 +296,37 @@ export function InvoiceList({
                 クリア
               </Button>
             )}
+          </div>
+
+          {/* 2行目: 請求月フィルタ（年プルダウン + 月ボタン） */}
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-muted-foreground">請求月:</span>
+            <Select value={filterYear} onValueChange={setFilterYear}>
+              <SelectTrigger className="w-[100px]">
+                <SelectValue placeholder="年" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">すべて</SelectItem>
+                {yearOptions.map((year) => (
+                  <SelectItem key={year} value={String(year)}>
+                    {year}年
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <div className="flex gap-1 flex-wrap">
+              {months.map((month) => (
+                <Button
+                  key={month}
+                  variant={filterMonth === month ? "default" : "outline"}
+                  size="sm"
+                  className="w-10 h-8"
+                  onClick={() => setFilterMonth(filterMonth === month ? null : month)}
+                >
+                  {month}
+                </Button>
+              ))}
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -322,26 +381,27 @@ export function InvoiceList({
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[140px]">請求書番号</TableHead>
+                    <TableHead className="w-[180px]">請求書番号</TableHead>
                     <TableHead className="w-[100px]">請求日</TableHead>
-                    <TableHead className="w-[130px]">入金日</TableHead>
+                    <TableHead className="w-[150px]">入金日</TableHead>
                     <TableHead>相手先</TableHead>
                     <TableHead>業務名</TableHead>
                     <TableHead className="text-right">請求金額</TableHead>
                     <TableHead className="w-[80px]">事業主体</TableHead>
                     <TableHead className="text-center w-[60px]">会計</TableHead>
+                    <TableHead className="w-[50px]"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredInvoices.map((invoice) => (
                     <TableRow key={invoice.id} className={invoice.payment_received_date ? "bg-green-50" : ""}>
                       <TableCell className="font-mono text-sm">
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 whitespace-nowrap">
                           {invoice.pdf_path && (
                             <Button
                               variant="ghost"
                               size="sm"
-                              className="h-6 w-6 p-0"
+                              className="h-6 w-6 p-0 flex-shrink-0"
                               title="PDFを開く"
                               onClick={() => handleOpenPdf(invoice.pdf_path!)}
                             >
@@ -360,7 +420,7 @@ export function InvoiceList({
                           value={invoice.payment_received_date || ""}
                           onChange={(e) => handlePaymentDateChange(invoice.id, e.target.value)}
                           disabled={isPending}
-                          className="h-8 w-[120px] text-sm"
+                          className="h-8 w-[140px] text-sm"
                         />
                       </TableCell>
                       <TableCell className="text-sm">
@@ -389,7 +449,10 @@ export function InvoiceList({
                         {formatCurrency(invoice.total_amount)}
                       </TableCell>
                       <TableCell className="text-sm">
-                        <Badge variant="outline" className="font-normal">
+                        <Badge
+                          variant="outline"
+                          className={`font-normal ${getEntityBadgeClass(invoice.businessEntity?.code || "")}`}
+                        >
                           {invoice.businessEntity?.code}
                         </Badge>
                       </TableCell>
@@ -402,6 +465,18 @@ export function InvoiceList({
                           disabled={isPending}
                         />
                       </TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                          title="削除"
+                          onClick={() => handleDeleteClick(invoice)}
+                          disabled={isPending}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -410,6 +485,27 @@ export function InvoiceList({
           )}
         </CardContent>
       </Card>
+
+      {/* 削除確認ダイアログ */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>請求書を削除しますか？</AlertDialogTitle>
+            <AlertDialogDescription>
+              請求書「{deleteTarget?.invoice_number}」を削除します。この操作は取り消せません。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>キャンセル</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDeleteConfirm}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              削除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
