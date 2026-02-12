@@ -416,11 +416,12 @@ export function InvoiceList({
                       </TableCell>
                       <TableCell>
                         <Input
-                          type="date"
+                          type="text"
+                          placeholder="YYYY-MM-DD"
                           value={invoice.payment_received_date || ""}
                           onChange={(e) => handlePaymentDateChange(invoice.id, e.target.value)}
                           disabled={isPending}
-                          className="h-8 w-[140px] text-sm"
+                          className="h-8 w-[120px] text-sm font-mono"
                         />
                       </TableCell>
                       <TableCell className="text-sm">
