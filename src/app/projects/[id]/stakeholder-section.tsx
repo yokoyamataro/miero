@@ -6,11 +6,13 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   Select,
@@ -29,10 +31,15 @@ import {
   User,
   ChevronLeft,
   ChevronRight,
+  FileText,
+  Download,
+  Loader2,
 } from "lucide-react";
 import {
   type StakeholderTag,
   type ProjectStakeholderWithDetails,
+  type DocumentTemplate,
+  type Employee,
   getContactFullName,
   DEFAULT_CATEGORY_COLORS,
 } from "@/types/database";
@@ -46,12 +53,20 @@ import {
   createCorporateContact,
 } from "./actions";
 import { Label } from "@/components/ui/label";
+import { format } from "date-fns";
+import Docxtemplater from "docxtemplater";
+import PizZip from "pizzip";
+import { createClient } from "@/lib/supabase/client";
+import { generateDocument } from "@/app/customers/document-actions";
 
 interface StakeholderSectionProps {
   projectId: string;
   stakeholders: ProjectStakeholderWithDetails[];
   tags: StakeholderTag[];
   customerData: CustomerData;
+  documentTemplates: DocumentTemplate[];
+  employees: Employee[];
+  currentEmployeeId: string | null;
 }
 
 export function StakeholderSection({
@@ -59,11 +74,23 @@ export function StakeholderSection({
   stakeholders,
   tags,
   customerData,
+  documentTemplates,
+  employees,
+  currentEmployeeId,
 }: StakeholderSectionProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [showAddModal, setShowAddModal] = useState(false);
   const [editingTagId, setEditingTagId] = useState<string | null>(null);
+
+  // 文書作成ダイアログ
+  const [showDocumentModal, setShowDocumentModal] = useState(false);
+  const [selectedStakeholder, setSelectedStakeholder] = useState<ProjectStakeholderWithDetails | null>(null);
+
+  const handleOpenDocumentDialog = (stakeholder: ProjectStakeholderWithDetails) => {
+    setSelectedStakeholder(stakeholder);
+    setShowDocumentModal(true);
+  };
 
   const handleRemove = (stakeholderId: string) => {
     startTransition(async () => {
@@ -163,6 +190,17 @@ export function StakeholderSection({
                   )}
                 </div>
 
+                {/* 文書作成ボタン */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 shrink-0"
+                  onClick={() => handleOpenDocumentDialog(s)}
+                  title="文書作成"
+                >
+                  <FileText className="h-4 w-4 text-primary" />
+                </Button>
+
                 {/* 削除ボタン */}
                 <Button
                   variant="ghost"
@@ -186,6 +224,21 @@ export function StakeholderSection({
         tags={tags}
         customerData={customerData}
       />
+
+      {/* 文書作成ダイアログ */}
+      {selectedStakeholder && (
+        <DocumentGenerateDialog
+          open={showDocumentModal}
+          onOpenChange={(open) => {
+            setShowDocumentModal(open);
+            if (!open) setSelectedStakeholder(null);
+          }}
+          stakeholder={selectedStakeholder}
+          templates={documentTemplates}
+          employees={employees}
+          currentEmployeeId={currentEmployeeId}
+        />
+      )}
     </Card>
   );
 }
@@ -856,6 +909,269 @@ function AddStakeholderModal({
             </div>
           )
         )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ============================================
+// 文書作成ダイアログ
+// ============================================
+
+function DocumentGenerateDialog({
+  open,
+  onOpenChange,
+  stakeholder,
+  templates,
+  employees,
+  currentEmployeeId,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  stakeholder: ProjectStakeholderWithDetails;
+  templates: DocumentTemplate[];
+  employees: Employee[];
+  currentEmployeeId: string | null;
+}) {
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
+  const [selectedSenderId, setSelectedSenderId] = useState<string>(currentEmployeeId || "");
+  const [useToday, setUseToday] = useState(true);
+  const [documentDate, setDocumentDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // 差出人リスト（ログインユーザーを先頭に）
+  const sortedEmployees = useMemo(() => {
+    return [...employees].sort((a, b) => {
+      if (a.id === currentEmployeeId) return -1;
+      if (b.id === currentEmployeeId) return 1;
+      return 0;
+    });
+  }, [employees, currentEmployeeId]);
+
+  const reset = () => {
+    setSelectedTemplateId("");
+    setSelectedSenderId(currentEmployeeId || "");
+    setUseToday(true);
+    setDocumentDate(format(new Date(), "yyyy-MM-dd"));
+    setError(null);
+  };
+
+  const handleClose = () => {
+    onOpenChange(false);
+    reset();
+  };
+
+  // 生成処理
+  const handleGenerate = async () => {
+    if (!selectedTemplateId || !selectedSenderId) {
+      setError("テンプレートと差出人を選択してください");
+      return;
+    }
+
+    setIsGenerating(true);
+    setError(null);
+
+    try {
+      // 宛先タイプを判定（法人に所属していればaccount、なければcontact）
+      const recipientType = stakeholder.account ? "account" : "contact";
+      const recipientId = stakeholder.account
+        ? stakeholder.account.id
+        : stakeholder.contact.id;
+      const contactId = stakeholder.account ? stakeholder.contact.id : undefined;
+
+      // Server Actionでプレースホルダー値を取得
+      const result = await generateDocument({
+        templateId: selectedTemplateId,
+        recipientType,
+        recipientId,
+        contactId,
+        senderId: selectedSenderId,
+        documentDate: useToday ? format(new Date(), "yyyy-MM-dd") : documentDate,
+      });
+
+      if (!result.success || !result.data) {
+        setError(result.error || "生成に失敗しました");
+        return;
+      }
+
+      const { templateFileName, storagePath, placeholderValues } = JSON.parse(result.data);
+
+      // テンプレートファイルを取得
+      let templateArrayBuffer: ArrayBuffer;
+
+      if (storagePath) {
+        // Supabase Storageから取得
+        const supabase = createClient();
+        const { data: fileData, error: downloadError } = await supabase.storage
+          .from("document-templates")
+          .download(storagePath);
+
+        if (downloadError || !fileData) {
+          setError("テンプレートファイルのダウンロードに失敗しました。");
+          return;
+        }
+        templateArrayBuffer = await fileData.arrayBuffer();
+      } else {
+        // フォールバック: public/templates/から取得
+        const templateResponse = await fetch(`/templates/${templateFileName}`);
+        if (!templateResponse.ok) {
+          setError("テンプレートファイルが見つかりません。");
+          return;
+        }
+        templateArrayBuffer = await templateResponse.arrayBuffer();
+      }
+
+      // docxtemplaterで置換
+      const zip = new PizZip(templateArrayBuffer);
+      const doc = new Docxtemplater(zip, {
+        paragraphLoop: true,
+        linebreaks: true,
+        delimiters: { start: "{{", end: "}}" },
+      });
+      doc.render(placeholderValues);
+
+      // 生成されたファイルをダウンロード
+      const output = doc.getZip().generate({
+        type: "blob",
+        mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      });
+
+      const url = URL.createObjectURL(output);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = result.fileName || "document.docx";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      handleClose();
+    } catch (err) {
+      console.error("Document generation error:", err);
+      setError("文書生成中にエラーが発生しました");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const contactName = stakeholder.account
+    ? `${stakeholder.account.company_name} ${getContactFullName(stakeholder.contact)}`
+    : getContactFullName(stakeholder.contact);
+
+  return (
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            文書作成
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {/* 宛先表示 */}
+          <div className="space-y-1">
+            <Label>宛先</Label>
+            <div className="text-sm p-2 bg-muted rounded-md">
+              {contactName}
+            </div>
+          </div>
+
+          {/* テンプレート選択 */}
+          <div className="space-y-2">
+            <Label>テンプレート *</Label>
+            <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+              <SelectTrigger>
+                <SelectValue placeholder="テンプレートを選択" />
+              </SelectTrigger>
+              <SelectContent>
+                {templates.length === 0 ? (
+                  <SelectItem value="none" disabled>
+                    テンプレートがありません
+                  </SelectItem>
+                ) : (
+                  templates.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.name}
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* 差出人選択 */}
+          <div className="space-y-2">
+            <Label>差出人 *</Label>
+            <Select value={selectedSenderId} onValueChange={setSelectedSenderId}>
+              <SelectTrigger>
+                <SelectValue placeholder="差出人を選択" />
+              </SelectTrigger>
+              <SelectContent>
+                {sortedEmployees.map((e) => (
+                  <SelectItem key={e.id} value={e.id}>
+                    {e.name}
+                    {e.id === currentEmployeeId && (
+                      <span className="text-muted-foreground ml-1">(自分)</span>
+                    )}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* 日付選択 */}
+          <div className="space-y-2">
+            <Label>日付</Label>
+            <div className="flex items-center gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <Checkbox
+                  checked={useToday}
+                  onCheckedChange={(checked) => setUseToday(!!checked)}
+                />
+                <span className="text-sm">作成日（今日）を使用</span>
+              </label>
+            </div>
+            {!useToday && (
+              <Input
+                type="date"
+                value={documentDate}
+                onChange={(e) => setDocumentDate(e.target.value)}
+                className="w-48"
+              />
+            )}
+          </div>
+
+          {/* エラー表示 */}
+          {error && (
+            <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
+              {error}
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={handleClose}>
+            キャンセル
+          </Button>
+          <Button
+            onClick={handleGenerate}
+            disabled={isGenerating || !selectedTemplateId || !selectedSenderId}
+          >
+            {isGenerating ? (
+              <>
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                生成中...
+              </>
+            ) : (
+              <>
+                <Download className="h-4 w-4 mr-2" />
+                文書を生成
+              </>
+            )}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

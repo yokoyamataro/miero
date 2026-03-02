@@ -25,6 +25,7 @@ import { InvoiceSection } from "./invoice-section";
 import { getCurrentEmployeeId, getStakeholderTags, getProjectStakeholders, getIndustries, getRelatedProjects } from "./actions";
 import { RelatedProjectsSection } from "./related-projects-section";
 import { getBusinessEntities, getProjectInvoices } from "@/app/invoices/actions";
+import { getDocumentTemplates } from "@/app/customers/document-actions";
 
 
 
@@ -65,6 +66,7 @@ export default async function ProjectDetailPage({
     businessEntities,
     projectInvoices,
     relatedProjects,
+    documentTemplates,
   ] = await Promise.all([
     project.contact_id
       ? supabase.from("contacts" as never).select("*").eq("id", project.contact_id).single()
@@ -110,6 +112,7 @@ export default async function ProjectDetailPage({
     getBusinessEntities(),
     getProjectInvoices(id),
     getRelatedProjects(id),
+    getDocumentTemplates(),
   ]);
 
   const typedProject = project as Project;
@@ -196,6 +199,9 @@ export default async function ProjectDetailPage({
                 stakeholders={projectStakeholders}
                 tags={stakeholderTags}
                 customerData={customerData}
+                documentTemplates={documentTemplates}
+                employees={typedEmployees}
+                currentEmployeeId={currentEmployeeId}
               />
             }
           />
