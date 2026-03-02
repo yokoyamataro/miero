@@ -194,7 +194,7 @@ export function StakeholderSection({
                 <Button
                   variant="ghost"
                   size="sm"
-                  className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 shrink-0"
+                  className="h-7 w-7 p-0 shrink-0"
                   onClick={() => handleOpenDocumentDialog(s)}
                   title="文書作成"
                 >

@@ -63,8 +63,15 @@ import {
 import { updateProject, deleteProject, createComment, updateContact, updateAccount, createIndividualContact, createCorporateContact, addContactToAccount, createAccountWithContacts, type AccountFormData, type ContactFormData, type BranchFormData } from "./actions";
 import { AddIndividualModal, AddAccountModal } from "@/components/customer-modal";
 import type { Industry } from "@/types/database";
-import { Phone, Mail, MapPin as MapPinIcon, Pencil, Printer } from "lucide-react";
+import { Phone, Mail, MapPin as MapPinIcon, Pencil, Printer, FileText, Loader2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import { format } from "date-fns";
+import Docxtemplater from "docxtemplater";
+import PizZip from "pizzip";
+import { createClient } from "@/lib/supabase/client";
+import { generateDocument } from "@/app/customers/document-actions";
+import type { DocumentTemplate } from "@/types/database";
 
 // 法人の担当者
 export interface CorporateContact {
@@ -105,6 +112,7 @@ interface ProjectInfoProps {
   };
   industries: Industry[];
   stakeholderSection?: React.ReactNode;
+  documentTemplates: DocumentTemplate[];
 }
 
 const PROJECT_STATUSES: ProjectStatus[] = ["進行中", "完了"];
@@ -491,11 +499,13 @@ function CustomerDetailSection({
   account,
   onEditClick,
   onChangeClick,
+  onDocumentClick,
 }: {
   contact: Contact | null;
   account: Account | null;
   onEditClick: () => void;
   onChangeClick: () => void;
+  onDocumentClick: () => void;
 }) {
   if (!contact) {
     return (
@@ -539,6 +549,15 @@ function CustomerDetailSection({
           )}
         </div>
         <div className="flex gap-1">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 w-7 p-0"
+            onClick={onDocumentClick}
+            title="文書作成"
+          >
+            <FileText className="h-4 w-4 text-primary" />
+          </Button>
           <Button
             variant="ghost"
             size="sm"
@@ -945,6 +964,267 @@ function CustomerEditModal({
   );
 }
 
+// ============================================
+// 依頼人用文書作成ダイアログ
+// ============================================
+
+function DocumentGenerateDialogForContact({
+  open,
+  onOpenChange,
+  contact,
+  account,
+  templates,
+  employees,
+  currentEmployeeId,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  contact: Contact;
+  account: Account | null;
+  templates: DocumentTemplate[];
+  employees: Employee[];
+  currentEmployeeId: string | null;
+}) {
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
+  const [selectedSenderId, setSelectedSenderId] = useState<string>(currentEmployeeId || "");
+  const [useToday, setUseToday] = useState(true);
+  const [documentDate, setDocumentDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // 差出人リスト（ログインユーザーを先頭に）
+  const sortedEmployees = useMemo(() => {
+    return [...employees].sort((a, b) => {
+      if (a.id === currentEmployeeId) return -1;
+      if (b.id === currentEmployeeId) return 1;
+      return 0;
+    });
+  }, [employees, currentEmployeeId]);
+
+  const reset = () => {
+    setSelectedTemplateId("");
+    setSelectedSenderId(currentEmployeeId || "");
+    setUseToday(true);
+    setDocumentDate(format(new Date(), "yyyy-MM-dd"));
+    setError(null);
+  };
+
+  const handleClose = () => {
+    onOpenChange(false);
+    reset();
+  };
+
+  // 生成処理
+  const handleGenerate = async () => {
+    if (!selectedTemplateId || !selectedSenderId) {
+      setError("テンプレートと差出人を選択してください");
+      return;
+    }
+
+    setIsGenerating(true);
+    setError(null);
+
+    try {
+      // 宛先タイプを判定（法人に所属していればaccount、なければcontact）
+      const recipientType = account ? "account" : "contact";
+      const recipientId = account ? account.id : contact.id;
+      const contactId = account ? contact.id : undefined;
+
+      // Server Actionでプレースホルダー値を取得
+      const result = await generateDocument({
+        templateId: selectedTemplateId,
+        recipientType,
+        recipientId,
+        contactId,
+        senderId: selectedSenderId,
+        documentDate: useToday ? format(new Date(), "yyyy-MM-dd") : documentDate,
+      });
+
+      if (!result.success || !result.data) {
+        setError(result.error || "生成に失敗しました");
+        return;
+      }
+
+      const { templateFileName, storagePath, placeholderValues } = JSON.parse(result.data);
+
+      // テンプレートファイルを取得
+      let templateArrayBuffer: ArrayBuffer;
+
+      if (storagePath) {
+        // Supabase Storageから取得
+        const supabase = createClient();
+        const { data: fileData, error: downloadError } = await supabase.storage
+          .from("document-templates")
+          .download(storagePath);
+
+        if (downloadError || !fileData) {
+          setError("テンプレートファイルのダウンロードに失敗しました。");
+          return;
+        }
+        templateArrayBuffer = await fileData.arrayBuffer();
+      } else {
+        // フォールバック: public/templates/から取得
+        const templateResponse = await fetch(`/templates/${templateFileName}`);
+        if (!templateResponse.ok) {
+          setError("テンプレートファイルが見つかりません。");
+          return;
+        }
+        templateArrayBuffer = await templateResponse.arrayBuffer();
+      }
+
+      // docxtemplaterで置換
+      const zip = new PizZip(templateArrayBuffer);
+      const doc = new Docxtemplater(zip, {
+        paragraphLoop: true,
+        linebreaks: true,
+        delimiters: { start: "{{", end: "}}" },
+      });
+      doc.render(placeholderValues);
+
+      // 生成されたファイルをダウンロード
+      const output = doc.getZip().generate({
+        type: "blob",
+        mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      });
+
+      const url = URL.createObjectURL(output);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = result.fileName || "document.docx";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      handleClose();
+    } catch (err) {
+      console.error("Document generation error:", err);
+      setError("文書生成中にエラーが発生しました");
+    } finally {
+      setIsGenerating(false);
+    }
+  };
+
+  const contactName = account
+    ? `${account.company_name} ${contact.last_name} ${contact.first_name}`
+    : `${contact.last_name} ${contact.first_name}`;
+
+  return (
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FileText className="h-5 w-5" />
+            文書作成
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {/* 宛先表示 */}
+          <div className="space-y-1">
+            <Label>宛先</Label>
+            <div className="text-sm p-2 bg-muted rounded-md">
+              {contactName}
+            </div>
+          </div>
+
+          {/* テンプレート選択 */}
+          <div className="space-y-2">
+            <Label>テンプレート *</Label>
+            <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+              <SelectTrigger>
+                <SelectValue placeholder="テンプレートを選択" />
+              </SelectTrigger>
+              <SelectContent>
+                {templates.length === 0 ? (
+                  <SelectItem value="none" disabled>
+                    テンプレートがありません
+                  </SelectItem>
+                ) : (
+                  templates.map((t) => (
+                    <SelectItem key={t.id} value={t.id}>
+                      {t.name}
+                    </SelectItem>
+                  ))
+                )}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* 差出人選択 */}
+          <div className="space-y-2">
+            <Label>差出人 *</Label>
+            <Select value={selectedSenderId} onValueChange={setSelectedSenderId}>
+              <SelectTrigger>
+                <SelectValue placeholder="差出人を選択" />
+              </SelectTrigger>
+              <SelectContent>
+                {sortedEmployees.map((e) => (
+                  <SelectItem key={e.id} value={e.id}>
+                    {e.name}
+                    {e.id === currentEmployeeId && (
+                      <span className="text-muted-foreground ml-1">(自分)</span>
+                    )}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* 日付選択 */}
+          <div className="space-y-2">
+            <Label>日付</Label>
+            <div className="flex items-center gap-4">
+              <label className="flex items-center gap-2 cursor-pointer">
+                <Checkbox
+                  checked={useToday}
+                  onCheckedChange={(checked) => setUseToday(!!checked)}
+                />
+                <span className="text-sm">作成日（今日）を使用</span>
+              </label>
+            </div>
+            {!useToday && (
+              <Input
+                type="date"
+                value={documentDate}
+                onChange={(e) => setDocumentDate(e.target.value)}
+                className="w-48"
+              />
+            )}
+          </div>
+
+          {/* エラー表示 */}
+          {error && (
+            <div className="text-sm text-destructive bg-destructive/10 p-3 rounded-md">
+              {error}
+            </div>
+          )}
+
+          {/* ボタン */}
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={handleClose}>
+              キャンセル
+            </Button>
+            <Button
+              onClick={handleGenerate}
+              disabled={isGenerating || !selectedTemplateId || !selectedSenderId}
+            >
+              {isGenerating ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  生成中...
+                </>
+              ) : (
+                "生成"
+              )}
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // 編集可能なタイトルコンポーネント
 function EditableTitle({
   value,
@@ -1121,6 +1401,7 @@ export function ProjectInfo({
   taskTimeTotals,
   industries,
   stakeholderSection,
+  documentTemplates,
 }: ProjectInfoProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -1128,6 +1409,7 @@ export function ProjectInfo({
   const [showCustomerEditModal, setShowCustomerEditModal] = useState(false);
   const [showOnHoldDialog, setShowOnHoldDialog] = useState(false);
   const [onHoldReason, setOnHoldReason] = useState("");
+  const [showDocumentDialog, setShowDocumentDialog] = useState(false);
 
   const handleUpdate = (field: string, value: string) => {
     startTransition(async () => {
@@ -1302,6 +1584,7 @@ export function ProjectInfo({
                 account={account}
                 onEditClick={() => setShowCustomerEditModal(true)}
                 onChangeClick={() => setShowContactModal(true)}
+                onDocumentClick={() => setShowDocumentDialog(true)}
               />
             </div>
           </div>
@@ -1409,6 +1692,19 @@ export function ProjectInfo({
           account={account}
           onSave={handleCustomerSave}
           isPending={isPending}
+        />
+      )}
+
+      {/* 依頼人用文書作成ダイアログ */}
+      {contact && (
+        <DocumentGenerateDialogForContact
+          open={showDocumentDialog}
+          onOpenChange={setShowDocumentDialog}
+          contact={contact}
+          account={account}
+          templates={documentTemplates}
+          employees={employees}
+          currentEmployeeId={currentEmployeeId}
         />
       )}
 

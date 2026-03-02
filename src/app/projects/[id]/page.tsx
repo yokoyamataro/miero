@@ -193,6 +193,7 @@ export default async function ProjectDetailPage({
             currentEmployeeId={currentEmployeeId}
             taskTimeTotals={taskTimeTotals}
             industries={industries}
+            documentTemplates={documentTemplates}
             stakeholderSection={
               <StakeholderSection
                 projectId={id}
