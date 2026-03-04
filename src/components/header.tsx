@@ -11,6 +11,7 @@ import {
   RefreshCw,
   Home,
   Receipt,
+  CalendarDays,
 } from "lucide-react";
 import { format, addHours } from "date-fns";
 import { ja } from "date-fns/locale";
@@ -30,6 +31,7 @@ const navItems = [
   { href: "/customers", label: "顧客", icon: UserCircle },
   { href: "/employees", label: "社員", icon: Users },
   { href: "/invoices", label: "請求", icon: Receipt },
+  { href: "/leaves", label: "休暇", icon: CalendarDays },
 ];
 
 export async function Header() {

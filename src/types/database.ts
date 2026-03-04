@@ -772,3 +772,70 @@ export interface InvoiceWithDetails extends Invoice {
   recipientAccount: Account | null;
   personInCharge: Employee | null;
 }
+
+// ============================================
+// Leave (休暇)
+// ============================================
+export type LeaveType =
+  | "有給休暇（全日）"
+  | "有給休暇（午前）"
+  | "有給休暇（午後）"
+  | "冬季休暇（全日）"
+  | "冬季休暇（午前）"
+  | "冬季休暇（午後）"
+  | "その他";
+
+export type LeaveStatus = "pending" | "approved" | "rejected";
+
+export const LEAVE_TYPE_OPTIONS: LeaveType[] = [
+  "有給休暇（全日）",
+  "有給休暇（午前）",
+  "有給休暇（午後）",
+  "冬季休暇（全日）",
+  "冬季休暇（午前）",
+  "冬季休暇（午後）",
+  "その他",
+];
+
+export const LEAVE_STATUS_LABELS: Record<LeaveStatus, string> = {
+  pending: "申請中",
+  approved: "承認済",
+  rejected: "差戻し",
+};
+
+export const LEAVE_STATUS_COLORS: Record<LeaveStatus, string> = {
+  pending: "bg-yellow-500 text-white",
+  approved: "bg-green-500 text-white",
+  rejected: "bg-red-500 text-white",
+};
+
+export interface Leave {
+  id: string;
+  employee_id: string;
+  leave_date: string;
+  leave_type: LeaveType;
+  adjustment: string | null;
+  reason: string | null;
+  status: LeaveStatus;
+  approved_by: string | null;
+  approved_at: string | null;
+  rejection_reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LeaveInsert {
+  id?: string;
+  employee_id: string;
+  leave_date: string;
+  leave_type: LeaveType;
+  adjustment?: string | null;
+  reason?: string | null;
+  status?: LeaveStatus;
+}
+
+// 休暇（社員情報付き）
+export interface LeaveWithEmployee extends Leave {
+  employee: Employee;
+  approver: Employee | null;
+}
