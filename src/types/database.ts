@@ -854,7 +854,8 @@ export interface LeaveBalance {
   granted_days: number;
   fiscal_year: number;
   granted_at: string;
-  expires_at: string | null;
+  valid_from: string | null;   // 有効開始日
+  expires_at: string | null;   // 有効期限
   note: string | null;
   created_by: string | null;
   created_at: string;
@@ -868,6 +869,7 @@ export interface LeaveBalanceInsert {
   granted_days: number;
   fiscal_year: number;
   granted_at: string;
+  valid_from?: string | null;
   expires_at?: string | null;
   note?: string | null;
   created_by?: string | null;

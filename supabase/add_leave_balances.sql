@@ -3,13 +3,16 @@
 -- ============================================
 
 -- 休暇残日数テーブル（付与・消化の履歴を管理）
+-- 有給休暇: 通年で取得可能
+-- 冬季休暇: 1月〜3月のみ取得可能（expires_atで管理）
 CREATE TABLE IF NOT EXISTS leave_balances (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   employee_id UUID NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
-  leave_category VARCHAR(50) NOT NULL,  -- '有給休暇', '冬季休暇' など
+  leave_category VARCHAR(50) NOT NULL,  -- '有給休暇', '冬季休暇'
   granted_days NUMERIC(5,1) NOT NULL,   -- 付与日数（0.5日単位）
   fiscal_year INTEGER NOT NULL,         -- 年度（例: 2024）
   granted_at DATE NOT NULL,             -- 付与日
+  valid_from DATE,                      -- 有効開始日（NULLなら付与日から）
   expires_at DATE,                      -- 有効期限（NULLなら無期限）
   note TEXT,                            -- 備考
   created_by UUID REFERENCES employees(id),  -- 付与者

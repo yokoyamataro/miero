@@ -321,7 +321,6 @@ export async function grantLeaveBalance(data: {
   granted_days: number;
   fiscal_year: number;
   granted_at: string;
-  expires_at?: string | null;
   note?: string;
 }): Promise<{ success: boolean; error?: string }> {
   const supabase = await createClient();
@@ -335,6 +334,18 @@ export async function grantLeaveBalance(data: {
     return { success: false, error: "権限がありません" };
   }
 
+  // 冬季休暇は1月〜3月のみ有効
+  let validFrom: string | null = null;
+  let expiresAt: string | null = null;
+
+  if (data.leave_category === "冬季休暇") {
+    // 年度に対応する1月1日〜3月31日を設定
+    // 例: 2024年度の冬季休暇 → 2025年1月1日〜2025年3月31日
+    const year = data.fiscal_year + 1;
+    validFrom = `${year}-01-01`;
+    expiresAt = `${year}-03-31`;
+  }
+
   const { error } = await supabase
     .from("leave_balances")
     .insert({
@@ -343,7 +354,8 @@ export async function grantLeaveBalance(data: {
       granted_days: data.granted_days,
       fiscal_year: data.fiscal_year,
       granted_at: data.granted_at,
-      expires_at: data.expires_at || null,
+      valid_from: validFrom,
+      expires_at: expiresAt,
       note: data.note || null,
       created_by: currentEmployee.id,
     });
@@ -481,6 +493,104 @@ export async function getLeaveBalanceSummary(employeeId?: string): Promise<Leave
       total_used: data.used,
       remaining: data.granted - data.used,
     });
+  }
+
+  return result;
+}
+
+// 指定日に取得可能な休暇種類を取得（残日数があり、有効期間内のもの）
+export async function getAvailableLeaveTypes(leaveDate: string): Promise<{
+  category: LeaveCategory;
+  remaining: number;
+  leaveTypes: string[];
+}[]> {
+  const supabase = await createClient();
+  const currentEmployee = await getCurrentEmployee();
+
+  if (!currentEmployee) return [];
+
+  // 付与日数を取得（有効期間内のもののみ）
+  const { data: balances, error: balanceError } = await supabase
+    .from("leave_balances")
+    .select("leave_category, granted_days, valid_from, expires_at")
+    .eq("employee_id", currentEmployee.id);
+
+  if (balanceError) {
+    console.error("Error fetching balances:", balanceError);
+    return [];
+  }
+
+  // 使用日数を取得（承認済み + 申請中の休暇）
+  const { data: leaves, error: leaveError } = await supabase
+    .from("leaves")
+    .select("leave_type")
+    .eq("employee_id", currentEmployee.id)
+    .in("status", ["approved", "pending"]);
+
+  if (leaveError) {
+    console.error("Error fetching leaves:", leaveError);
+    return [];
+  }
+
+  // カテゴリごとに集計（有効期間内のもののみ）
+  const summaryMap: Record<LeaveCategory, number> = {
+    "有給休暇": 0,
+    "冬季休暇": 0,
+  };
+
+  for (const balance of balances || []) {
+    const category = balance.leave_category as LeaveCategory;
+    const validFrom = balance.valid_from;
+    const expiresAt = balance.expires_at;
+
+    // 有効期間チェック
+    if (validFrom && leaveDate < validFrom) continue;
+    if (expiresAt && leaveDate > expiresAt) continue;
+
+    if (summaryMap[category] !== undefined) {
+      summaryMap[category] += Number(balance.granted_days);
+    }
+  }
+
+  // 使用日数を減算
+  for (const leave of leaves || []) {
+    const leaveType = leave.leave_type as string;
+    let category: LeaveCategory | null = null;
+    let days = 0;
+
+    if (leaveType.startsWith("有給休暇")) {
+      category = "有給休暇";
+    } else if (leaveType.startsWith("冬季休暇")) {
+      category = "冬季休暇";
+    }
+
+    if (leaveType.includes("全日")) {
+      days = 1;
+    } else if (leaveType.includes("午前") || leaveType.includes("午後")) {
+      days = 0.5;
+    }
+
+    if (category && summaryMap[category] !== undefined) {
+      summaryMap[category] -= days;
+    }
+  }
+
+  // 残日数がある休暇種類のみ返す
+  const result: { category: LeaveCategory; remaining: number; leaveTypes: string[] }[] = [];
+
+  for (const [category, remaining] of Object.entries(summaryMap)) {
+    if (remaining > 0) {
+      const leaveTypes = [
+        `${category}（全日）`,
+        `${category}（午前）`,
+        `${category}（午後）`,
+      ];
+      result.push({
+        category: category as LeaveCategory,
+        remaining,
+        leaveTypes,
+      });
+    }
   }
 
   return result;

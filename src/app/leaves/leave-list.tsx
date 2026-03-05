@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useMemo } from "react";
+import { useState, useTransition, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -54,7 +54,6 @@ import {
   type LeaveType,
   type LeaveBalanceSummary,
   type LeaveCategory,
-  LEAVE_TYPE_OPTIONS,
   LEAVE_STATUS_LABELS,
   LEAVE_STATUS_COLORS,
   LEAVE_CATEGORY_OPTIONS,
@@ -65,6 +64,7 @@ import {
   rejectLeave,
   deleteLeave,
   grantLeaveBalance,
+  getAvailableLeaveTypes,
 } from "./actions";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
@@ -91,10 +91,33 @@ export function LeaveList({
   const [showRequestDialog, setShowRequestDialog] = useState(false);
   const [requestForm, setRequestForm] = useState({
     leave_date: format(new Date(), "yyyy-MM-dd"),
-    leave_type: "有給休暇（全日）" as LeaveType,
+    leave_type: "" as LeaveType,
     adjustment: "",
     reason: "",
   });
+  const [availableLeaveTypes, setAvailableLeaveTypes] = useState<{
+    category: LeaveCategory;
+    remaining: number;
+    leaveTypes: string[];
+  }[]>([]);
+  const [isLoadingLeaveTypes, setIsLoadingLeaveTypes] = useState(false);
+
+  // 休暇日が変更されたら利用可能な休暇種類を取得
+  useEffect(() => {
+    if (showRequestDialog && requestForm.leave_date) {
+      setIsLoadingLeaveTypes(true);
+      getAvailableLeaveTypes(requestForm.leave_date)
+        .then((types) => {
+          setAvailableLeaveTypes(types);
+          // 選択中の休暇種類が利用不可になった場合はリセット
+          const allTypes = types.flatMap((t) => t.leaveTypes);
+          if (requestForm.leave_type && !allTypes.includes(requestForm.leave_type)) {
+            setRequestForm((prev) => ({ ...prev, leave_type: "" as LeaveType }));
+          }
+        })
+        .finally(() => setIsLoadingLeaveTypes(false));
+    }
+  }, [showRequestDialog, requestForm.leave_date]);
 
   // 管理者用付与ダイアログ
   const [showGrantDialog, setShowGrantDialog] = useState(false);
@@ -129,13 +152,17 @@ export function LeaveList({
 
   // 休暇申請
   const handleRequest = () => {
+    if (!requestForm.leave_type) {
+      alert("休暇種類を選択してください");
+      return;
+    }
     startTransition(async () => {
       const result = await createLeave(requestForm);
       if (result.success) {
         setShowRequestDialog(false);
         setRequestForm({
           leave_date: format(new Date(), "yyyy-MM-dd"),
-          leave_type: "有給休暇（全日）",
+          leave_type: "" as LeaveType,
           adjustment: "",
           reason: "",
         });
@@ -475,23 +502,56 @@ export function LeaveList({
             </div>
             <div className="space-y-2">
               <Label>休暇種類 *</Label>
-              <Select
-                value={requestForm.leave_type}
-                onValueChange={(v) =>
-                  setRequestForm({ ...requestForm, leave_type: v as LeaveType })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {LEAVE_TYPE_OPTIONS.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {type}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {isLoadingLeaveTypes ? (
+                <div className="text-sm text-muted-foreground p-2">読み込み中...</div>
+              ) : availableLeaveTypes.length === 0 ? (
+                <div className="text-sm text-destructive p-2 bg-destructive/10 rounded-md">
+                  この日に取得可能な休暇がありません。
+                  {(() => {
+                    const month = new Date(requestForm.leave_date).getMonth() + 1;
+                    if (month >= 1 && month <= 3) {
+                      return "有給休暇または冬季休暇の残日数がありません。";
+                    }
+                    return "有給休暇の残日数がありません。冬季休暇は1月〜3月のみ取得可能です。";
+                  })()}
+                </div>
+              ) : (
+                <>
+                  <Select
+                    value={requestForm.leave_type}
+                    onValueChange={(v) =>
+                      setRequestForm({ ...requestForm, leave_type: v as LeaveType })
+                    }
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="休暇種類を選択" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableLeaveTypes.map((category) => (
+                        <div key={category.category}>
+                          <div className="px-2 py-1 text-xs text-muted-foreground font-medium">
+                            {category.category}（残 {category.remaining}日）
+                          </div>
+                          {category.leaveTypes.map((type) => (
+                            <SelectItem key={type} value={type}>
+                              {type}
+                            </SelectItem>
+                          ))}
+                        </div>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <div className="text-xs text-muted-foreground">
+                    {(() => {
+                      const month = new Date(requestForm.leave_date).getMonth() + 1;
+                      if (month >= 1 && month <= 3) {
+                        return "1月〜3月は有給休暇・冬季休暇どちらも取得可能です";
+                      }
+                      return "冬季休暇は1月〜3月のみ取得可能です";
+                    })()}
+                  </div>
+                </>
+              )}
             </div>
             <div className="space-y-2">
               <Label>事前調整</Label>
@@ -527,7 +587,10 @@ export function LeaveList({
             <Button variant="outline" onClick={() => setShowRequestDialog(false)}>
               キャンセル
             </Button>
-            <Button onClick={handleRequest} disabled={isPending}>
+            <Button
+              onClick={handleRequest}
+              disabled={isPending || !requestForm.leave_type || availableLeaveTypes.length === 0}
+            >
               申請する
             </Button>
           </DialogFooter>
