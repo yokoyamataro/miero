@@ -2,10 +2,13 @@
 -- 休暇残日数管理テーブル
 -- ============================================
 
+-- 既存のテーブルがある場合は削除（初回のみ実行）
+DROP TABLE IF EXISTS leave_balances CASCADE;
+
 -- 休暇残日数テーブル（付与・消化の履歴を管理）
 -- 有給休暇: 通年で取得可能
 -- 冬季休暇: 1月〜3月のみ取得可能（expires_atで管理）
-CREATE TABLE IF NOT EXISTS leave_balances (
+CREATE TABLE leave_balances (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   employee_id UUID NOT NULL REFERENCES employees(id) ON DELETE CASCADE,
   leave_category VARCHAR(50) NOT NULL,  -- '有給休暇', '冬季休暇'
@@ -21,9 +24,9 @@ CREATE TABLE IF NOT EXISTS leave_balances (
 );
 
 -- インデックス
-CREATE INDEX IF NOT EXISTS idx_leave_balances_employee_id ON leave_balances(employee_id);
-CREATE INDEX IF NOT EXISTS idx_leave_balances_fiscal_year ON leave_balances(fiscal_year);
-CREATE INDEX IF NOT EXISTS idx_leave_balances_leave_category ON leave_balances(leave_category);
+CREATE INDEX idx_leave_balances_employee_id ON leave_balances(employee_id);
+CREATE INDEX idx_leave_balances_fiscal_year ON leave_balances(fiscal_year);
+CREATE INDEX idx_leave_balances_leave_category ON leave_balances(leave_category);
 
 -- RLS
 ALTER TABLE leave_balances ENABLE ROW LEVEL SECURITY;
