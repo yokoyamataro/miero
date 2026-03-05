@@ -99,7 +99,7 @@ export function LeaveList({
     reason: "",
   });
   const [availableLeaveTypes, setAvailableLeaveTypes] = useState<{
-    category: LeaveCategory;
+    category: LeaveCategory | "無給休暇";
     remaining: number;
     leaveTypes: string[];
   }[]>([]);
@@ -561,7 +561,8 @@ export function LeaveList({
                       {availableLeaveTypes.map((category) => (
                         <div key={category.category}>
                           <div className="px-2 py-1 text-xs text-muted-foreground font-medium">
-                            {category.category}（残 {category.remaining}日）
+                            {category.category}
+                            {category.remaining === -1 ? "" : `（残 ${category.remaining}日）`}
                           </div>
                           {category.leaveTypes.map((type) => (
                             <SelectItem key={type} value={type}>

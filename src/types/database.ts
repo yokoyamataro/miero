@@ -783,6 +783,9 @@ export type LeaveType =
   | "冬季休暇（全日）"
   | "冬季休暇（午前）"
   | "冬季休暇（午後）"
+  | "無給休暇（全日）"
+  | "無給休暇（午前）"
+  | "無給休暇（午後）"
   | "その他";
 
 export type LeaveStatus = "pending" | "approved" | "rejected";
@@ -794,6 +797,9 @@ export const LEAVE_TYPE_OPTIONS: LeaveType[] = [
   "冬季休暇（全日）",
   "冬季休暇（午前）",
   "冬季休暇（午後）",
+  "無給休暇（全日）",
+  "無給休暇（午前）",
+  "無給休暇（午後）",
   "その他",
 ];
 
@@ -898,7 +904,7 @@ export interface LeaveHistoryItem {
   type: "grant" | "use";             // 付与 or 使用
   employee_id: string;
   employee_name: string;
-  leave_category: LeaveCategory;
+  leave_category: LeaveCategory | "無給休暇";
   days: number;                      // 日数（付与は+、使用は-）
   leave_type?: LeaveType;            // 使用の場合の休暇種類
   status?: LeaveStatus;              // 使用の場合のステータス

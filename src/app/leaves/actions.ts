@@ -500,7 +500,7 @@ export async function getLeaveBalanceSummary(employeeId?: string): Promise<Leave
 
 // 指定日に取得可能な休暇種類を取得（残日数があり、有効期間内のもの）
 export async function getAvailableLeaveTypes(leaveDate: string): Promise<{
-  category: LeaveCategory;
+  category: LeaveCategory | "無給休暇";
   remaining: number;
   leaveTypes: string[];
 }[]> {
@@ -576,7 +576,7 @@ export async function getAvailableLeaveTypes(leaveDate: string): Promise<{
   }
 
   // 残日数がある休暇種類のみ返す
-  const result: { category: LeaveCategory; remaining: number; leaveTypes: string[] }[] = [];
+  const result: { category: LeaveCategory | "無給休暇"; remaining: number; leaveTypes: string[] }[] = [];
 
   for (const [category, remaining] of Object.entries(summaryMap)) {
     if (remaining > 0) {
@@ -592,6 +592,17 @@ export async function getAvailableLeaveTypes(leaveDate: string): Promise<{
       });
     }
   }
+
+  // 無給休暇は常に選択可能（残日数制限なし）
+  result.push({
+    category: "無給休暇",
+    remaining: -1, // -1は無制限を示す
+    leaveTypes: [
+      "無給休暇（全日）",
+      "無給休暇（午前）",
+      "無給休暇（午後）",
+    ],
+  });
 
   return result;
 }
@@ -760,7 +771,7 @@ export async function getLeaveHistory(employeeId?: string): Promise<LeaveHistory
     date: string;
     type: "grant" | "use";
     employee_id: string;
-    leave_category: LeaveCategory;
+    leave_category: LeaveCategory | "無給休暇";
     days: number;
     leave_type?: string;
     status?: string;
@@ -785,13 +796,15 @@ export async function getLeaveHistory(employeeId?: string): Promise<LeaveHistory
   // 使用を追加
   for (const leave of leaves || []) {
     const leaveType = leave.leave_type as string;
-    let category: LeaveCategory | null = null;
+    let category: LeaveCategory | "無給休暇" | null = null;
     let days = 0;
 
     if (leaveType.startsWith("有給休暇")) {
       category = "有給休暇";
     } else if (leaveType.startsWith("冬季休暇")) {
       category = "冬季休暇";
+    } else if (leaveType.startsWith("無給休暇")) {
+      category = "無給休暇";
     }
 
     if (leaveType.includes("全日")) {
@@ -835,9 +848,11 @@ export async function getLeaveHistory(employeeId?: string): Promise<LeaveHistory
       balanceMap[item.employee_id] = { 有給休暇: 0, 冬季休暇: 0 };
     }
 
-    // 承認済みの使用、または付与のみ残日数に影響
-    if (item.type === "grant" || (item.type === "use" && item.status === "approved")) {
-      balanceMap[item.employee_id][item.leave_category] += item.days;
+    // 承認済みの使用、または付与のみ残日数に影響（無給休暇は残日数に影響しない）
+    if (item.leave_category !== "無給休暇") {
+      if (item.type === "grant" || (item.type === "use" && item.status === "approved")) {
+        balanceMap[item.employee_id][item.leave_category] += item.days;
+      }
     }
 
     historyResult.push({
