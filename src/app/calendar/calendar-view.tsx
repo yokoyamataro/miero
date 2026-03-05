@@ -429,14 +429,14 @@ export function CalendarView({
       return (
         <div
           key={event.id}
-          className="text-xs truncate cursor-pointer hover:opacity-80 flex items-center gap-1"
+          className="text-xs truncate cursor-pointer hover:opacity-80 flex items-center gap-1 max-w-full overflow-hidden"
           onClick={(e) => handleEventClick(event, e)}
           title={event.title}
         >
           {categoryName && (
-            <span className={`${categoryColor} text-white px-1 rounded text-[10px] flex-shrink-0`}>{categoryName}</span>
+            <span className={`${categoryColor} text-white px-1 rounded text-[10px] flex-shrink-0 whitespace-nowrap`}>{categoryName}</span>
           )}
-          <span className="text-black truncate">{timeStr && `${timeStr} `}{event.title}</span>
+          <span className="text-black truncate min-w-0">{timeStr && `${timeStr} `}{event.title}</span>
         </div>
       );
     }
@@ -788,10 +788,12 @@ export function CalendarView({
             return (
               <div
                 key={idx}
-                className="p-1 border-r min-h-[32px] cursor-pointer hover:bg-muted/50"
+                className="p-1 border-r min-h-[32px] cursor-pointer hover:bg-muted/50 overflow-hidden"
                 onClick={() => handleDateClick(date)}
               >
-                {allDayEvents.map((event) => renderEvent(event, true))}
+                <div className="space-y-0.5 overflow-hidden">
+                  {allDayEvents.map((event) => renderEvent(event, true))}
+                </div>
               </div>
             );
           })}
