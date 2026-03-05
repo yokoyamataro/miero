@@ -54,6 +54,7 @@ import {
   type LeaveType,
   type LeaveBalanceSummary,
   type LeaveCategory,
+  type LeaveHistoryItem,
   LEAVE_STATUS_LABELS,
   LEAVE_STATUS_COLORS,
   LEAVE_CATEGORY_OPTIONS,
@@ -75,6 +76,7 @@ interface LeaveListProps {
   isManager: boolean;
   employees: Employee[];
   balanceSummaries: LeaveBalanceSummary[];
+  leaveHistory: LeaveHistoryItem[];
 }
 
 export function LeaveList({
@@ -83,6 +85,7 @@ export function LeaveList({
   isManager,
   employees,
   balanceSummaries,
+  leaveHistory,
 }: LeaveListProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -414,66 +417,94 @@ export function LeaveList({
         </Card>
       )}
 
-      {/* 休暇一覧 */}
+      {/* 休暇履歴（時系列） */}
       <Card>
         <CardHeader>
           <CardTitle>
-            {isManager ? "全休暇一覧" : "自分の休暇"}
+            {isManager ? "全休暇履歴（時系列）" : "休暇履歴"}
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          {leaves.length === 0 ? (
+          {leaveHistory.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">
-              休暇がありません
+              休暇履歴がありません
             </div>
           ) : (
             <Table>
               <TableHeader>
                 <TableRow>
-                  {isManager && <TableHead>申請者</TableHead>}
-                  <TableHead>休暇日</TableHead>
+                  {isManager && <TableHead>社員名</TableHead>}
+                  <TableHead>日付</TableHead>
+                  <TableHead>区分</TableHead>
                   <TableHead>種類</TableHead>
+                  <TableHead className="text-right">日数</TableHead>
                   <TableHead>ステータス</TableHead>
-                  <TableHead>事前調整</TableHead>
-                  <TableHead>理由・備考</TableHead>
+                  <TableHead className="text-right">有給残</TableHead>
+                  <TableHead className="text-right">冬季休暇残</TableHead>
+                  <TableHead>備考</TableHead>
                   <TableHead className="text-right">操作</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {(isManager ? otherLeaves : leaves).map((leave) => (
-                  <TableRow key={leave.id}>
+                {leaveHistory.map((item) => (
+                  <TableRow
+                    key={`${item.type}-${item.id}`}
+                    className={item.type === "grant" ? "bg-blue-50" : ""}
+                  >
                     {isManager && (
                       <TableCell className="font-medium">
-                        {leave.employee?.name}
+                        {item.employee_name}
                       </TableCell>
                     )}
-                    <TableCell>{formatDate(leave.leave_date)}</TableCell>
-                    <TableCell>{leave.leave_type}</TableCell>
+                    <TableCell>{formatDate(item.date)}</TableCell>
                     <TableCell>
-                      <Badge className={LEAVE_STATUS_COLORS[leave.status]}>
-                        {LEAVE_STATUS_LABELS[leave.status]}
+                      <Badge
+                        variant={item.type === "grant" ? "default" : "secondary"}
+                        className={item.type === "grant" ? "bg-blue-500" : ""}
+                      >
+                        {item.type === "grant" ? "付与" : "使用"}
                       </Badge>
-                      {leave.status === "rejected" && leave.rejection_reason && (
-                        <div className="text-xs text-destructive mt-1">
-                          理由: {leave.rejection_reason}
-                        </div>
+                    </TableCell>
+                    <TableCell>
+                      {item.type === "grant"
+                        ? `${item.leave_category}（${item.fiscal_year}年度）`
+                        : item.leave_type}
+                    </TableCell>
+                    <TableCell className="text-right font-medium">
+                      {item.type === "grant" ? (
+                        <span className="text-blue-600">+{item.days}</span>
+                      ) : (
+                        <span className="text-red-600">{item.days}</span>
                       )}
                     </TableCell>
-                    <TableCell>{leave.adjustment || "-"}</TableCell>
-                    <TableCell className="max-w-[200px] truncate">
-                      {leave.reason || "-"}
+                    <TableCell>
+                      {item.type === "use" && item.status && (
+                        <Badge className={LEAVE_STATUS_COLORS[item.status]}>
+                          {LEAVE_STATUS_LABELS[item.status]}
+                        </Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right font-bold">
+                      {item.balance_after.有給休暇}
+                    </TableCell>
+                    <TableCell className="text-right font-bold">
+                      {item.balance_after.冬季休暇}
+                    </TableCell>
+                    <TableCell className="max-w-[150px] truncate">
+                      {item.note || "-"}
                     </TableCell>
                     <TableCell className="text-right">
-                      {(isManager || (leave.status === "pending" && leave.employee_id === currentEmployee.id)) && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="text-destructive hover:text-destructive"
-                          onClick={() => setDeletingLeaveId(leave.id)}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      )}
+                      {item.type === "use" &&
+                        (isManager || (item.status === "pending" && item.employee_id === currentEmployee.id)) && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => setDeletingLeaveId(item.id)}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        )}
                     </TableCell>
                   </TableRow>
                 ))}

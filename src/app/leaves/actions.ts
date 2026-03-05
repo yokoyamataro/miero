@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
-import type { Leave, LeaveWithEmployee, LeaveInsert, LeaveType, Employee, LeaveBalance, LeaveBalanceWithEmployee, LeaveCategory, LeaveBalanceSummary } from "@/types/database";
+import type { Leave, LeaveWithEmployee, LeaveInsert, LeaveType, LeaveStatus, Employee, LeaveBalance, LeaveBalanceWithEmployee, LeaveCategory, LeaveBalanceSummary, LeaveHistoryItem } from "@/types/database";
 
 // 現在のユーザー情報取得
 export async function getCurrentEmployee(): Promise<{
@@ -698,4 +698,166 @@ export async function getAllLeaveBalanceSummaries(): Promise<LeaveBalanceSummary
   }
 
   return result;
+}
+
+// 休暇履歴取得（付与と使用を統合した時系列データ）
+export async function getLeaveHistory(employeeId?: string): Promise<LeaveHistoryItem[]> {
+  const supabase = await createClient();
+  const currentEmployee = await getCurrentEmployee();
+
+  if (!currentEmployee) return [];
+
+  const isManager = currentEmployee.role === "admin" || currentEmployee.role === "manager";
+
+  // 管理者/マネージャーは全員分、一般社員は自分のみ
+  let balancesQuery = supabase
+    .from("leave_balances")
+    .select("id, employee_id, leave_category, granted_days, fiscal_year, granted_at, note")
+    .order("granted_at", { ascending: true });
+
+  let leavesQuery = supabase
+    .from("leaves")
+    .select("id, employee_id, leave_date, leave_type, status, reason")
+    .order("leave_date", { ascending: true });
+
+  if (!isManager) {
+    balancesQuery = balancesQuery.eq("employee_id", currentEmployee.id);
+    leavesQuery = leavesQuery.eq("employee_id", currentEmployee.id);
+  } else if (employeeId) {
+    balancesQuery = balancesQuery.eq("employee_id", employeeId);
+    leavesQuery = leavesQuery.eq("employee_id", employeeId);
+  }
+
+  const [{ data: balances, error: balanceError }, { data: leaves, error: leaveError }] = await Promise.all([
+    balancesQuery,
+    leavesQuery,
+  ]);
+
+  if (balanceError || leaveError) {
+    console.error("Error fetching history:", balanceError || leaveError);
+    return [];
+  }
+
+  // 社員名を取得
+  const employeeIds = new Set<string>();
+  (balances || []).forEach((b) => employeeIds.add(b.employee_id));
+  (leaves || []).forEach((l) => employeeIds.add(l.employee_id));
+
+  const adminClient = createAdminClient();
+  const { data: employees } = await adminClient
+    .from("employees")
+    .select("id, name")
+    .in("id", Array.from(employeeIds));
+
+  const employeeNameMap: Record<string, string> = {};
+  (employees || []).forEach((e) => {
+    employeeNameMap[e.id] = e.name;
+  });
+
+  // 付与と使用を統合
+  const historyItems: {
+    id: string;
+    date: string;
+    type: "grant" | "use";
+    employee_id: string;
+    leave_category: LeaveCategory;
+    days: number;
+    leave_type?: string;
+    status?: string;
+    note?: string | null;
+    fiscal_year?: number;
+  }[] = [];
+
+  // 付与を追加
+  for (const balance of balances || []) {
+    historyItems.push({
+      id: balance.id,
+      date: balance.granted_at,
+      type: "grant",
+      employee_id: balance.employee_id,
+      leave_category: balance.leave_category as LeaveCategory,
+      days: Number(balance.granted_days),
+      note: balance.note,
+      fiscal_year: balance.fiscal_year,
+    });
+  }
+
+  // 使用を追加
+  for (const leave of leaves || []) {
+    const leaveType = leave.leave_type as string;
+    let category: LeaveCategory | null = null;
+    let days = 0;
+
+    if (leaveType.startsWith("有給休暇")) {
+      category = "有給休暇";
+    } else if (leaveType.startsWith("冬季休暇")) {
+      category = "冬季休暇";
+    }
+
+    if (leaveType.includes("全日")) {
+      days = 1;
+    } else if (leaveType.includes("午前") || leaveType.includes("午後")) {
+      days = 0.5;
+    }
+
+    if (category) {
+      historyItems.push({
+        id: leave.id,
+        date: leave.leave_date,
+        type: "use",
+        employee_id: leave.employee_id,
+        leave_category: category,
+        days: -days,  // 使用はマイナス
+        leave_type: leave.leave_type,
+        status: leave.status,
+        note: leave.reason,
+      });
+    }
+  }
+
+  // 日付でソート（古い順）
+  historyItems.sort((a, b) => {
+    if (a.date !== b.date) return a.date.localeCompare(b.date);
+    // 同じ日付なら付与を先に
+    if (a.type === "grant" && b.type === "use") return -1;
+    if (a.type === "use" && b.type === "grant") return 1;
+    return 0;
+  });
+
+  // 残日数を計算しながら結果を生成
+  const balanceMap: Record<string, { 有給休暇: number; 冬季休暇: number }> = {};
+
+  const historyResult: LeaveHistoryItem[] = [];
+
+  for (const item of historyItems) {
+    // 社員ごとの残日数を初期化
+    if (!balanceMap[item.employee_id]) {
+      balanceMap[item.employee_id] = { 有給休暇: 0, 冬季休暇: 0 };
+    }
+
+    // 承認済みの使用、または付与のみ残日数に影響
+    if (item.type === "grant" || (item.type === "use" && item.status === "approved")) {
+      balanceMap[item.employee_id][item.leave_category] += item.days;
+    }
+
+    historyResult.push({
+      id: item.id,
+      date: item.date,
+      type: item.type,
+      employee_id: item.employee_id,
+      employee_name: employeeNameMap[item.employee_id] || "",
+      leave_category: item.leave_category,
+      days: item.days,
+      leave_type: item.leave_type as LeaveType | undefined,
+      status: item.status as LeaveStatus | undefined,
+      note: item.note,
+      fiscal_year: item.fiscal_year,
+      balance_after: { ...balanceMap[item.employee_id] },
+    });
+  }
+
+  // 新しい順に並べ替え
+  historyResult.reverse();
+
+  return historyResult;
 }

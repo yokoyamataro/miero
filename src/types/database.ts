@@ -890,3 +890,22 @@ export interface LeaveBalanceSummary {
   total_used: number;     // 使用合計
   remaining: number;      // 残日数
 }
+
+// 休暇履歴（付与と使用を統合した時系列データ）
+export interface LeaveHistoryItem {
+  id: string;
+  date: string;                      // 日付（付与日 or 休暇日）
+  type: "grant" | "use";             // 付与 or 使用
+  employee_id: string;
+  employee_name: string;
+  leave_category: LeaveCategory;
+  days: number;                      // 日数（付与は+、使用は-）
+  leave_type?: LeaveType;            // 使用の場合の休暇種類
+  status?: LeaveStatus;              // 使用の場合のステータス
+  note?: string | null;              // 付与の場合の備考 or 使用の場合の理由
+  fiscal_year?: number;              // 付与の場合の年度
+  balance_after: {                   // この操作後の残日数
+    有給休暇: number;
+    冬季休暇: number;
+  };
+}
