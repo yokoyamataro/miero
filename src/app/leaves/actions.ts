@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
-import type { Leave, LeaveWithEmployee, LeaveInsert, LeaveType, Employee } from "@/types/database";
+import type { Leave, LeaveWithEmployee, LeaveInsert, LeaveType, Employee, LeaveBalance, LeaveBalanceWithEmployee, LeaveCategory, LeaveBalanceSummary } from "@/types/database";
 
 // 現在のユーザー情報取得
 export async function getCurrentEmployee(): Promise<{
@@ -262,4 +262,330 @@ export async function getEmployeesForLeave(): Promise<Employee[]> {
   }
 
   return (data || []) as Employee[];
+}
+
+// ============================================
+// 休暇残日数管理
+// ============================================
+
+// 休暇残日数一覧取得（管理者/マネージャー用）
+export async function getAllLeaveBalances(): Promise<LeaveBalanceWithEmployee[]> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("leave_balances")
+    .select(`
+      *,
+      employee:employees!leave_balances_employee_id_fkey(id, name, email, role),
+      creator:employees!leave_balances_created_by_fkey(id, name, email, role)
+    `)
+    .order("granted_at", { ascending: false });
+
+  if (error) {
+    console.error("Error fetching leave balances:", error);
+    return [];
+  }
+
+  return (data || []) as LeaveBalanceWithEmployee[];
+}
+
+// 自分の休暇残日数取得
+export async function getMyLeaveBalances(): Promise<LeaveBalanceWithEmployee[]> {
+  const supabase = await createClient();
+  const employee = await getCurrentEmployee();
+
+  if (!employee) return [];
+
+  const { data, error } = await supabase
+    .from("leave_balances")
+    .select(`
+      *,
+      employee:employees!leave_balances_employee_id_fkey(id, name, email, role),
+      creator:employees!leave_balances_created_by_fkey(id, name, email, role)
+    `)
+    .eq("employee_id", employee.id)
+    .order("granted_at", { ascending: false });
+
+  if (error) {
+    console.error("Error fetching my leave balances:", error);
+    return [];
+  }
+
+  return (data || []) as LeaveBalanceWithEmployee[];
+}
+
+// 休暇付与（管理者/マネージャー用）
+export async function grantLeaveBalance(data: {
+  employee_id: string;
+  leave_category: LeaveCategory;
+  granted_days: number;
+  fiscal_year: number;
+  granted_at: string;
+  expires_at?: string | null;
+  note?: string;
+}): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient();
+  const currentEmployee = await getCurrentEmployee();
+
+  if (!currentEmployee) {
+    return { success: false, error: "ログインが必要です" };
+  }
+
+  if (currentEmployee.role !== "admin" && currentEmployee.role !== "manager") {
+    return { success: false, error: "権限がありません" };
+  }
+
+  const { error } = await supabase
+    .from("leave_balances")
+    .insert({
+      employee_id: data.employee_id,
+      leave_category: data.leave_category,
+      granted_days: data.granted_days,
+      fiscal_year: data.fiscal_year,
+      granted_at: data.granted_at,
+      expires_at: data.expires_at || null,
+      note: data.note || null,
+      created_by: currentEmployee.id,
+    });
+
+  if (error) {
+    console.error("Error granting leave balance:", error);
+    return { success: false, error: "休暇付与に失敗しました" };
+  }
+
+  revalidatePath("/leaves");
+  return { success: true };
+}
+
+// 休暇付与削除（管理者/マネージャー用）
+export async function deleteLeaveBalance(balanceId: string): Promise<{ success: boolean; error?: string }> {
+  const supabase = await createClient();
+  const currentEmployee = await getCurrentEmployee();
+
+  if (!currentEmployee) {
+    return { success: false, error: "ログインが必要です" };
+  }
+
+  if (currentEmployee.role !== "admin" && currentEmployee.role !== "manager") {
+    return { success: false, error: "権限がありません" };
+  }
+
+  const { error } = await supabase
+    .from("leave_balances")
+    .delete()
+    .eq("id", balanceId);
+
+  if (error) {
+    console.error("Error deleting leave balance:", error);
+    return { success: false, error: "削除に失敗しました" };
+  }
+
+  revalidatePath("/leaves");
+  return { success: true };
+}
+
+// 休暇残日数サマリー取得
+export async function getLeaveBalanceSummary(employeeId?: string): Promise<LeaveBalanceSummary[]> {
+  const supabase = await createClient();
+  const currentEmployee = await getCurrentEmployee();
+
+  if (!currentEmployee) return [];
+
+  // 対象社員ID（指定がなければ自分）
+  const targetEmployeeId = employeeId || currentEmployee.id;
+
+  // 管理者/マネージャー以外は自分のみ
+  if (targetEmployeeId !== currentEmployee.id &&
+      currentEmployee.role !== "admin" && currentEmployee.role !== "manager") {
+    return [];
+  }
+
+  // 付与日数を取得
+  const { data: balances, error: balanceError } = await supabase
+    .from("leave_balances")
+    .select("employee_id, leave_category, granted_days")
+    .eq("employee_id", targetEmployeeId);
+
+  if (balanceError) {
+    console.error("Error fetching balances:", balanceError);
+    return [];
+  }
+
+  // 使用日数を取得（承認済みの休暇のみ）
+  const { data: leaves, error: leaveError } = await supabase
+    .from("leaves")
+    .select("employee_id, leave_type")
+    .eq("employee_id", targetEmployeeId)
+    .eq("status", "approved");
+
+  if (leaveError) {
+    console.error("Error fetching leaves:", leaveError);
+    return [];
+  }
+
+  // 社員名を取得
+  const adminClient = createAdminClient();
+  const { data: employee } = await adminClient
+    .from("employees")
+    .select("name")
+    .eq("id", targetEmployeeId)
+    .single();
+
+  const employeeName = employee?.name || "";
+
+  // カテゴリごとに集計
+  const summaryMap: Record<string, { granted: number; used: number }> = {
+    "有給休暇": { granted: 0, used: 0 },
+    "冬季休暇": { granted: 0, used: 0 },
+  };
+
+  // 付与日数を集計
+  for (const balance of balances || []) {
+    const category = balance.leave_category as LeaveCategory;
+    if (summaryMap[category]) {
+      summaryMap[category].granted += Number(balance.granted_days);
+    }
+  }
+
+  // 使用日数を集計
+  for (const leave of leaves || []) {
+    const leaveType = leave.leave_type as string;
+    let category: LeaveCategory | null = null;
+    let days = 0;
+
+    if (leaveType.startsWith("有給休暇")) {
+      category = "有給休暇";
+    } else if (leaveType.startsWith("冬季休暇")) {
+      category = "冬季休暇";
+    }
+
+    if (leaveType.includes("全日")) {
+      days = 1;
+    } else if (leaveType.includes("午前") || leaveType.includes("午後")) {
+      days = 0.5;
+    }
+
+    if (category && summaryMap[category]) {
+      summaryMap[category].used += days;
+    }
+  }
+
+  // サマリーを生成
+  const result: LeaveBalanceSummary[] = [];
+  for (const [category, data] of Object.entries(summaryMap)) {
+    result.push({
+      employee_id: targetEmployeeId,
+      employee_name: employeeName,
+      leave_category: category as LeaveCategory,
+      total_granted: data.granted,
+      total_used: data.used,
+      remaining: data.granted - data.used,
+    });
+  }
+
+  return result;
+}
+
+// 全社員の休暇残日数サマリー取得（管理者/マネージャー用）
+export async function getAllLeaveBalanceSummaries(): Promise<LeaveBalanceSummary[]> {
+  const supabase = await createClient();
+  const currentEmployee = await getCurrentEmployee();
+
+  if (!currentEmployee) return [];
+
+  if (currentEmployee.role !== "admin" && currentEmployee.role !== "manager") {
+    return [];
+  }
+
+  // 全社員を取得
+  const { data: employees, error: empError } = await supabase
+    .from("employees")
+    .select("id, name")
+    .order("name");
+
+  if (empError || !employees) {
+    console.error("Error fetching employees:", empError);
+    return [];
+  }
+
+  // 全付与日数を取得
+  const { data: balances, error: balanceError } = await supabase
+    .from("leave_balances")
+    .select("employee_id, leave_category, granted_days");
+
+  if (balanceError) {
+    console.error("Error fetching balances:", balanceError);
+    return [];
+  }
+
+  // 全使用日数を取得（承認済みの休暇のみ）
+  const { data: leaves, error: leaveError } = await supabase
+    .from("leaves")
+    .select("employee_id, leave_type")
+    .eq("status", "approved");
+
+  if (leaveError) {
+    console.error("Error fetching leaves:", leaveError);
+    return [];
+  }
+
+  // 社員ごと・カテゴリごとに集計
+  const summaryMap: Record<string, Record<string, { granted: number; used: number; name: string }>> = {};
+
+  for (const emp of employees) {
+    summaryMap[emp.id] = {
+      "有給休暇": { granted: 0, used: 0, name: emp.name },
+      "冬季休暇": { granted: 0, used: 0, name: emp.name },
+    };
+  }
+
+  // 付与日数を集計
+  for (const balance of balances || []) {
+    const empId = balance.employee_id;
+    const category = balance.leave_category as LeaveCategory;
+    if (summaryMap[empId]?.[category]) {
+      summaryMap[empId][category].granted += Number(balance.granted_days);
+    }
+  }
+
+  // 使用日数を集計
+  for (const leave of leaves || []) {
+    const empId = leave.employee_id;
+    const leaveType = leave.leave_type as string;
+    let category: LeaveCategory | null = null;
+    let days = 0;
+
+    if (leaveType.startsWith("有給休暇")) {
+      category = "有給休暇";
+    } else if (leaveType.startsWith("冬季休暇")) {
+      category = "冬季休暇";
+    }
+
+    if (leaveType.includes("全日")) {
+      days = 1;
+    } else if (leaveType.includes("午前") || leaveType.includes("午後")) {
+      days = 0.5;
+    }
+
+    if (category && summaryMap[empId]?.[category]) {
+      summaryMap[empId][category].used += days;
+    }
+  }
+
+  // サマリーを生成
+  const result: LeaveBalanceSummary[] = [];
+  for (const [empId, categories] of Object.entries(summaryMap)) {
+    for (const [category, data] of Object.entries(categories)) {
+      result.push({
+        employee_id: empId,
+        employee_name: data.name,
+        leave_category: category as LeaveCategory,
+        total_granted: data.granted,
+        total_used: data.used,
+        remaining: data.granted - data.used,
+      });
+    }
+  }
+
+  return result;
 }

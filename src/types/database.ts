@@ -839,3 +839,52 @@ export interface LeaveWithEmployee extends Leave {
   employee: Employee;
   approver: Employee | null;
 }
+
+// ============================================
+// Leave Balance (休暇残日数)
+// ============================================
+export type LeaveCategory = "有給休暇" | "冬季休暇";
+
+export const LEAVE_CATEGORY_OPTIONS: LeaveCategory[] = ["有給休暇", "冬季休暇"];
+
+export interface LeaveBalance {
+  id: string;
+  employee_id: string;
+  leave_category: LeaveCategory;
+  granted_days: number;
+  fiscal_year: number;
+  granted_at: string;
+  expires_at: string | null;
+  note: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LeaveBalanceInsert {
+  id?: string;
+  employee_id: string;
+  leave_category: LeaveCategory;
+  granted_days: number;
+  fiscal_year: number;
+  granted_at: string;
+  expires_at?: string | null;
+  note?: string | null;
+  created_by?: string | null;
+}
+
+// 休暇残日数（社員・付与者情報付き）
+export interface LeaveBalanceWithEmployee extends LeaveBalance {
+  employee: Employee;
+  creator: Employee | null;
+}
+
+// 社員ごとの残日数サマリー
+export interface LeaveBalanceSummary {
+  employee_id: string;
+  employee_name: string;
+  leave_category: LeaveCategory;
+  total_granted: number;  // 付与合計
+  total_used: number;     // 使用合計
+  remaining: number;      // 残日数
+}

@@ -52,16 +52,19 @@ import {
   type LeaveWithEmployee,
   type Employee,
   type LeaveType,
+  type LeaveBalanceSummary,
+  type LeaveCategory,
   LEAVE_TYPE_OPTIONS,
   LEAVE_STATUS_LABELS,
   LEAVE_STATUS_COLORS,
+  LEAVE_CATEGORY_OPTIONS,
 } from "@/types/database";
 import {
   createLeave,
-  addLeaveByManager,
   approveLeave,
   rejectLeave,
   deleteLeave,
+  grantLeaveBalance,
 } from "./actions";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
@@ -71,6 +74,7 @@ interface LeaveListProps {
   currentEmployee: { id: string; name: string; role: string };
   isManager: boolean;
   employees: Employee[];
+  balanceSummaries: LeaveBalanceSummary[];
 }
 
 export function LeaveList({
@@ -78,6 +82,7 @@ export function LeaveList({
   currentEmployee,
   isManager,
   employees,
+  balanceSummaries,
 }: LeaveListProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -91,15 +96,15 @@ export function LeaveList({
     reason: "",
   });
 
-  // 管理者用追加ダイアログ
-  const [showAddDialog, setShowAddDialog] = useState(false);
-  const [addForm, setAddForm] = useState({
+  // 管理者用付与ダイアログ
+  const [showGrantDialog, setShowGrantDialog] = useState(false);
+  const [grantForm, setGrantForm] = useState({
     employee_id: "",
-    leave_date: format(new Date(), "yyyy-MM-dd"),
-    leave_type: "有給休暇（全日）" as LeaveType,
-    adjustment: "",
-    reason: "",
-    status: "approved" as "pending" | "approved",
+    leave_category: "有給休暇" as LeaveCategory,
+    granted_days: 10,
+    fiscal_year: new Date().getFullYear(),
+    granted_at: format(new Date(), "yyyy-MM-dd"),
+    note: "",
   });
 
   // 差戻しダイアログ
@@ -141,24 +146,24 @@ export function LeaveList({
     });
   };
 
-  // 管理者による追加
-  const handleAdd = () => {
-    if (!addForm.employee_id) {
+  // 管理者による休暇付与
+  const handleGrant = () => {
+    if (!grantForm.employee_id) {
       alert("社員を選択してください");
       return;
     }
 
     startTransition(async () => {
-      const result = await addLeaveByManager(addForm);
+      const result = await grantLeaveBalance(grantForm);
       if (result.success) {
-        setShowAddDialog(false);
-        setAddForm({
+        setShowGrantDialog(false);
+        setGrantForm({
           employee_id: "",
-          leave_date: format(new Date(), "yyyy-MM-dd"),
-          leave_type: "有給休暇（全日）",
-          adjustment: "",
-          reason: "",
-          status: "approved",
+          leave_category: "有給休暇",
+          granted_days: 10,
+          fiscal_year: new Date().getFullYear(),
+          granted_at: format(new Date(), "yyyy-MM-dd"),
+          note: "",
         });
         router.refresh();
       } else {
@@ -229,13 +234,93 @@ export function LeaveList({
             休暇申請
           </Button>
           {isManager && (
-            <Button variant="outline" onClick={() => setShowAddDialog(true)}>
+            <Button variant="outline" onClick={() => setShowGrantDialog(true)}>
               <Plus className="h-4 w-4 mr-2" />
-              休暇追加
+              休暇付与
             </Button>
           )}
         </div>
       </div>
+
+      {/* 残日数サマリー */}
+      <Card>
+        <CardHeader>
+          <CardTitle>残日数</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {isManager ? (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>社員名</TableHead>
+                  <TableHead className="text-right">有給休暇（付与）</TableHead>
+                  <TableHead className="text-right">有給休暇（使用）</TableHead>
+                  <TableHead className="text-right">有給休暇（残）</TableHead>
+                  <TableHead className="text-right">冬季休暇（付与）</TableHead>
+                  <TableHead className="text-right">冬季休暇（使用）</TableHead>
+                  <TableHead className="text-right">冬季休暇（残）</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {(() => {
+                  // 社員ごとにグループ化
+                  const groupedByEmployee: Record<string, { name: string; 有給休暇?: LeaveBalanceSummary; 冬季休暇?: LeaveBalanceSummary }> = {};
+                  for (const summary of balanceSummaries) {
+                    if (!groupedByEmployee[summary.employee_id]) {
+                      groupedByEmployee[summary.employee_id] = { name: summary.employee_name };
+                    }
+                    groupedByEmployee[summary.employee_id][summary.leave_category] = summary;
+                  }
+                  return Object.entries(groupedByEmployee).map(([empId, data]) => (
+                    <TableRow key={empId}>
+                      <TableCell className="font-medium">{data.name}</TableCell>
+                      <TableCell className="text-right">{data.有給休暇?.total_granted ?? 0}</TableCell>
+                      <TableCell className="text-right">{data.有給休暇?.total_used ?? 0}</TableCell>
+                      <TableCell className="text-right font-bold">
+                        {(data.有給休暇?.remaining ?? 0) < 0 ? (
+                          <span className="text-destructive">{data.有給休暇?.remaining ?? 0}</span>
+                        ) : (
+                          data.有給休暇?.remaining ?? 0
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right">{data.冬季休暇?.total_granted ?? 0}</TableCell>
+                      <TableCell className="text-right">{data.冬季休暇?.total_used ?? 0}</TableCell>
+                      <TableCell className="text-right font-bold">
+                        {(data.冬季休暇?.remaining ?? 0) < 0 ? (
+                          <span className="text-destructive">{data.冬季休暇?.remaining ?? 0}</span>
+                        ) : (
+                          data.冬季休暇?.remaining ?? 0
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ));
+                })()}
+              </TableBody>
+            </Table>
+          ) : (
+            <div className="grid grid-cols-2 gap-4">
+              {balanceSummaries.map((summary) => (
+                <div key={summary.leave_category} className="p-4 border rounded-lg">
+                  <div className="text-sm text-muted-foreground">{summary.leave_category}</div>
+                  <div className="flex items-baseline gap-2 mt-1">
+                    <span className="text-2xl font-bold">
+                      {summary.remaining < 0 ? (
+                        <span className="text-destructive">{summary.remaining}</span>
+                      ) : (
+                        summary.remaining
+                      )}
+                    </span>
+                    <span className="text-muted-foreground">日</span>
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">
+                    付与: {summary.total_granted}日 / 使用: {summary.total_used}日
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* 申請中の休暇（管理者向けに目立つように表示） */}
       {isManager && pendingLeaves.length > 0 && (
@@ -449,19 +534,19 @@ export function LeaveList({
         </DialogContent>
       </Dialog>
 
-      {/* 管理者用追加ダイアログ */}
-      <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
+      {/* 管理者用付与ダイアログ */}
+      <Dialog open={showGrantDialog} onOpenChange={setShowGrantDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>休暇追加（管理者）</DialogTitle>
+            <DialogTitle>休暇付与</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>社員 *</Label>
               <Select
-                value={addForm.employee_id}
+                value={grantForm.employee_id}
                 onValueChange={(v) =>
-                  setAddForm({ ...addForm, employee_id: v })
+                  setGrantForm({ ...grantForm, employee_id: v })
                 }
               >
                 <SelectTrigger>
@@ -477,88 +562,75 @@ export function LeaveList({
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>休暇日 *</Label>
-              <Input
-                type="date"
-                value={addForm.leave_date}
-                onChange={(e) =>
-                  setAddForm({ ...addForm, leave_date: e.target.value })
-                }
-              />
-            </div>
-            <div className="space-y-2">
               <Label>休暇種類 *</Label>
               <Select
-                value={addForm.leave_type}
+                value={grantForm.leave_category}
                 onValueChange={(v) =>
-                  setAddForm({ ...addForm, leave_type: v as LeaveType })
+                  setGrantForm({ ...grantForm, leave_category: v as LeaveCategory })
                 }
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {LEAVE_TYPE_OPTIONS.map((type) => (
-                    <SelectItem key={type} value={type}>
-                      {type}
+                  {LEAVE_CATEGORY_OPTIONS.map((cat) => (
+                    <SelectItem key={cat} value={cat}>
+                      {cat}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>事前調整</Label>
-              <Select
-                value={addForm.adjustment}
-                onValueChange={(v) =>
-                  setAddForm({ ...addForm, adjustment: v })
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="選択してください" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="調整済">調整済</SelectItem>
-                  <SelectItem value="調整不要：１日以内">調整不要：１日以内</SelectItem>
-                  <SelectItem value="その他">その他</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label>理由・備考</Label>
-              <Textarea
-                value={addForm.reason}
+              <Label>付与日数 *</Label>
+              <Input
+                type="number"
+                step="0.5"
+                min="0.5"
+                value={grantForm.granted_days}
                 onChange={(e) =>
-                  setAddForm({ ...addForm, reason: e.target.value })
+                  setGrantForm({ ...grantForm, granted_days: parseFloat(e.target.value) || 0 })
                 }
-                placeholder="休暇の理由を入力してください"
-                rows={3}
               />
             </div>
             <div className="space-y-2">
-              <Label>ステータス</Label>
-              <Select
-                value={addForm.status}
-                onValueChange={(v) =>
-                  setAddForm({ ...addForm, status: v as "pending" | "approved" })
+              <Label>年度 *</Label>
+              <Input
+                type="number"
+                value={grantForm.fiscal_year}
+                onChange={(e) =>
+                  setGrantForm({ ...grantForm, fiscal_year: parseInt(e.target.value) || new Date().getFullYear() })
                 }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="approved">承認済み</SelectItem>
-                  <SelectItem value="pending">申請中</SelectItem>
-                </SelectContent>
-              </Select>
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>付与日 *</Label>
+              <Input
+                type="date"
+                value={grantForm.granted_at}
+                onChange={(e) =>
+                  setGrantForm({ ...grantForm, granted_at: e.target.value })
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>備考</Label>
+              <Textarea
+                value={grantForm.note}
+                onChange={(e) =>
+                  setGrantForm({ ...grantForm, note: e.target.value })
+                }
+                placeholder="備考を入力してください"
+                rows={2}
+              />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddDialog(false)}>
+            <Button variant="outline" onClick={() => setShowGrantDialog(false)}>
               キャンセル
             </Button>
-            <Button onClick={handleAdd} disabled={isPending}>
-              追加する
+            <Button onClick={handleGrant} disabled={isPending}>
+              付与する
             </Button>
           </DialogFooter>
         </DialogContent>

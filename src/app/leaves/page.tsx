@@ -1,4 +1,4 @@
-import { getCurrentEmployee, getMyLeaves, getAllLeaves, getEmployeesForLeave } from "./actions";
+import { getCurrentEmployee, getMyLeaves, getAllLeaves, getEmployeesForLeave, getLeaveBalanceSummary, getAllLeaveBalanceSummaries } from "./actions";
 import { LeaveList } from "./leave-list";
 import { redirect } from "next/navigation";
 
@@ -14,6 +14,9 @@ export default async function LeavesPage() {
   // 管理者/マネージャーは全員分、一般社員は自分のみ
   const leaves = isManager ? await getAllLeaves() : await getMyLeaves();
   const employees = isManager ? await getEmployeesForLeave() : [];
+  const balanceSummaries = isManager
+    ? await getAllLeaveBalanceSummaries()
+    : await getLeaveBalanceSummary();
 
   return (
     <main className="container mx-auto px-4 py-8">
@@ -22,6 +25,7 @@ export default async function LeavesPage() {
         currentEmployee={currentEmployee}
         isManager={isManager}
         employees={employees}
+        balanceSummaries={balanceSummaries}
       />
     </main>
   );
