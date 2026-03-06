@@ -815,17 +815,29 @@ export const LEAVE_STATUS_COLORS: Record<LeaveStatus, string> = {
   rejected: "bg-red-500 text-white",
 };
 
+export type LeaveEntryType = "grant" | "use";
+export type LeaveCategory = "有給休暇" | "冬季休暇" | "無給休暇";
+
+export const LEAVE_CATEGORY_OPTIONS: LeaveCategory[] = ["有給休暇", "冬季休暇"];
+
+// 統合されたLeaveインターフェース（付与と使用を1つのテーブルで管理）
 export interface Leave {
   id: string;
   employee_id: string;
-  leave_date: string;
+  leave_date: string;              // 付与日 or 休暇日
   leave_type: LeaveType;
   adjustment: string | null;
-  reason: string | null;
+  reason: string | null;           // 使用時の理由 or 付与時の備考
   status: LeaveStatus;
   approved_by: string | null;
   approved_at: string | null;
   rejection_reason: string | null;
+  // 統合後の新カラム
+  entry_type: LeaveEntryType;      // 'grant' = 付与, 'use' = 使用
+  leave_category: LeaveCategory;   // '有給休暇', '冬季休暇', '無給休暇'
+  days: number;                    // 付与: +, 使用: -
+  expires_at: string | null;       // 有効期限（冬季休暇付与時のみ）
+  granted_by: string | null;       // 付与者
   created_at: string;
   updated_at: string;
 }
@@ -838,53 +850,18 @@ export interface LeaveInsert {
   adjustment?: string | null;
   reason?: string | null;
   status?: LeaveStatus;
+  entry_type: LeaveEntryType;
+  leave_category: LeaveCategory;
+  days: number;
+  expires_at?: string | null;
+  granted_by?: string | null;
 }
 
 // 休暇（社員情報付き）
 export interface LeaveWithEmployee extends Leave {
-  employee: Employee;
+  employee: Employee | null;
   approver: Employee | null;
-}
-
-// ============================================
-// Leave Balance (休暇残日数)
-// ============================================
-export type LeaveCategory = "有給休暇" | "冬季休暇";
-
-export const LEAVE_CATEGORY_OPTIONS: LeaveCategory[] = ["有給休暇", "冬季休暇"];
-
-export interface LeaveBalance {
-  id: string;
-  employee_id: string;
-  leave_category: LeaveCategory;
-  granted_days: number;
-  fiscal_year: number;
-  granted_at: string;
-  valid_from: string | null;   // 有効開始日
-  expires_at: string | null;   // 有効期限
-  note: string | null;
-  created_by: string | null;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface LeaveBalanceInsert {
-  id?: string;
-  employee_id: string;
-  leave_category: LeaveCategory;
-  granted_days: number;
-  fiscal_year: number;
-  granted_at: string;
-  valid_from?: string | null;
-  expires_at?: string | null;
-  note?: string | null;
-  created_by?: string | null;
-}
-
-// 休暇残日数（社員・付与者情報付き）
-export interface LeaveBalanceWithEmployee extends LeaveBalance {
-  employee: Employee;
-  creator: Employee | null;
+  granter: Employee | null;        // 付与者
 }
 
 // 社員ごとの残日数サマリー
@@ -895,23 +872,4 @@ export interface LeaveBalanceSummary {
   total_granted: number;  // 付与合計
   total_used: number;     // 使用合計
   remaining: number;      // 残日数
-}
-
-// 休暇履歴（付与と使用を統合した時系列データ）
-export interface LeaveHistoryItem {
-  id: string;
-  date: string;                      // 日付（付与日 or 休暇日）
-  type: "grant" | "use";             // 付与 or 使用
-  employee_id: string;
-  employee_name: string;
-  leave_category: LeaveCategory | "無給休暇";
-  days: number;                      // 日数（付与は+、使用は-）
-  leave_type?: LeaveType;            // 使用の場合の休暇種類
-  status?: LeaveStatus;              // 使用の場合のステータス
-  note?: string | null;              // 付与の場合の備考 or 使用の場合の理由
-  fiscal_year?: number;              // 付与の場合の年度
-  balance_after: {                   // この操作後の残日数
-    有給休暇: number;
-    冬季休暇: number;
-  };
 }

@@ -1,4 +1,4 @@
-import { getCurrentEmployee, getMyLeaves, getAllLeaves, getEmployeesForLeave, getLeaveBalanceSummary, getAllLeaveBalanceSummaries, getLeaveHistory } from "./actions";
+import { getCurrentEmployee, getMyLeaves, getAllLeaves, getEmployeesForLeave, getLeaveBalanceSummary, getAllLeaveBalanceSummaries } from "./actions";
 import { LeaveList } from "./leave-list";
 import { redirect } from "next/navigation";
 
@@ -17,7 +17,6 @@ export default async function LeavesPage() {
   const balanceSummaries = isManager
     ? await getAllLeaveBalanceSummaries()
     : await getLeaveBalanceSummary();
-  const leaveHistory = await getLeaveHistory();
 
   return (
     <main className="container mx-auto px-4 py-8">
@@ -27,7 +26,6 @@ export default async function LeavesPage() {
         isManager={isManager}
         employees={employees}
         balanceSummaries={balanceSummaries}
-        leaveHistory={leaveHistory}
       />
     </main>
   );

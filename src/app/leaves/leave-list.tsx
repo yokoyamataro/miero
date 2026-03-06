@@ -54,7 +54,6 @@ import {
   type LeaveType,
   type LeaveBalanceSummary,
   type LeaveCategory,
-  type LeaveHistoryItem,
   LEAVE_STATUS_LABELS,
   LEAVE_STATUS_COLORS,
   LEAVE_CATEGORY_OPTIONS,
@@ -76,7 +75,6 @@ interface LeaveListProps {
   isManager: boolean;
   employees: Employee[];
   balanceSummaries: LeaveBalanceSummary[];
-  leaveHistory: LeaveHistoryItem[];
 }
 
 export function LeaveList({
@@ -85,7 +83,6 @@ export function LeaveList({
   isManager,
   employees,
   balanceSummaries,
-  leaveHistory,
 }: LeaveListProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -151,6 +148,54 @@ export function LeaveList({
     () => leaves.filter((l) => l.status !== "pending"),
     [leaves]
   );
+
+  // 時系列でソートした休暇履歴（付与・使用両方含む）
+  const sortedLeaveHistory = useMemo(() => {
+    // 時系列順（新しい順）にソート
+    const sorted = [...leaves].sort((a, b) => {
+      const dateA = new Date(a.leave_date);
+      const dateB = new Date(b.leave_date);
+      return dateB.getTime() - dateA.getTime();
+    });
+
+    // 管理者でない場合は自分のデータのみ
+    if (!isManager) {
+      return sorted.filter((l) => l.employee_id === currentEmployee.id);
+    }
+    return sorted;
+  }, [leaves, isManager, currentEmployee.id]);
+
+  // 各レコードの残高を計算するための累積計算
+  const leaveHistoryWithBalance = useMemo(() => {
+    // 古い順でソートして累積を計算
+    const chronological = [...sortedLeaveHistory].reverse();
+
+    // 社員ごとの残高を追跡
+    const balances: Record<string, { 有給休暇: number; 冬季休暇: number }> = {};
+
+    const withBalance = chronological.map((leave) => {
+      if (!balances[leave.employee_id]) {
+        balances[leave.employee_id] = { 有給休暇: 0, 冬季休暇: 0 };
+      }
+
+      const category = leave.leave_category;
+      if (category === "有給休暇" || category === "冬季休暇") {
+        if (leave.entry_type === "grant") {
+          balances[leave.employee_id][category] += Number(leave.days);
+        } else if (leave.status === "approved") {
+          balances[leave.employee_id][category] += Number(leave.days); // daysはマイナス値
+        }
+      }
+
+      return {
+        ...leave,
+        balance_after: { ...balances[leave.employee_id] },
+      };
+    });
+
+    // 新しい順に戻す
+    return withBalance.reverse();
+  }, [sortedLeaveHistory]);
 
   // 休暇申請
   const handleRequest = () => {
@@ -291,13 +336,19 @@ export function LeaveList({
               </TableHeader>
               <TableBody>
                 {(() => {
-                  // 社員ごとにグループ化
+                  // 社員ごとにグループ化（無給休暇は残日数管理しないので除外）
                   const groupedByEmployee: Record<string, { name: string; 有給休暇?: LeaveBalanceSummary; 冬季休暇?: LeaveBalanceSummary }> = {};
                   for (const summary of balanceSummaries) {
+                    // 無給休暇はサマリーに表示しない
+                    if (summary.leave_category === "無給休暇") continue;
                     if (!groupedByEmployee[summary.employee_id]) {
                       groupedByEmployee[summary.employee_id] = { name: summary.employee_name };
                     }
-                    groupedByEmployee[summary.employee_id][summary.leave_category] = summary;
+                    if (summary.leave_category === "有給休暇") {
+                      groupedByEmployee[summary.employee_id].有給休暇 = summary;
+                    } else if (summary.leave_category === "冬季休暇") {
+                      groupedByEmployee[summary.employee_id].冬季休暇 = summary;
+                    }
                   }
                   return Object.entries(groupedByEmployee).map(([empId, data]) => (
                     <TableRow key={empId}>
@@ -423,7 +474,7 @@ export function LeaveList({
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          {leaveHistory.length === 0 ? (
+          {leaveHistoryWithBalance.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">
               休暇履歴がありません
             </div>
@@ -444,39 +495,39 @@ export function LeaveList({
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {leaveHistory.map((item) => (
+                {leaveHistoryWithBalance.map((item) => (
                   <TableRow
-                    key={`${item.type}-${item.id}`}
-                    className={item.type === "grant" ? "bg-blue-50" : ""}
+                    key={item.id}
+                    className={item.entry_type === "grant" ? "bg-blue-50" : ""}
                   >
                     {isManager && (
                       <TableCell className="font-medium">
-                        {item.employee_name}
+                        {item.employee?.name}
                       </TableCell>
                     )}
-                    <TableCell>{formatDate(item.date)}</TableCell>
+                    <TableCell>{formatDate(item.leave_date)}</TableCell>
                     <TableCell>
                       <Badge
-                        variant={item.type === "grant" ? "default" : "secondary"}
-                        className={item.type === "grant" ? "bg-blue-500" : ""}
+                        variant={item.entry_type === "grant" ? "default" : "secondary"}
+                        className={item.entry_type === "grant" ? "bg-blue-500" : ""}
                       >
-                        {item.type === "grant" ? "付与" : "使用"}
+                        {item.entry_type === "grant" ? "付与" : "使用"}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      {item.type === "grant"
-                        ? `${item.leave_category}（${item.fiscal_year}年度）`
+                      {item.entry_type === "grant"
+                        ? item.leave_category
                         : item.leave_type}
                     </TableCell>
                     <TableCell className="text-right font-medium">
-                      {item.type === "grant" ? (
+                      {item.entry_type === "grant" ? (
                         <span className="text-blue-600">+{item.days}</span>
                       ) : (
                         <span className="text-red-600">{item.days}</span>
                       )}
                     </TableCell>
                     <TableCell>
-                      {item.type === "use" && item.status && (
+                      {item.entry_type === "use" && (
                         <Badge className={LEAVE_STATUS_COLORS[item.status]}>
                           {LEAVE_STATUS_LABELS[item.status]}
                         </Badge>
@@ -489,10 +540,10 @@ export function LeaveList({
                       {item.balance_after.冬季休暇}
                     </TableCell>
                     <TableCell className="max-w-[150px] truncate">
-                      {item.note || "-"}
+                      {item.reason || "-"}
                     </TableCell>
                     <TableCell className="text-right">
-                      {item.type === "use" &&
+                      {item.entry_type === "use" &&
                         (isManager || (item.status === "pending" && item.employee_id === currentEmployee.id)) && (
                           <Button
                             size="sm"
