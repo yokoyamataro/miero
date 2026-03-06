@@ -429,14 +429,14 @@ export function CalendarView({
       return (
         <div
           key={event.id}
-          className="text-xs truncate cursor-pointer hover:opacity-80 flex items-center gap-1 max-w-full overflow-hidden"
+          className="text-xs truncate cursor-pointer hover:opacity-80 flex items-center gap-1 w-full max-w-full overflow-hidden"
           onClick={(e) => handleEventClick(event, e)}
           title={event.title}
         >
           {categoryName && (
             <span className={`${categoryColor} text-white px-1 rounded text-[10px] flex-shrink-0 whitespace-nowrap`}>{categoryName}</span>
           )}
-          <span className="text-black truncate min-w-0">{timeStr && `${timeStr} `}{event.title}</span>
+          <span className="text-black truncate min-w-0 flex-1">{timeStr && `${timeStr} `}{event.title}</span>
         </div>
       );
     }
@@ -780,17 +780,17 @@ export function CalendarView({
         </div>
 
         {/* 終日イベント行 */}
-        <div className="grid grid-cols-[60px_1fr_1fr_1fr] border-b bg-gray-50">
+        <div className="grid grid-cols-[60px_1fr_1fr_1fr] border-b bg-gray-50 overflow-hidden">
           <div className="p-1 border-r text-xs text-muted-foreground text-center">終日</div>
           {threeDays.map((date, idx) => {
             const allDayEvents = getAllDayEvents(date);
             return (
               <div
                 key={idx}
-                className="p-1 border-r min-h-[32px] cursor-pointer hover:bg-muted/50 overflow-hidden"
+                className="p-1 border-r min-h-[32px] cursor-pointer hover:bg-muted/50 overflow-hidden min-w-0"
                 onClick={() => handleDateClick(date)}
               >
-                <div className="space-y-0.5 overflow-hidden">
+                <div className="space-y-0.5 overflow-hidden w-full">
                   {allDayEvents.map((event) => renderEvent(event, true))}
                 </div>
               </div>
