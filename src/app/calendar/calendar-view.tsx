@@ -757,7 +757,7 @@ export function CalendarView({
     return (
       <div className="overflow-auto">
         {/* ヘッダー */}
-        <div className="grid grid-cols-[60px_1fr_1fr_1fr] border-b">
+        <div className="grid border-b" style={{ gridTemplateColumns: '60px minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr)' }}>
           <div className="p-2 bg-muted border-r text-center text-xs font-medium">時間</div>
           {threeDays.map((date, idx) => {
             const dayOfWeek = date.getDay();
@@ -780,17 +780,17 @@ export function CalendarView({
         </div>
 
         {/* 終日イベント行 */}
-        <div className="grid grid-cols-[60px_1fr_1fr_1fr] border-b bg-gray-50 overflow-hidden">
+        <div className="grid border-b bg-gray-50" style={{ gridTemplateColumns: '60px minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr)' }}>
           <div className="p-1 border-r text-xs text-muted-foreground text-center">終日</div>
           {threeDays.map((date, idx) => {
             const allDayEvents = getAllDayEvents(date);
             return (
               <div
                 key={idx}
-                className="p-1 border-r min-h-[32px] cursor-pointer hover:bg-muted/50 overflow-hidden min-w-0"
+                className="p-1 border-r min-h-[32px] cursor-pointer hover:bg-muted/50 overflow-hidden"
                 onClick={() => handleDateClick(date)}
               >
-                <div className="space-y-0.5 overflow-hidden w-full">
+                <div className="space-y-0.5">
                   {allDayEvents.map((event) => renderEvent(event, true))}
                 </div>
               </div>
@@ -799,7 +799,7 @@ export function CalendarView({
         </div>
 
         {/* 時間軸 */}
-        <div className="grid grid-cols-[60px_1fr_1fr_1fr]">
+        <div className="grid" style={{ gridTemplateColumns: '60px minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr)' }}>
           <div className="border-r">
             {hourLabels.map((slot, idx) => (
               <div key={idx} className={`h-12 border-b text-xs text-muted-foreground text-right pr-2 pt-0.5 ${slot.hour === 12 ? "bg-gray-100" : ""}`}>
