@@ -296,7 +296,7 @@ function SortableTaskItem({
   );
 }
 
-// 時間編集モーダル（標準時間を編集）
+// 時間編集モーダル（標準時間・実績時間を編集）
 function EditTimeModal({
   task,
   open,
@@ -311,18 +311,27 @@ function EditTimeModal({
   const [estimatedHours, setEstimatedHours] = useState(
     minutesToHours(task.estimated_minutes).toString()
   );
+  const [actualHours, setActualHours] = useState(
+    minutesToHours(task.actual_minutes).toString()
+  );
 
   useEffect(() => {
     if (open) {
       setEstimatedHours(minutesToHours(task.estimated_minutes).toString());
+      setActualHours(minutesToHours(task.actual_minutes).toString());
     }
-  }, [open, task.estimated_minutes]);
+  }, [open, task.estimated_minutes, task.actual_minutes]);
 
   const handleSave = () => {
     startTransition(async () => {
-      const hours = parseFloat(estimatedHours) || 0;
-      const minutes = hours > 0 ? hoursToMinutes(hours) : null;
-      await updateTask(task.id, { estimated_minutes: minutes });
+      const estHours = parseFloat(estimatedHours) || 0;
+      const actHours = parseFloat(actualHours) || 0;
+      const estimatedMinutes = estHours > 0 ? hoursToMinutes(estHours) : null;
+      const actualMinutes = actHours > 0 ? hoursToMinutes(actHours) : null;
+      await updateTask(task.id, {
+        estimated_minutes: estimatedMinutes,
+        actual_minutes: actualMinutes,
+      });
       router.refresh();
       onOpenChange(false);
     });
@@ -332,7 +341,7 @@ function EditTimeModal({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xs">
         <DialogHeader>
-          <DialogTitle>標準時間を編集</DialogTitle>
+          <DialogTitle>時間を編集</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -352,10 +361,26 @@ function EditTimeModal({
               />
               <span className="text-sm text-muted-foreground">時間</span>
             </div>
-            <p className="text-xs text-muted-foreground">
-              例: 0.25=15分, 0.5=30分, 1.5=1時間30分
-            </p>
           </div>
+
+          <div className="space-y-2">
+            <Label>実績時間（時間）</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number"
+                min="0"
+                step="0.25"
+                value={actualHours}
+                onChange={(e) => setActualHours(e.target.value)}
+                className="w-24"
+              />
+              <span className="text-sm text-muted-foreground">時間</span>
+            </div>
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            例: 0.25=15分, 0.5=30分, 1.5=1時間30分
+          </p>
         </div>
 
         <DialogFooter>
