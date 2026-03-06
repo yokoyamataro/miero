@@ -451,7 +451,7 @@ export function CalendarView({
           <div className={`${categoryColor} text-white text-xs font-medium px-2 py-0.5`}>{categoryName}</div>
         )}
         <div className="p-2 bg-white">
-          <div className="font-medium text-black">{event.title}</div>
+          <div className="text-sm text-black">{event.title}</div>
           {event.start_time && (
             <div className="text-sm flex items-center gap-1 mt-1 text-black">
               <Clock className="h-3 w-3" />
