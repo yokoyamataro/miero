@@ -319,7 +319,6 @@ export async function grantLeaveBalance(data: {
   employee_id: string;
   leave_category: LeaveCategory;
   granted_days: number;
-  fiscal_year: number;
   granted_at: string;
   note?: string;
 }): Promise<{ success: boolean; error?: string }> {
@@ -334,16 +333,18 @@ export async function grantLeaveBalance(data: {
     return { success: false, error: "権限がありません" };
   }
 
+  // 付与日から年度を自動計算（4月始まり）
+  const grantedDate = new Date(data.granted_at);
+  const grantedYear = grantedDate.getFullYear();
+  const grantedMonth = grantedDate.getMonth() + 1;
+  const fiscalYear = grantedMonth >= 4 ? grantedYear : grantedYear - 1;
+
   // 冬季休暇は付与日から翌年3月31日まで有効
   let validFrom: string | null = null;
   let expiresAt: string | null = null;
 
   if (data.leave_category === "冬季休暇") {
     // 付与日から有効、翌年の3月31日で失効
-    const grantedDate = new Date(data.granted_at);
-    const grantedYear = grantedDate.getFullYear();
-    const grantedMonth = grantedDate.getMonth() + 1;
-
     // 1-3月に付与された場合は同年の3月31日、4-12月に付与された場合は翌年の3月31日
     const expiryYear = grantedMonth <= 3 ? grantedYear : grantedYear + 1;
     validFrom = data.granted_at;
@@ -356,7 +357,7 @@ export async function grantLeaveBalance(data: {
       employee_id: data.employee_id,
       leave_category: data.leave_category,
       granted_days: data.granted_days,
-      fiscal_year: data.fiscal_year,
+      fiscal_year: fiscalYear,
       granted_at: data.granted_at,
       valid_from: validFrom,
       expires_at: expiresAt,
@@ -544,37 +545,25 @@ export async function getAvailableLeaveTypes(leaveDate: string): Promise<{
 
   const leaveDateObj = new Date(leaveDate);
 
-  console.log("[getAvailableLeaveTypes] leaveDate:", leaveDate, "leaveDateObj:", leaveDateObj);
-  console.log("[getAvailableLeaveTypes] balances:", JSON.stringify(balances, null, 2));
-
   for (const balance of balances || []) {
     const category = balance.leave_category as LeaveCategory;
     const validFrom = balance.valid_from;
     const expiresAt = balance.expires_at;
 
-    console.log("[getAvailableLeaveTypes] Processing balance:", { category, validFrom, expiresAt, granted_days: balance.granted_days });
-
     // 有効期間チェック（Date オブジェクトで比較）
     if (validFrom) {
       const validFromDate = new Date(validFrom);
-      console.log("[getAvailableLeaveTypes] validFrom check:", { leaveDateObj, validFromDate, skip: leaveDateObj < validFromDate });
       if (leaveDateObj < validFromDate) continue;
     }
     if (expiresAt) {
       const expiresAtDate = new Date(expiresAt);
-      console.log("[getAvailableLeaveTypes] expiresAt check:", { leaveDateObj, expiresAtDate, skip: leaveDateObj > expiresAtDate });
       if (leaveDateObj > expiresAtDate) continue;
     }
 
     if (summaryMap[category] !== undefined) {
       summaryMap[category] += Number(balance.granted_days);
-      console.log("[getAvailableLeaveTypes] Added to summaryMap:", { category, newTotal: summaryMap[category] });
-    } else {
-      console.log("[getAvailableLeaveTypes] Category not in summaryMap:", category);
     }
   }
-
-  console.log("[getAvailableLeaveTypes] Final summaryMap:", summaryMap);
 
   // 使用日数を減算
   for (const leave of leaves || []) {

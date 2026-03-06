@@ -128,7 +128,6 @@ export function LeaveList({
     employee_id: "",
     leave_category: "有給休暇" as LeaveCategory,
     granted_days: 10,
-    fiscal_year: new Date().getFullYear(),
     granted_at: format(new Date(), "yyyy-MM-dd"),
     note: "",
   });
@@ -191,7 +190,6 @@ export function LeaveList({
           employee_id: "",
           leave_category: "有給休暇",
           granted_days: 10,
-          fiscal_year: new Date().getFullYear(),
           granted_at: format(new Date(), "yyyy-MM-dd"),
           note: "",
         });
@@ -685,16 +683,6 @@ export function LeaveList({
                 value={grantForm.granted_days}
                 onChange={(e) =>
                   setGrantForm({ ...grantForm, granted_days: parseFloat(e.target.value) || 0 })
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>年度 *</Label>
-              <Input
-                type="number"
-                value={grantForm.fiscal_year}
-                onChange={(e) =>
-                  setGrantForm({ ...grantForm, fiscal_year: parseInt(e.target.value) || new Date().getFullYear() })
                 }
               />
             </div>
