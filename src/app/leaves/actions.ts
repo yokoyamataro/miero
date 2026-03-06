@@ -544,25 +544,37 @@ export async function getAvailableLeaveTypes(leaveDate: string): Promise<{
 
   const leaveDateObj = new Date(leaveDate);
 
+  console.log("[getAvailableLeaveTypes] leaveDate:", leaveDate, "leaveDateObj:", leaveDateObj);
+  console.log("[getAvailableLeaveTypes] balances:", JSON.stringify(balances, null, 2));
+
   for (const balance of balances || []) {
     const category = balance.leave_category as LeaveCategory;
     const validFrom = balance.valid_from;
     const expiresAt = balance.expires_at;
 
+    console.log("[getAvailableLeaveTypes] Processing balance:", { category, validFrom, expiresAt, granted_days: balance.granted_days });
+
     // 有効期間チェック（Date オブジェクトで比較）
     if (validFrom) {
       const validFromDate = new Date(validFrom);
+      console.log("[getAvailableLeaveTypes] validFrom check:", { leaveDateObj, validFromDate, skip: leaveDateObj < validFromDate });
       if (leaveDateObj < validFromDate) continue;
     }
     if (expiresAt) {
       const expiresAtDate = new Date(expiresAt);
+      console.log("[getAvailableLeaveTypes] expiresAt check:", { leaveDateObj, expiresAtDate, skip: leaveDateObj > expiresAtDate });
       if (leaveDateObj > expiresAtDate) continue;
     }
 
     if (summaryMap[category] !== undefined) {
       summaryMap[category] += Number(balance.granted_days);
+      console.log("[getAvailableLeaveTypes] Added to summaryMap:", { category, newTotal: summaryMap[category] });
+    } else {
+      console.log("[getAvailableLeaveTypes] Category not in summaryMap:", category);
     }
   }
+
+  console.log("[getAvailableLeaveTypes] Final summaryMap:", summaryMap);
 
   // 使用日数を減算
   for (const leave of leaves || []) {
