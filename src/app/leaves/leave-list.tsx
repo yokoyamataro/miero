@@ -586,14 +586,7 @@ export function LeaveList({
                 <div className="text-sm text-muted-foreground p-2">読み込み中...</div>
               ) : availableLeaveTypes.length === 0 ? (
                 <div className="text-sm text-destructive p-2 bg-destructive/10 rounded-md">
-                  この日に取得可能な休暇がありません。
-                  {(() => {
-                    const month = new Date(requestForm.leave_date).getMonth() + 1;
-                    if (month >= 1 && month <= 3) {
-                      return "有給休暇または冬季休暇の残日数がありません。";
-                    }
-                    return "有給休暇の残日数がありません。冬季休暇は1月〜3月のみ取得可能です。";
-                  })()}
+                  この日に取得可能な休暇がありません。残日数をご確認ください。
                 </div>
               ) : (
                 <>
@@ -622,15 +615,6 @@ export function LeaveList({
                       ))}
                     </SelectContent>
                   </Select>
-                  <div className="text-xs text-muted-foreground">
-                    {(() => {
-                      const month = new Date(requestForm.leave_date).getMonth() + 1;
-                      if (month >= 1 && month <= 3) {
-                        return "1月〜3月は有給休暇・冬季休暇どちらも取得可能です";
-                      }
-                      return "冬季休暇は1月〜3月のみ取得可能です";
-                    })()}
-                  </div>
                 </>
               )}
             </div>
@@ -653,13 +637,13 @@ export function LeaveList({
               </Select>
             </div>
             <div className="space-y-2">
-              <Label>理由・備考</Label>
+              <Label>備考</Label>
               <Textarea
                 value={requestForm.reason}
                 onChange={(e) =>
                   setRequestForm({ ...requestForm, reason: e.target.value })
                 }
-                placeholder="休暇の理由を入力してください"
+                placeholder="遠方の場合は行先を入力してください"
                 rows={3}
               />
             </div>
