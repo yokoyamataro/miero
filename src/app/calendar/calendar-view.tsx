@@ -450,25 +450,24 @@ export function CalendarView({
         {categoryName && (
           <div className={`${categoryColor} text-white text-xs font-medium px-2 py-0.5`}>{categoryName}</div>
         )}
-        <div className="p-2 bg-white">
-          <div className="text-sm text-black">{event.title}</div>
+        <div className="p-2 bg-white overflow-hidden">
+          <div className="text-sm text-black truncate">{event.title}</div>
           {event.start_time && (
             <div className="text-sm flex items-center gap-1 mt-1 text-black">
-              <Clock className="h-3 w-3" />
-              {event.start_time.slice(0, 5)}
-              {event.end_time && ` - ${event.end_time.slice(0, 5)}`}
+              <Clock className="h-3 w-3 flex-shrink-0" />
+              <span className="truncate">{event.start_time.slice(0, 5)}{event.end_time && ` - ${event.end_time.slice(0, 5)}`}</span>
             </div>
           )}
           {event.location && (
             <div className="text-sm flex items-center gap-1 mt-1 text-black">
-              <MapPin className="h-3 w-3" />
+              <MapPin className="h-3 w-3 flex-shrink-0" />
               <span className="truncate">{event.location}</span>
             </div>
           )}
           {event.participants.length > 0 && (
             <div className="text-sm flex items-center gap-1 mt-1 text-black">
-              <Users className="h-3 w-3" />
-              {event.participants.map((p) => p.name).join(", ")}
+              <Users className="h-3 w-3 flex-shrink-0" />
+              <span className="truncate">{event.participants.map((p) => p.name).join(", ")}</span>
             </div>
           )}
         </div>
@@ -659,7 +658,7 @@ export function CalendarView({
               予定はありません
             </p>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-2 overflow-hidden">
               {dayEvents.map((event) => renderEvent(event))}
             </div>
           )}
