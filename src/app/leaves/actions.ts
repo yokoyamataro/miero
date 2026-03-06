@@ -334,16 +334,20 @@ export async function grantLeaveBalance(data: {
     return { success: false, error: "権限がありません" };
   }
 
-  // 冬季休暇は1月〜3月のみ有効
+  // 冬季休暇は付与日から翌年3月31日まで有効
   let validFrom: string | null = null;
   let expiresAt: string | null = null;
 
   if (data.leave_category === "冬季休暇") {
-    // 年度に対応する1月1日〜3月31日を設定
-    // 例: 2024年度の冬季休暇 → 2025年1月1日〜2025年3月31日
-    const year = data.fiscal_year + 1;
-    validFrom = `${year}-01-01`;
-    expiresAt = `${year}-03-31`;
+    // 付与日から有効、翌年の3月31日で失効
+    const grantedDate = new Date(data.granted_at);
+    const grantedYear = grantedDate.getFullYear();
+    const grantedMonth = grantedDate.getMonth() + 1;
+
+    // 1-3月に付与された場合は同年の3月31日、4-12月に付与された場合は翌年の3月31日
+    const expiryYear = grantedMonth <= 3 ? grantedYear : grantedYear + 1;
+    validFrom = data.granted_at;
+    expiresAt = `${expiryYear}-03-31`;
   }
 
   const { error } = await supabase
