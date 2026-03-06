@@ -137,6 +137,9 @@ export function LeaveList({
   // 削除ダイアログ
   const [deletingLeaveId, setDeletingLeaveId] = useState<string | null>(null);
 
+  // 休暇履歴の社員フィルター（管理者用）
+  const [historyEmployeeFilter, setHistoryEmployeeFilter] = useState<string>("all");
+
   // 申請中の休暇をフィルタ（管理者用）
   const pendingLeaves = useMemo(
     () => leaves.filter((l) => l.status === "pending"),
@@ -152,7 +155,7 @@ export function LeaveList({
   // 時系列でソートした休暇履歴（付与・使用両方含む）
   const sortedLeaveHistory = useMemo(() => {
     // 時系列順（新しい順）にソート
-    const sorted = [...leaves].sort((a, b) => {
+    let sorted = [...leaves].sort((a, b) => {
       const dateA = new Date(a.leave_date);
       const dateB = new Date(b.leave_date);
       return dateB.getTime() - dateA.getTime();
@@ -160,10 +163,13 @@ export function LeaveList({
 
     // 管理者でない場合は自分のデータのみ
     if (!isManager) {
-      return sorted.filter((l) => l.employee_id === currentEmployee.id);
+      sorted = sorted.filter((l) => l.employee_id === currentEmployee.id);
+    } else if (historyEmployeeFilter !== "all") {
+      // 管理者の場合、社員フィルターを適用
+      sorted = sorted.filter((l) => l.employee_id === historyEmployeeFilter);
     }
     return sorted;
-  }, [leaves, isManager, currentEmployee.id]);
+  }, [leaves, isManager, currentEmployee.id, historyEmployeeFilter]);
 
   // 各レコードの残高を計算するための累積計算
   const leaveHistoryWithBalance = useMemo(() => {
@@ -468,10 +474,28 @@ export function LeaveList({
 
       {/* 休暇履歴（時系列） */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle>
-            {isManager ? "全休暇履歴（時系列）" : "休暇履歴"}
+            {isManager ? "休暇履歴（時系列）" : "休暇履歴"}
           </CardTitle>
+          {isManager && (
+            <Select
+              value={historyEmployeeFilter}
+              onValueChange={setHistoryEmployeeFilter}
+            >
+              <SelectTrigger className="w-[180px]">
+                <SelectValue placeholder="社員を選択" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">全員</SelectItem>
+                {employees.map((emp) => (
+                  <SelectItem key={emp.id} value={emp.id}>
+                    {emp.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </CardHeader>
         <CardContent className="p-0">
           {leaveHistoryWithBalance.length === 0 ? (
