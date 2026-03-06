@@ -538,14 +538,22 @@ export async function getAvailableLeaveTypes(leaveDate: string): Promise<{
     "冬季休暇": 0,
   };
 
+  const leaveDateObj = new Date(leaveDate);
+
   for (const balance of balances || []) {
     const category = balance.leave_category as LeaveCategory;
     const validFrom = balance.valid_from;
     const expiresAt = balance.expires_at;
 
-    // 有効期間チェック
-    if (validFrom && leaveDate < validFrom) continue;
-    if (expiresAt && leaveDate > expiresAt) continue;
+    // 有効期間チェック（Date オブジェクトで比較）
+    if (validFrom) {
+      const validFromDate = new Date(validFrom);
+      if (leaveDateObj < validFromDate) continue;
+    }
+    if (expiresAt) {
+      const expiresAtDate = new Date(expiresAt);
+      if (leaveDateObj > expiresAtDate) continue;
+    }
 
     if (summaryMap[category] !== undefined) {
       summaryMap[category] += Number(balance.granted_days);
