@@ -85,7 +85,7 @@ export function CalendarView({
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEventWithParticipants | null>(null);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [employeeFilter, setEmployeeFilter] = useState<EmployeeFilter>("all");
+  const [employeeFilter, setEmployeeFilter] = useState<EmployeeFilter>("me");
   const [resizingEvent, setResizingEvent] = useState<{
     eventId: string;
     edge: "top" | "bottom";
@@ -887,45 +887,42 @@ export function CalendarView({
             <ChevronRight className="h-4 w-4" />
           </Button>
           <h2 className="text-xl font-semibold ml-2">{getTitle()}</h2>
-        </div>
 
-        <div className="flex gap-2 flex-wrap">
-          {/* 社員フィルター */}
-          <div className="flex items-center gap-1">
+          {/* 社員フィルター（週表示以外で表示） */}
+          {viewMode !== "week" && (
             <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
-              <SelectTrigger className="w-[160px] h-9">
+              <SelectTrigger className="w-[140px] h-8 ml-2">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">
-                  <span className="flex items-center gap-2">
-                    <UsersRound className="h-4 w-4" />
-                    全員の予定
-                  </span>
-                </SelectItem>
                 {currentEmployeeId && (
                   <SelectItem value="me">
                     <span className="flex items-center gap-2">
                       <User className="h-4 w-4" />
-                      自分の予定
+                      自分
                     </span>
                   </SelectItem>
                 )}
+                <SelectItem value="all">
+                  <span className="flex items-center gap-2">
+                    <UsersRound className="h-4 w-4" />
+                    全員
+                  </span>
+                </SelectItem>
                 {sortedEmployees.map((emp) => (
                   <SelectItem key={emp.id} value={emp.id}>
                     <span className="flex items-center gap-2">
                       <User className="h-4 w-4 opacity-50" />
                       {emp.name}
-                      {emp.id === currentEmployeeId && (
-                        <span className="text-xs text-muted-foreground">(自分)</span>
-                      )}
                     </span>
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
-          </div>
+          )}
+        </div>
 
+        <div className="flex gap-2 flex-wrap">
           {/* 表示切替 */}
           <div className="flex border rounded-md">
             <Button
