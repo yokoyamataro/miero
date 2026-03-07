@@ -21,6 +21,7 @@ import {
   ExternalLink,
   FileText,
   Briefcase,
+  Repeat,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ja } from "date-fns/locale";
@@ -28,8 +29,10 @@ import {
   type CalendarEventWithParticipants,
   EVENT_CATEGORY_COLORS,
   type EventCategoryLegacy,
+  RECURRENCE_TYPE_LABELS,
+  DAY_OF_WEEK_LABELS,
 } from "@/types/database";
-import { deleteEvent } from "./actions";
+import { deleteEvent, deleteRecurringEventsAll, deleteRecurringEventsFromDate } from "./actions";
 
 interface EventDetailModalProps {
   open: boolean;
@@ -47,10 +50,18 @@ export function EventDetailModal({
   onDeleted,
 }: EventDetailModalProps) {
   const [loading, setLoading] = useState(false);
+  const [showDeleteOptions, setShowDeleteOptions] = useState(false);
 
   if (!event) return null;
 
+  const isRecurring = event.recurrence_group_id && event.recurrence_type && event.recurrence_type !== "none";
+
   const handleDelete = async () => {
+    if (isRecurring) {
+      setShowDeleteOptions(true);
+      return;
+    }
+
     if (!confirm("この予定を削除しますか？")) return;
 
     setLoading(true);
@@ -63,6 +74,78 @@ export function EventDetailModal({
     }
 
     onDeleted(event.id);
+  };
+
+  // この予定だけを削除
+  const handleDeleteSingle = async () => {
+    setLoading(true);
+    const result = await deleteEvent(event.id);
+    setLoading(false);
+    setShowDeleteOptions(false);
+
+    if (result.error) {
+      alert(result.error);
+      return;
+    }
+
+    onDeleted(event.id);
+  };
+
+  // すべての繰り返し予定を削除
+  const handleDeleteAll = async () => {
+    if (!event.recurrence_group_id) return;
+
+    if (!confirm("この繰り返し予定のすべてを削除しますか？")) return;
+
+    setLoading(true);
+    const result = await deleteRecurringEventsAll(event.recurrence_group_id);
+    setLoading(false);
+    setShowDeleteOptions(false);
+
+    if (result.error) {
+      alert(result.error);
+      return;
+    }
+
+    alert(`${result.count}件の予定を削除しました`);
+    onDeleted(event.id);
+  };
+
+  // この日以降の繰り返し予定を削除
+  const handleDeleteFromDate = async () => {
+    if (!event.recurrence_group_id) return;
+
+    if (!confirm(`${format(parseISO(event.start_date), "M月d日")}以降の繰り返し予定を削除しますか？`)) return;
+
+    setLoading(true);
+    const result = await deleteRecurringEventsFromDate(event.recurrence_group_id, event.start_date);
+    setLoading(false);
+    setShowDeleteOptions(false);
+
+    if (result.error) {
+      alert(result.error);
+      return;
+    }
+
+    alert(`${result.count}件の予定を削除しました`);
+    onDeleted(event.id);
+  };
+
+  // 繰り返し情報の表示
+  const getRecurrenceInfo = () => {
+    if (!event.recurrence_type || event.recurrence_type === "none") return null;
+
+    const type = RECURRENCE_TYPE_LABELS[event.recurrence_type];
+    if (event.recurrence_type === "weekly" && event.recurrence_day_of_week !== null) {
+      return `${type}${DAY_OF_WEEK_LABELS[event.recurrence_day_of_week]}曜日`;
+    }
+    if (event.recurrence_type === "monthly" && event.recurrence_day_of_month !== null) {
+      return `${type}${event.recurrence_day_of_month}日`;
+    }
+    if (event.recurrence_type === "yearly" && event.recurrence_month !== null && event.recurrence_day_of_month !== null) {
+      return `${type}${event.recurrence_month}月${event.recurrence_day_of_month}日`;
+    }
+    return type;
   };
 
   const formatDateRange = () => {
@@ -136,6 +219,14 @@ export function EventDetailModal({
             <div>{formatDateRange()}</div>
           </div>
 
+          {/* 繰り返し情報 */}
+          {isRecurring && (
+            <div className="flex items-start gap-3">
+              <Repeat className="h-5 w-5 text-muted-foreground mt-0.5" />
+              <div>{getRecurrenceInfo()}</div>
+            </div>
+          )}
+
           {/* 参加者 */}
           {event.participants.length > 0 && (
             <div className="flex items-start gap-3">
@@ -206,6 +297,50 @@ export function EventDetailModal({
             </div>
           )}
         </div>
+
+        {/* 繰り返し予定の削除オプション */}
+        {showDeleteOptions && isRecurring && (
+          <div className="border rounded-md p-3 bg-muted/30 space-y-2">
+            <p className="text-sm font-medium">削除オプション</p>
+            <div className="space-y-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full justify-start"
+                onClick={handleDeleteSingle}
+                disabled={loading}
+              >
+                この予定だけを削除
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full justify-start"
+                onClick={handleDeleteFromDate}
+                disabled={loading}
+              >
+                この日以降の繰り返しを削除
+              </Button>
+              <Button
+                variant="destructive"
+                size="sm"
+                className="w-full justify-start"
+                onClick={handleDeleteAll}
+                disabled={loading}
+              >
+                すべての繰り返しを削除
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full"
+                onClick={() => setShowDeleteOptions(false)}
+              >
+                キャンセル
+              </Button>
+            </div>
+          </div>
+        )}
 
         <DialogFooter className="flex justify-between">
           <Button

@@ -11,7 +11,9 @@ import {
   type EventCategoryInsert,
   type Project,
   type Task,
+  type RecurrenceType,
 } from "@/types/database";
+import { addDays, addWeeks, addMonths, addYears, format, getDay, getDate, getMonth, setDate, setMonth, isBefore, isAfter, parseISO } from "date-fns";
 
 // 現在のユーザーの社員IDを取得（内部用）
 async function getCurrentEmployeeIdInternal(supabase: Awaited<ReturnType<typeof createClient>>) {
@@ -214,7 +216,182 @@ export async function createEvent(
   };
 
   revalidatePath("/calendar");
+  revalidatePath("/");
   return { success: true, eventId: event.id, event: fullEvent };
+}
+
+// 繰り返し予定を作成
+export async function createRecurringEvents(
+  data: CalendarEventInsert,
+  participantIds: string[],
+  recurrenceType: RecurrenceType,
+  recurrenceDayOfWeek: number,
+  recurrenceDayOfMonth: number,
+  recurrenceMonth: number,
+  recurrenceEndDate: string | null
+): Promise<{ success?: boolean; error?: string; count?: number }> {
+  const supabase = await createClient();
+
+  const employeeId = await getCurrentEmployeeIdInternal(supabase);
+  if (!employeeId) {
+    return { error: "ログインが必要です" };
+  }
+
+  // 繰り返しグループIDを生成
+  const recurrenceGroupId = crypto.randomUUID();
+
+  // 開始日をパース
+  const startDate = parseISO(data.start_date);
+  const endDateLimit = recurrenceEndDate
+    ? parseISO(recurrenceEndDate)
+    : addYears(startDate, 2); // デフォルトで2年先まで
+
+  // 繰り返し日付を計算
+  const dates: Date[] = [];
+  let currentDate = startDate;
+
+  while (isBefore(currentDate, endDateLimit) || format(currentDate, "yyyy-MM-dd") === format(endDateLimit, "yyyy-MM-dd")) {
+    if (recurrenceType === "weekly") {
+      // 毎週の場合: 指定曜日
+      if (getDay(currentDate) === recurrenceDayOfWeek) {
+        dates.push(currentDate);
+        currentDate = addWeeks(currentDate, 1);
+      } else {
+        currentDate = addDays(currentDate, 1);
+      }
+    } else if (recurrenceType === "monthly") {
+      // 毎月の場合: 指定日
+      const targetDate = setDate(currentDate, Math.min(recurrenceDayOfMonth, new Date(currentDate.getFullYear(), currentDate.getMonth() + 1, 0).getDate()));
+      if (isBefore(targetDate, startDate)) {
+        currentDate = addMonths(currentDate, 1);
+        continue;
+      }
+      if (isAfter(targetDate, endDateLimit)) break;
+      dates.push(targetDate);
+      currentDate = addMonths(currentDate, 1);
+    } else if (recurrenceType === "yearly") {
+      // 毎年の場合: 指定月日
+      const targetDate = setMonth(setDate(currentDate, Math.min(recurrenceDayOfMonth, new Date(currentDate.getFullYear(), recurrenceMonth, 0).getDate())), recurrenceMonth - 1);
+      if (isBefore(targetDate, startDate)) {
+        currentDate = addYears(currentDate, 1);
+        continue;
+      }
+      if (isAfter(targetDate, endDateLimit)) break;
+      dates.push(targetDate);
+      currentDate = addYears(currentDate, 1);
+    } else {
+      break;
+    }
+
+    // 無限ループ防止: 最大100件
+    if (dates.length >= 100) break;
+  }
+
+  if (dates.length === 0) {
+    return { error: "作成する予定がありません" };
+  }
+
+  // 各日付に対してイベントを作成
+  let createdCount = 0;
+  for (const date of dates) {
+    const dateStr = format(date, "yyyy-MM-dd");
+    const eventData = {
+      ...data,
+      start_date: dateStr,
+      end_date: dateStr,
+      recurrence_type: recurrenceType,
+      recurrence_day_of_week: recurrenceType === "weekly" ? recurrenceDayOfWeek : null,
+      recurrence_day_of_month: recurrenceType === "monthly" || recurrenceType === "yearly" ? recurrenceDayOfMonth : null,
+      recurrence_month: recurrenceType === "yearly" ? recurrenceMonth : null,
+      recurrence_group_id: recurrenceGroupId,
+      recurrence_end_date: recurrenceEndDate,
+      created_by: employeeId,
+    };
+
+    const { data: event, error } = await supabase
+      .from("calendar_events")
+      .insert(eventData as never)
+      .select("id")
+      .single();
+
+    if (error) {
+      console.error("Error creating recurring event:", error);
+      continue;
+    }
+
+    // 参加者を追加
+    if (participantIds.length > 0 && event) {
+      const participantInserts = participantIds.map((empId) => ({
+        event_id: event.id,
+        employee_id: empId,
+      }));
+      await supabase
+        .from("calendar_event_participants")
+        .insert(participantInserts as never);
+    }
+
+    createdCount++;
+  }
+
+  revalidatePath("/calendar");
+  revalidatePath("/");
+  return { success: true, count: createdCount };
+}
+
+// 複数日に同じ予定を作成
+export async function createMultipleDateEvents(
+  data: CalendarEventInsert,
+  participantIds: string[],
+  dates: string[]
+): Promise<{ success?: boolean; error?: string; count?: number }> {
+  const supabase = await createClient();
+
+  const employeeId = await getCurrentEmployeeIdInternal(supabase);
+  if (!employeeId) {
+    return { error: "ログインが必要です" };
+  }
+
+  if (dates.length === 0) {
+    return { error: "日付を選択してください" };
+  }
+
+  let createdCount = 0;
+  for (const dateStr of dates) {
+    const eventData = {
+      ...data,
+      start_date: dateStr,
+      end_date: dateStr,
+      created_by: employeeId,
+    };
+
+    const { data: event, error } = await supabase
+      .from("calendar_events")
+      .insert(eventData as never)
+      .select("id")
+      .single();
+
+    if (error) {
+      console.error("Error creating event for date:", dateStr, error);
+      continue;
+    }
+
+    // 参加者を追加
+    if (participantIds.length > 0 && event) {
+      const participantInserts = participantIds.map((empId) => ({
+        event_id: event.id,
+        employee_id: empId,
+      }));
+      await supabase
+        .from("calendar_event_participants")
+        .insert(participantInserts as never);
+    }
+
+    createdCount++;
+  }
+
+  revalidatePath("/calendar");
+  revalidatePath("/");
+  return { success: true, count: createdCount };
 }
 
 // イベントを更新
@@ -320,7 +497,79 @@ export async function deleteEvent(
   }
 
   revalidatePath("/calendar");
+  revalidatePath("/");
   return { success: true };
+}
+
+// 繰り返し予定を一括削除（すべて）
+export async function deleteRecurringEventsAll(
+  recurrenceGroupId: string
+): Promise<{ success?: boolean; error?: string; count?: number }> {
+  const supabase = await createClient();
+
+  const employeeId = await getCurrentEmployeeIdInternal(supabase);
+  if (!employeeId) {
+    return { error: "ログインが必要です" };
+  }
+
+  // 削除対象の件数を取得
+  const { data: eventsToDelete } = await supabase
+    .from("calendar_events")
+    .select("id")
+    .eq("recurrence_group_id", recurrenceGroupId);
+
+  const count = eventsToDelete?.length || 0;
+
+  const { error } = await supabase
+    .from("calendar_events")
+    .delete()
+    .eq("recurrence_group_id", recurrenceGroupId);
+
+  if (error) {
+    console.error("Error deleting recurring events:", error);
+    return { error: "繰り返し予定の削除に失敗しました" };
+  }
+
+  revalidatePath("/calendar");
+  revalidatePath("/");
+  return { success: true, count };
+}
+
+// 繰り返し予定を一括削除（指定日以降）
+export async function deleteRecurringEventsFromDate(
+  recurrenceGroupId: string,
+  fromDate: string
+): Promise<{ success?: boolean; error?: string; count?: number }> {
+  const supabase = await createClient();
+
+  const employeeId = await getCurrentEmployeeIdInternal(supabase);
+  if (!employeeId) {
+    return { error: "ログインが必要です" };
+  }
+
+  // 削除対象の件数を取得
+  const { data: eventsToDelete } = await supabase
+    .from("calendar_events")
+    .select("id")
+    .eq("recurrence_group_id", recurrenceGroupId)
+    .gte("start_date", fromDate);
+
+  const count = eventsToDelete?.length || 0;
+
+  const { error } = await supabase
+    .from("calendar_events")
+    .delete()
+    .eq("recurrence_group_id", recurrenceGroupId)
+    .gte("start_date", fromDate);
+
+  if (error) {
+    console.error("Error deleting recurring events from date:", error);
+    return { error: "繰り返し予定の削除に失敗しました" };
+  }
+
+  revalidatePath("/calendar");
+  revalidatePath("/");
+  return { success: true, count };
 }
 
 // 社員一覧を取得

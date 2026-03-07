@@ -102,6 +102,13 @@ export function DashboardView({
         created_by: currentEmployeeId,
         project_id: droppedTaskData.projectId,
         task_id: droppedTaskData.taskId,
+        // 繰り返し予定関連
+        recurrence_type: "none",
+        recurrence_day_of_week: null,
+        recurrence_day_of_month: null,
+        recurrence_month: null,
+        recurrence_group_id: null,
+        recurrence_end_date: null,
         created_at: "",
         updated_at: "",
         participants: presetParticipants,

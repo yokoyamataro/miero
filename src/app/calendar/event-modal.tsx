@@ -13,15 +13,19 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { format } from "date-fns";
-import { Briefcase, ChevronDown, ChevronRight, LinkIcon, X } from "lucide-react";
+import { format, addMonths, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, getDay, getDate, getMonth } from "date-fns";
+import { ja } from "date-fns/locale";
+import { Briefcase, ChevronDown, ChevronRight, ChevronLeft, LinkIcon, X, Calendar, Repeat } from "lucide-react";
 import {
   type CalendarEventWithParticipants,
   type Employee,
   type EventCategory,
   type Task,
+  type RecurrenceType,
+  RECURRENCE_TYPE_LABELS,
+  DAY_OF_WEEK_LABELS,
 } from "@/types/database";
-import { createEvent, updateEvent, getActiveProjectsWithTasks, type ProjectWithTasks } from "./actions";
+import { createEvent, updateEvent, createRecurringEvents, createMultipleDateEvents, getActiveProjectsWithTasks, type ProjectWithTasks } from "./actions";
 
 interface EventModalProps {
   open: boolean;
@@ -106,6 +110,18 @@ export function EventModal({
   const [linkedTaskId, setLinkedTaskId] = useState<string | null>(null);
   const [linkedProjectCode, setLinkedProjectCode] = useState<string | null>(null);
 
+  // 繰り返し設定
+  const [recurrenceType, setRecurrenceType] = useState<RecurrenceType>("none");
+  const [recurrenceDayOfWeek, setRecurrenceDayOfWeek] = useState<number>(0); // 0=日曜〜6=土曜
+  const [recurrenceDayOfMonth, setRecurrenceDayOfMonth] = useState<number>(1); // 1-31
+  const [recurrenceMonth, setRecurrenceMonth] = useState<number>(1); // 1-12
+  const [recurrenceEndDate, setRecurrenceEndDate] = useState<string>("");
+
+  // 複数日選択
+  const [useMultipleDates, setUseMultipleDates] = useState(false);
+  const [selectedDates, setSelectedDates] = useState<string[]>([]);
+  const [multiCalendarBaseMonth, setMultiCalendarBaseMonth] = useState(new Date());
+
   // 編集時のデータ読み込み
   useEffect(() => {
     if (event) {
@@ -149,6 +165,16 @@ export function EventModal({
       setLinkedProjectId(null);
       setLinkedTaskId(null);
       setLinkedProjectCode(null);
+      // 繰り返し設定をリセット
+      setRecurrenceType("none");
+      setRecurrenceDayOfWeek(getDay(selectedDate));
+      setRecurrenceDayOfMonth(getDate(selectedDate));
+      setRecurrenceMonth(getMonth(selectedDate) + 1);
+      setRecurrenceEndDate("");
+      // 複数日選択をリセット
+      setUseMultipleDates(false);
+      setSelectedDates([]);
+      setMultiCalendarBaseMonth(new Date());
     }
   }, [event, selectedDate, open, eventCategories, currentEmployeeId, initialStartTime, initialEndTime]);
 
@@ -228,6 +254,12 @@ export function EventModal({
       return;
     }
 
+    // 複数日選択の場合、日付が選択されているか確認
+    if (useMultipleDates && selectedDates.length === 0) {
+      setError("日付を選択してください");
+      return;
+    }
+
     setLoading(true);
     setError(null);
 
@@ -261,8 +293,68 @@ export function EventModal({
         if (result.event) {
           onSaved(result.event, false);
         }
+      } else if (useMultipleDates) {
+        // 複数日選択の場合
+        const result = await createMultipleDateEvents(eventData, participantIds, selectedDates);
+        if (result.error) {
+          setError(result.error);
+          return;
+        }
+        // 複数作成の場合はダミーのイベントで完了通知
+        onSaved({
+          ...eventData,
+          id: "",
+          recurrence_type: "none",
+          recurrence_day_of_week: null,
+          recurrence_day_of_month: null,
+          recurrence_month: null,
+          recurrence_group_id: null,
+          recurrence_end_date: null,
+          created_by: null,
+          created_at: "",
+          updated_at: "",
+          participants: [],
+          creator: null,
+          project: null,
+          task: null,
+          eventCategory: null,
+        }, true);
+      } else if (recurrenceType !== "none") {
+        // 繰り返し予定の作成
+        const result = await createRecurringEvents(
+          eventData,
+          participantIds,
+          recurrenceType,
+          recurrenceDayOfWeek,
+          recurrenceDayOfMonth,
+          recurrenceMonth,
+          recurrenceEndDate || null
+        );
+        if (result.error) {
+          setError(result.error);
+          return;
+        }
+        // 繰り返し作成の場合はダミーのイベントで完了通知
+        onSaved({
+          ...eventData,
+          id: "",
+          recurrence_type: recurrenceType,
+          recurrence_day_of_week: recurrenceDayOfWeek,
+          recurrence_day_of_month: recurrenceDayOfMonth,
+          recurrence_month: recurrenceMonth,
+          recurrence_group_id: null,
+          recurrence_end_date: recurrenceEndDate || null,
+          created_by: null,
+          created_at: "",
+          updated_at: "",
+          participants: [],
+          creator: null,
+          project: null,
+          task: null,
+          eventCategory: null,
+        }, true);
       } else {
-        // 新規イベントの作成
+        // 通常の新規イベントの作成
         const result = await createEvent(eventData, participantIds);
         if (result.error) {
           setError(result.error);
@@ -429,6 +521,269 @@ export function EventModal({
               </p>
             )}
           </div>
+
+          {/* 繰り返し設定（新規作成時のみ） */}
+          {!event && (
+            <div className="space-y-2">
+              <Label className="flex items-center gap-1">
+                <Repeat className="h-4 w-4" />
+                繰り返し
+              </Label>
+              <div className="flex flex-wrap gap-2">
+                {(Object.keys(RECURRENCE_TYPE_LABELS) as RecurrenceType[]).map((type) => (
+                  <button
+                    key={type}
+                    type="button"
+                    onClick={() => {
+                      setRecurrenceType(type);
+                      // 複数日選択と排他
+                      if (type !== "none") {
+                        setUseMultipleDates(false);
+                        setSelectedDates([]);
+                      }
+                    }}
+                    disabled={useMultipleDates}
+                    className={`px-3 py-1.5 rounded-md border text-sm transition-colors ${
+                      recurrenceType === type && !useMultipleDates
+                        ? "border-primary bg-primary/10"
+                        : "border-input hover:bg-muted"
+                    } ${useMultipleDates ? "opacity-50 cursor-not-allowed" : ""}`}
+                  >
+                    {RECURRENCE_TYPE_LABELS[type]}
+                  </button>
+                ))}
+              </div>
+
+              {/* 繰り返し詳細設定 */}
+              {recurrenceType === "weekly" && !useMultipleDates && (
+                <div className="flex items-center gap-2 text-sm bg-muted/50 p-2 rounded-md">
+                  <span>毎週</span>
+                  <select
+                    className="h-8 px-2 rounded-md border border-input bg-background text-sm"
+                    value={recurrenceDayOfWeek}
+                    onChange={(e) => setRecurrenceDayOfWeek(parseInt(e.target.value))}
+                  >
+                    {DAY_OF_WEEK_LABELS.map((label, idx) => (
+                      <option key={idx} value={idx}>
+                        {label}曜日
+                      </option>
+                    ))}
+                  </select>
+                  <span className="ml-2">終了日:</span>
+                  <Input
+                    type="date"
+                    className="w-40 h-8"
+                    value={recurrenceEndDate}
+                    onChange={(e) => setRecurrenceEndDate(e.target.value)}
+                    placeholder="終了日（省略可）"
+                  />
+                </div>
+              )}
+
+              {recurrenceType === "monthly" && !useMultipleDates && (
+                <div className="flex items-center gap-2 text-sm bg-muted/50 p-2 rounded-md">
+                  <span>毎月</span>
+                  <select
+                    className="h-8 px-2 rounded-md border border-input bg-background text-sm"
+                    value={recurrenceDayOfMonth}
+                    onChange={(e) => setRecurrenceDayOfMonth(parseInt(e.target.value))}
+                  >
+                    {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
+                      <option key={day} value={day}>
+                        {day}日
+                      </option>
+                    ))}
+                  </select>
+                  <span className="ml-2">終了日:</span>
+                  <Input
+                    type="date"
+                    className="w-40 h-8"
+                    value={recurrenceEndDate}
+                    onChange={(e) => setRecurrenceEndDate(e.target.value)}
+                    placeholder="終了日（省略可）"
+                  />
+                </div>
+              )}
+
+              {recurrenceType === "yearly" && !useMultipleDates && (
+                <div className="flex items-center gap-2 text-sm bg-muted/50 p-2 rounded-md">
+                  <span>毎年</span>
+                  <select
+                    className="h-8 px-2 rounded-md border border-input bg-background text-sm"
+                    value={recurrenceMonth}
+                    onChange={(e) => setRecurrenceMonth(parseInt(e.target.value))}
+                  >
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map((month) => (
+                      <option key={month} value={month}>
+                        {month}月
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    className="h-8 px-2 rounded-md border border-input bg-background text-sm"
+                    value={recurrenceDayOfMonth}
+                    onChange={(e) => setRecurrenceDayOfMonth(parseInt(e.target.value))}
+                  >
+                    {Array.from({ length: 31 }, (_, i) => i + 1).map((day) => (
+                      <option key={day} value={day}>
+                        {day}日
+                      </option>
+                    ))}
+                  </select>
+                  <span className="ml-2">終了日:</span>
+                  <Input
+                    type="date"
+                    className="w-40 h-8"
+                    value={recurrenceEndDate}
+                    onChange={(e) => setRecurrenceEndDate(e.target.value)}
+                    placeholder="終了日（省略可）"
+                  />
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* 複数日選択（新規作成時のみ） */}
+          {!event && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="useMultipleDates"
+                  checked={useMultipleDates}
+                  onCheckedChange={(checked) => {
+                    setUseMultipleDates(!!checked);
+                    if (checked) {
+                      // 繰り返しと排他
+                      setRecurrenceType("none");
+                      // 現在の開始日を選択済みに
+                      if (startDate) {
+                        setSelectedDates([startDate]);
+                      }
+                    } else {
+                      setSelectedDates([]);
+                    }
+                  }}
+                  disabled={recurrenceType !== "none"}
+                />
+                <Label htmlFor="useMultipleDates" className={`cursor-pointer flex items-center gap-1 ${recurrenceType !== "none" ? "opacity-50" : ""}`}>
+                  <Calendar className="h-4 w-4" />
+                  複数の日付を選択
+                </Label>
+              </div>
+
+              {/* 3ヶ月ミニカレンダー */}
+              {useMultipleDates && (
+                <div className="border rounded-md p-3 bg-muted/30">
+                  <div className="flex items-center justify-between mb-2">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setMultiCalendarBaseMonth((prev) => addMonths(prev, -3))}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    <span className="text-sm font-medium">
+                      {format(multiCalendarBaseMonth, "yyyy年M月", { locale: ja })} 〜
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setMultiCalendarBaseMonth((prev) => addMonths(prev, 3))}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2">
+                    {[0, 1, 2].map((offset) => {
+                      const monthDate = addMonths(multiCalendarBaseMonth, offset);
+                      const monthStart = startOfMonth(monthDate);
+                      const monthEnd = endOfMonth(monthDate);
+                      const days = eachDayOfInterval({ start: monthStart, end: monthEnd });
+                      // 月の最初の日の曜日を取得（0=日曜）
+                      const startDayOfWeek = getDay(monthStart);
+
+                      return (
+                        <div key={offset} className="text-center">
+                          <div className="text-xs font-medium mb-1">
+                            {format(monthDate, "M月", { locale: ja })}
+                          </div>
+                          <div className="grid grid-cols-7 gap-0.5 text-xs">
+                            {/* 曜日ヘッダー */}
+                            {DAY_OF_WEEK_LABELS.map((label) => (
+                              <div key={label} className="text-muted-foreground text-center">
+                                {label}
+                              </div>
+                            ))}
+                            {/* 空白セル（月の最初の日まで） */}
+                            {Array.from({ length: startDayOfWeek }).map((_, i) => (
+                              <div key={`empty-${i}`} />
+                            ))}
+                            {/* 日付セル */}
+                            {days.map((day) => {
+                              const dateStr = format(day, "yyyy-MM-dd");
+                              const isSelected = selectedDates.includes(dateStr);
+                              return (
+                                <button
+                                  key={dateStr}
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedDates((prev) =>
+                                      isSelected
+                                        ? prev.filter((d) => d !== dateStr)
+                                        : [...prev, dateStr].sort()
+                                    );
+                                  }}
+                                  className={`w-6 h-6 rounded text-center text-xs ${
+                                    isSelected
+                                      ? "bg-primary text-primary-foreground"
+                                      : "hover:bg-muted"
+                                  }`}
+                                >
+                                  {getDate(day)}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* 選択した日付表示 */}
+                  {selectedDates.length > 0 && (
+                    <div className="mt-2 text-xs text-muted-foreground">
+                      選択中: {selectedDates.length}日
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {selectedDates.slice(0, 10).map((dateStr) => (
+                          <span
+                            key={dateStr}
+                            className="inline-flex items-center bg-primary/10 text-primary px-1.5 py-0.5 rounded"
+                          >
+                            {format(new Date(dateStr), "M/d")}
+                            <button
+                              type="button"
+                              onClick={() => setSelectedDates((prev) => prev.filter((d) => d !== dateStr))}
+                              className="ml-1 hover:text-red-500"
+                            >
+                              <X className="h-3 w-3" />
+                            </button>
+                          </span>
+                        ))}
+                        {selectedDates.length > 10 && (
+                          <span className="text-muted-foreground">
+                            他 {selectedDates.length - 10}日
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* 終日チェック */}
           <div className="flex items-center gap-2">

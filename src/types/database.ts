@@ -448,6 +448,21 @@ export const DEFAULT_CATEGORY_COLORS = [
 // ============================================
 // Calendar Event (カレンダーイベント)
 // ============================================
+
+// 繰り返しタイプ
+export type RecurrenceType = "none" | "weekly" | "monthly" | "yearly";
+
+// 繰り返しタイプの表示名
+export const RECURRENCE_TYPE_LABELS: Record<RecurrenceType, string> = {
+  none: "繰り返しなし",
+  weekly: "毎週",
+  monthly: "毎月",
+  yearly: "毎年",
+};
+
+// 曜日の表示名（0=日曜〜6=土曜）
+export const DAY_OF_WEEK_LABELS = ["日", "月", "火", "水", "木", "金", "土"];
+
 // 旧EventCategory型（後方互換のため残す）
 export type EventCategoryLegacy =
   | "内業"
@@ -490,6 +505,13 @@ export interface CalendarEvent {
   project_id: string | null;
   task_id: string | null;
   created_by: string | null;
+  // 繰り返し予定関連
+  recurrence_type: RecurrenceType;
+  recurrence_day_of_week: number | null;  // 0-6 (日-土) 毎週用
+  recurrence_day_of_month: number | null; // 1-31 毎月用
+  recurrence_month: number | null;        // 1-12 毎年用
+  recurrence_group_id: string | null;     // 繰り返しグループID
+  recurrence_end_date: string | null;     // 繰り返し終了日
   created_at: string;
   updated_at: string;
 }
@@ -510,6 +532,13 @@ export interface CalendarEventInsert {
   project_id?: string | null;
   task_id?: string | null;
   created_by?: string | null;
+  // 繰り返し予定関連
+  recurrence_type?: RecurrenceType;
+  recurrence_day_of_week?: number | null;
+  recurrence_day_of_month?: number | null;
+  recurrence_month?: number | null;
+  recurrence_group_id?: string | null;
+  recurrence_end_date?: string | null;
 }
 
 export interface CalendarEventParticipant {
