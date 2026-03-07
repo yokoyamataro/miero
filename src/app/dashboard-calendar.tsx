@@ -870,10 +870,16 @@ export function DashboardCalendar({
 
     return (
       <div className="overflow-auto">
-        <table className="w-full border-collapse">
+        <table className="w-full border-collapse table-fixed">
+          <colgroup>
+            <col className="w-[100px]" />
+            {displayDays.map((_, idx) => (
+              <col key={idx} />
+            ))}
+          </colgroup>
           <thead>
             <tr>
-              <th className="p-2 bg-muted border text-left min-w-[80px] sticky left-0 z-10">
+              <th className="p-2 bg-muted border text-left sticky left-0 z-10">
                 社員
               </th>
               {displayDays.map((date, idx) => {
@@ -881,7 +887,7 @@ export function DashboardCalendar({
                 return (
                   <th
                     key={idx}
-                    className={`p-2 text-center bg-muted border min-w-[120px] ${
+                    className={`p-2 text-center bg-muted border ${
                       dayOfWeek === 0 ? "text-red-500" : dayOfWeek === 6 ? "text-blue-500" : ""
                     }`}
                   >
@@ -899,12 +905,12 @@ export function DashboardCalendar({
           <tbody>
             {sortedEmployees.map((employee) => (
               <tr key={employee.id}>
-                <td className="p-2 bg-muted/50 border font-medium sticky left-0 z-10 whitespace-nowrap">
+                <td className="p-2 bg-muted/50 border font-medium sticky left-0 z-10">
                   <div className="flex items-center gap-1">
-                    <User className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm">{employee.name}</span>
+                    <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                    <span className="text-sm truncate">{employee.name}</span>
                     {employee.id === currentEmployeeId && (
-                      <span className="text-xs text-muted-foreground">(自分)</span>
+                      <span className="text-xs text-muted-foreground flex-shrink-0">(自)</span>
                     )}
                   </div>
                 </td>
@@ -1330,8 +1336,8 @@ export function DashboardCalendar({
           )}
         </div>
 
-        <div className="flex gap-2 flex-wrap">
-          {/* 表示切替: 1日（全員）/5日（個人）/週全員/月 */}
+        <div className="flex gap-2 flex-wrap items-center">
+          {/* 表示切替: 1日（全員）/5日（個人）/5日全員/月 */}
           <div className="flex border rounded-md">
             <Button
               variant={viewMode === "dayAll" ? "default" : "ghost"}
@@ -1351,17 +1357,6 @@ export function DashboardCalendar({
               <User className="h-4 w-4 mr-1" />
               5日
             </Button>
-            {(viewMode === "fiveDay" || viewMode === "fiveDayAll") && (
-              <Button
-                variant={hideWeekends ? "default" : "ghost"}
-                size="sm"
-                className="rounded-none border-r"
-                onClick={() => setHideWeekends(!hideWeekends)}
-                title={hideWeekends ? "土日を表示" : "土日を非表示"}
-              >
-                {hideWeekends ? "平日" : "全日"}
-              </Button>
-            )}
             <Button
               variant={viewMode === "fiveDayAll" ? "default" : "ghost"}
               size="sm"
@@ -1381,6 +1376,28 @@ export function DashboardCalendar({
               月
             </Button>
           </div>
+
+          {/* 平日/全日切替（5日表示・5日全員表示のときのみ） */}
+          {(viewMode === "fiveDay" || viewMode === "fiveDayAll") && (
+            <div className="flex border rounded-md">
+              <Button
+                variant={!hideWeekends ? "default" : "ghost"}
+                size="sm"
+                className="rounded-r-none"
+                onClick={() => setHideWeekends(false)}
+              >
+                全日
+              </Button>
+              <Button
+                variant={hideWeekends ? "default" : "ghost"}
+                size="sm"
+                className="rounded-l-none border-l"
+                onClick={() => setHideWeekends(true)}
+              >
+                平日
+              </Button>
+            </div>
+          )}
 
           {/* 新規作成ボタン */}
           <Button size="sm" onClick={() => handleDateClick(new Date())}>
