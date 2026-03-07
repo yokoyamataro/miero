@@ -208,12 +208,16 @@ export function DashboardCalendar({
     });
   };
 
-  // 5日表示用：自分のイベントのみ取得（参加者のみで判定）
-  const getMyEventsForDate = (date: Date) => {
-    if (!currentEmployeeId) return [];
+  // 5日表示用：フィルター対象の社員のイベントを取得（参加者のみで判定）
+  const getFilteredEventsForDate = (date: Date) => {
+    const targetEmployeeId = employeeFilter === "me" ? currentEmployeeId : employeeFilter === "all" ? null : employeeFilter;
+    if (!targetEmployeeId) {
+      // "all"の場合は全イベント
+      return filteredEvents.filter((event) => isDateInRange(date, event.start_date, event.end_date));
+    }
     return filteredEvents.filter((event) => {
       if (!isDateInRange(date, event.start_date, event.end_date)) return false;
-      return event.participants.some((p) => p.id === currentEmployeeId);
+      return event.participants.some((p) => p.id === targetEmployeeId);
     });
   };
 
@@ -1126,16 +1130,16 @@ export function DashboardCalendar({
     );
   };
 
-  // 5日表示（時間軸付き、自分のみ）
+  // 5日表示（時間軸付き、フィルター対象の社員）
   const renderFiveDayView = () => {
     // 終日または時間なしイベント
     const getAllDayEvents = (date: Date) => {
-      return getMyEventsForDate(date).filter((e) => !e.start_time || e.all_day);
+      return getFilteredEventsForDate(date).filter((e) => !e.start_time || e.all_day);
     };
 
     // 時間指定イベント
     const getTimedEvents = (date: Date) => {
-      return getMyEventsForDate(date).filter((e) => e.start_time && !e.all_day);
+      return getFilteredEventsForDate(date).filter((e) => e.start_time && !e.all_day);
     };
 
     return (
@@ -1295,8 +1299,8 @@ export function DashboardCalendar({
           </Button>
           <h2 className="text-lg font-semibold ml-2">{getTitle()}</h2>
 
-          {/* 社員フィルター（週表示以外で表示） */}
-          {viewMode !== "weekAll" && (
+          {/* 社員フィルター（5日表示・月表示でのみ表示） */}
+          {(viewMode === "fiveDay" || viewMode === "month") && (
             <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
               <SelectTrigger className="w-[140px] h-8 ml-2">
                 <SelectValue />
