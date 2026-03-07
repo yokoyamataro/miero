@@ -8,7 +8,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Calendar,
-  CalendarDays,
   Plus,
   MapPin,
   Clock,
@@ -32,12 +31,9 @@ import {
   endOfWeek,
   eachDayOfInterval,
   isSameMonth,
-  isSameDay,
   isToday,
   addMonths,
   subMonths,
-  addWeeks,
-  subWeeks,
   addDays,
   subDays,
   parseISO,
@@ -55,7 +51,7 @@ import { EventDetailModal } from "./calendar/event-detail-modal";
 import { updateEvent } from "./calendar/actions";
 import { type TaskWithProject } from "./dashboard-actions";
 
-type ViewMode = "dayAll" | "fiveDay" | "weekAll" | "month";
+type ViewMode = "dayAll" | "fiveDay" | "fiveDayAll" | "month";
 type EmployeeFilter = "me" | "all" | string; // "me" = 自分のみ, "all" = 全員, string = 特定の社員ID
 
 interface DashboardCalendarProps {
@@ -162,12 +158,6 @@ export function DashboardCalendar({
     return eachDayOfInterval({ start: calendarStart, end: calendarEnd });
   }, [currentDate]);
 
-  // 週表示の日付を生成
-  const weekDays = useMemo(() => {
-    const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
-    return eachDayOfInterval({ start: weekStart, end: addDays(weekStart, 6) });
-  }, [currentDate]);
-
   // 5日表示の日付を生成（土日非表示オプション対応）
   const fiveDays = useMemo(() => {
     if (hideWeekends) {
@@ -221,21 +211,14 @@ export function DashboardCalendar({
     });
   };
 
-  // 週表示に表示する社員リスト（常に全員）
-  const weekViewEmployees = useMemo(() => {
-    return sortedEmployees;
-  }, [sortedEmployees]);
-
   // ナビゲーション
   const navigatePrev = () => {
     switch (viewMode) {
       case "month":
         setCurrentDate(subMonths(currentDate, 1));
         break;
-      case "weekAll":
-        setCurrentDate(subWeeks(currentDate, 1));
-        break;
       case "fiveDay":
+      case "fiveDayAll":
         setCurrentDate(subDays(currentDate, 5));
         break;
       case "dayAll":
@@ -249,10 +232,8 @@ export function DashboardCalendar({
       case "month":
         setCurrentDate(addMonths(currentDate, 1));
         break;
-      case "weekAll":
-        setCurrentDate(addWeeks(currentDate, 1));
-        break;
       case "fiveDay":
+      case "fiveDayAll":
         setCurrentDate(addDays(currentDate, 5));
         break;
       case "dayAll":
@@ -691,13 +672,11 @@ export function DashboardCalendar({
     switch (viewMode) {
       case "month":
         return format(currentDate, "yyyy年M月", { locale: ja });
-      case "weekAll":
-        const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
-        const weekEnd = addDays(weekStart, 6);
-        return `${format(weekStart, "M月d日", { locale: ja })} - ${format(weekEnd, "M月d日", { locale: ja })}`;
       case "fiveDay":
+      case "fiveDayAll": {
         const fiveDayEnd = addDays(currentDate, 4);
         return `${format(currentDate, "M月d日", { locale: ja })} - ${format(fiveDayEnd, "M月d日", { locale: ja })}`;
+      }
       case "dayAll":
         return format(currentDate, "M月d日(E)", { locale: ja });
     }
@@ -871,81 +850,99 @@ export function DashboardCalendar({
   );
 
   // 週表示
-  const renderWeekView = () => (
-    <div className="overflow-auto">
-      <table className="w-full border-collapse">
-        <thead>
-          <tr>
-            <th className="p-2 bg-muted border text-left min-w-[80px] sticky left-0 z-10">
-              社員
-            </th>
-            {weekDays.map((date, idx) => (
-              <th
-                key={idx}
-                className={`p-2 text-center bg-muted border min-w-[120px] ${
-                  idx === 5 ? "text-blue-500" : idx === 6 ? "text-red-500" : ""
-                }`}
-              >
-                <div className="text-sm font-medium">{WEEKDAY_LABELS[idx]}</div>
-                <div
-                  className={`text-lg ${
-                    isToday(date)
-                      ? "w-8 h-8 mx-auto flex items-center justify-center rounded-full bg-primary text-primary-foreground"
-                      : ""
-                  }`}
-                >
-                  {format(date, "d")}
-                </div>
+  // 5日全員表示（縦軸=社員、横軸=5日間）
+  const renderFiveDayAllView = () => {
+    // 5日分の日付（土日非表示オプション対応）
+    const displayDays = hideWeekends
+      ? (() => {
+          const days: Date[] = [];
+          let current = currentDate;
+          while (days.length < 5) {
+            const dayOfWeek = current.getDay();
+            if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+              days.push(current);
+            }
+            current = addDays(current, 1);
+          }
+          return days;
+        })()
+      : eachDayOfInterval({ start: currentDate, end: addDays(currentDate, 4) });
+
+    return (
+      <div className="overflow-auto">
+        <table className="w-full border-collapse">
+          <thead>
+            <tr>
+              <th className="p-2 bg-muted border text-left min-w-[80px] sticky left-0 z-10">
+                社員
               </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {weekViewEmployees.map((employee) => (
-            <tr key={employee.id}>
-              <td className="p-2 bg-muted/50 border font-medium sticky left-0 z-10 whitespace-nowrap">
-                <div className="flex items-center gap-1">
-                  <User className="h-4 w-4 text-muted-foreground" />
-                  <span className="text-sm">{employee.name}</span>
-                  {employee.id === currentEmployeeId && (
-                    <span className="text-xs text-muted-foreground">(自分)</span>
-                  )}
-                </div>
-              </td>
-              {weekDays.map((date, idx) => {
-                const dayEvents = getEventsForDateAndEmployee(date, employee.id);
-                const dateStr = format(date, "yyyy-MM-dd");
-                const isDragOver = dragOverDate === dateStr;
+              {displayDays.map((date, idx) => {
+                const dayOfWeek = date.getDay();
                 return (
-                  <td
+                  <th
                     key={idx}
-                    className={`p-2 bg-background border align-top cursor-pointer hover:bg-muted/50 ${
-                      isDragOver ? "bg-blue-100 ring-2 ring-blue-400" : ""
+                    className={`p-2 text-center bg-muted border min-w-[120px] ${
+                      dayOfWeek === 0 ? "text-red-500" : dayOfWeek === 6 ? "text-blue-500" : ""
                     }`}
-                    onClick={() => handleDateClick(date)}
-                    onDrop={(e) => handleDrop(date, e)}
-                    onDragOver={(e) => handleDragOver(date, e)}
-                    onDragLeave={handleDragLeave}
                   >
-                    <div className="space-y-1 min-h-[60px]">
-                      {dayEvents.map((event) => renderEvent(event, false, true))}
-                    </div>
-                  </td>
+                    <div className="text-sm font-medium">{format(date, "M/d(E)", { locale: ja })}</div>
+                    {isToday(date) && (
+                      <span className="inline-block w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs leading-6">
+                        今
+                      </span>
+                    )}
+                  </th>
                 );
               })}
             </tr>
-          ))}
-          {weekViewEmployees.length === 0 && (
-            <tr>
-              <td colSpan={8} className="p-4 text-center text-muted-foreground">
-                表示する社員がいません
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
-    </div>
-  );
+          </thead>
+          <tbody>
+            {sortedEmployees.map((employee) => (
+              <tr key={employee.id}>
+                <td className="p-2 bg-muted/50 border font-medium sticky left-0 z-10 whitespace-nowrap">
+                  <div className="flex items-center gap-1">
+                    <User className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm">{employee.name}</span>
+                    {employee.id === currentEmployeeId && (
+                      <span className="text-xs text-muted-foreground">(自分)</span>
+                    )}
+                  </div>
+                </td>
+                {displayDays.map((date, idx) => {
+                  const dayEvents = getEventsForDateAndEmployee(date, employee.id);
+                  const dateStr = format(date, "yyyy-MM-dd");
+                  const isDragOver = dragOverDate === dateStr;
+                  return (
+                    <td
+                      key={idx}
+                      className={`p-2 bg-background border align-top cursor-pointer hover:bg-muted/50 ${
+                        isDragOver ? "bg-blue-100 ring-2 ring-blue-400" : ""
+                      }`}
+                      onClick={() => handleDateClick(date)}
+                      onDrop={(e) => handleDrop(date, e, employee.id)}
+                      onDragOver={(e) => handleDragOver(date, e)}
+                      onDragLeave={handleDragLeave}
+                    >
+                      <div className="space-y-1 min-h-[60px]">
+                        {dayEvents.map((event) => renderEvent(event, true, true))}
+                      </div>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+            {sortedEmployees.length === 0 && (
+              <tr>
+                <td colSpan={6} className="p-4 text-center text-muted-foreground">
+                  表示する社員がいません
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
 
   // 時間枠ラベル（共通）
   const hourLabels = [
@@ -1354,7 +1351,7 @@ export function DashboardCalendar({
               <User className="h-4 w-4 mr-1" />
               5日
             </Button>
-            {viewMode === "fiveDay" && (
+            {(viewMode === "fiveDay" || viewMode === "fiveDayAll") && (
               <Button
                 variant={hideWeekends ? "default" : "ghost"}
                 size="sm"
@@ -1366,13 +1363,13 @@ export function DashboardCalendar({
               </Button>
             )}
             <Button
-              variant={viewMode === "weekAll" ? "default" : "ghost"}
+              variant={viewMode === "fiveDayAll" ? "default" : "ghost"}
               size="sm"
               className="rounded-none border-x"
-              onClick={() => setViewMode("weekAll")}
+              onClick={() => setViewMode("fiveDayAll")}
             >
-              <CalendarDays className="h-4 w-4 mr-1" />
-              週
+              <UsersRound className="h-4 w-4 mr-1" />
+              5日全員
             </Button>
             <Button
               variant={viewMode === "month" ? "default" : "ghost"}
@@ -1403,7 +1400,7 @@ export function DashboardCalendar({
       {/* カレンダー本体 */}
       <CardContent className="p-0 flex-1 overflow-auto">
         {viewMode === "month" && renderMonthView()}
-        {viewMode === "weekAll" && renderWeekView()}
+        {viewMode === "fiveDayAll" && renderFiveDayAllView()}
         {viewMode === "dayAll" && renderDayAllView()}
         {viewMode === "fiveDay" && renderFiveDayView()}
       </CardContent>

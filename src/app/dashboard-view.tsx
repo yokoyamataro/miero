@@ -13,7 +13,7 @@ import {
 } from "@/types/database";
 import { type TaskWithProject, type PersonalTask } from "./dashboard-actions";
 
-type ViewMode = "dayAll" | "fiveDay" | "weekAll" | "month";
+type ViewMode = "dayAll" | "fiveDay" | "fiveDayAll" | "month";
 
 interface DashboardViewProps {
   events: CalendarEventWithParticipants[];
