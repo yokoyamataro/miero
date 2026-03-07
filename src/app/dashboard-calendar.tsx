@@ -18,6 +18,13 @@ import {
   Settings,
 } from "lucide-react";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   format,
   startOfMonth,
   endOfMonth,
@@ -49,6 +56,7 @@ import { updateEvent } from "./calendar/actions";
 import { type TaskWithProject } from "./dashboard-actions";
 
 type ViewMode = "dayAll" | "fiveDay" | "weekAll" | "month";
+type EmployeeFilter = "me" | "all" | string; // "me" = 自分のみ, "all" = 全員, string = 特定の社員ID
 
 interface DashboardCalendarProps {
   initialEvents: CalendarEventWithParticipants[];
@@ -115,6 +123,7 @@ export function DashboardCalendar({
   const [hideWeekends, setHideWeekends] = useState(false);
   const [selectedStartTime, setSelectedStartTime] = useState<{ hour: string; minute: string } | null>(null);
   const [selectedEndTime, setSelectedEndTime] = useState<{ hour: string; minute: string } | null>(null);
+  const [employeeFilter, setEmployeeFilter] = useState<EmployeeFilter>("me");
 
   // 社員リストをソート
   const sortedEmployees = useMemo(() => {
@@ -126,10 +135,23 @@ export function DashboardCalendar({
     });
   }, [employees, currentEmployeeId]);
 
-  // フィルタリングされたイベント（全員表示）
+  // フィルタリングされたイベント
   const filteredEvents = useMemo(() => {
-    return events;
-  }, [events]);
+    if (employeeFilter === "all") {
+      return events;
+    }
+
+    const targetEmployeeId = employeeFilter === "me" ? currentEmployeeId : employeeFilter;
+    if (!targetEmployeeId) return events;
+
+    return events.filter((event) => {
+      // 作成者が対象社員
+      if (event.created_by === targetEmployeeId) return true;
+      // 参加者に対象社員が含まれる
+      if (event.participants.some((p) => p.id === targetEmployeeId)) return true;
+      return false;
+    });
+  }, [events, employeeFilter, currentEmployeeId]);
 
   // 月表示のカレンダー日付を生成
   const monthDays = useMemo(() => {
@@ -1272,6 +1294,39 @@ export function DashboardCalendar({
             <ChevronRight className="h-4 w-4" />
           </Button>
           <h2 className="text-lg font-semibold ml-2">{getTitle()}</h2>
+
+          {/* 社員フィルター（週表示以外で表示） */}
+          {viewMode !== "weekAll" && (
+            <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
+              <SelectTrigger className="w-[140px] h-8 ml-2">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {currentEmployeeId && (
+                  <SelectItem value="me">
+                    <span className="flex items-center gap-2">
+                      <User className="h-4 w-4" />
+                      自分
+                    </span>
+                  </SelectItem>
+                )}
+                <SelectItem value="all">
+                  <span className="flex items-center gap-2">
+                    <UsersRound className="h-4 w-4" />
+                    全員
+                  </span>
+                </SelectItem>
+                {sortedEmployees.map((emp) => (
+                  <SelectItem key={emp.id} value={emp.id}>
+                    <span className="flex items-center gap-2">
+                      <User className="h-4 w-4 opacity-50" />
+                      {emp.name}
+                    </span>
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
         </div>
 
         <div className="flex gap-2 flex-wrap">
