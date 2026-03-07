@@ -190,9 +190,9 @@ export function DashboardCalendar({
     });
   };
 
-  // 週表示用：日付×社員ごとのイベントを取得（参加者のみで判定）
-  const getEventsForDateAndEmployee = (date: Date, employeeId: string) => {
-    return filteredEvents.filter((event) => {
+  // 全員表示用：日付×社員ごとのイベントを取得（フィルター無視、参加者のみで判定）
+  const getAllEventsForDateAndEmployee = (date: Date, employeeId: string) => {
+    return events.filter((event) => {
       if (!isDateInRange(date, event.start_date, event.end_date)) return false;
       return event.participants.some((p) => p.id === employeeId);
     });
@@ -909,7 +909,7 @@ export function DashboardCalendar({
                   </div>
                 </td>
                 {displayDays.map((date, idx) => {
-                  const dayEvents = getEventsForDateAndEmployee(date, employee.id);
+                  const dayEvents = getAllEventsForDateAndEmployee(date, employee.id);
                   const dateStr = format(date, "yyyy-MM-dd");
                   const isDragOver = dragOverDate === dateStr;
                   return (
@@ -983,12 +983,12 @@ export function DashboardCalendar({
   const renderDayAllView = () => {
     // 終日または時間なしイベント
     const getAllDayEventsForEmployee = (date: Date, employeeId: string) => {
-      return getEventsForDateAndEmployee(date, employeeId).filter((e) => !e.start_time || e.all_day);
+      return getAllEventsForDateAndEmployee(date, employeeId).filter((e) => !e.start_time || e.all_day);
     };
 
     // 時間指定イベント
     const getTimedEventsForEmployee = (date: Date, employeeId: string) => {
-      return getEventsForDateAndEmployee(date, employeeId).filter((e) => e.start_time && !e.all_day);
+      return getAllEventsForDateAndEmployee(date, employeeId).filter((e) => e.start_time && !e.all_day);
     };
 
     const dateStr = format(currentDate, "yyyy-MM-dd");
