@@ -610,11 +610,11 @@ export function CalendarView({
                 return (
                   <td
                     key={idx}
-                    className="p-2 bg-background border align-top cursor-pointer hover:bg-muted/50 min-h-[100px]"
+                    className="p-1 bg-background border align-top cursor-pointer hover:bg-muted/50 min-h-[60px]"
                     onClick={() => handleDateClick(date)}
                   >
-                    <div className="space-y-1 min-h-[80px]">
-                      {dayEvents.map((event) => renderEvent(event))}
+                    <div className="space-y-0.5 min-h-[50px]">
+                      {dayEvents.map((event) => renderEvent(event, true))}
                     </div>
                   </td>
                 );
