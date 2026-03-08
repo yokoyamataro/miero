@@ -993,12 +993,11 @@ export function DashboardCalendar({
           <tbody>
             {sortedEmployees.map((employee) => (
               <tr key={employee.id}>
-                <td className="p-2 bg-muted/50 border font-medium sticky left-0 z-10">
-                  <div className="flex items-center gap-1">
-                    <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                    <span className="text-sm truncate">{employee.name}</span>
+                <td className="p-1 bg-muted/50 border font-medium sticky left-0 z-10">
+                  <div className="flex items-center gap-0.5">
+                    <span className="text-xs truncate">{employee.name}</span>
                     {employee.id === currentEmployeeId && (
-                      <span className="text-xs text-muted-foreground flex-shrink-0">(自)</span>
+                      <span className="text-[10px] text-muted-foreground flex-shrink-0">(自)</span>
                     )}
                   </div>
                 </td>
