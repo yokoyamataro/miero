@@ -295,11 +295,11 @@ export function EventModal({
         }
       } else if (useMultipleDates) {
         // 複数日選択の場合
-        console.log("Calling createMultipleDateEvents with:", {
-          eventData,
-          participantIds,
-          selectedDates,
-        });
+        console.log("=== CLIENT: createMultipleDateEvents ===");
+        console.log("selectedDates:", JSON.stringify(selectedDates));
+        console.log("participantIds:", JSON.stringify(participantIds));
+        console.log("eventData.start_date:", eventData.start_date);
+        console.log("eventData.end_date:", eventData.end_date);
         const result = await createMultipleDateEvents(eventData, participantIds, selectedDates);
         if (result.error) {
           setError(result.error);
@@ -656,12 +656,14 @@ export function EventModal({
                   id="useMultipleDates"
                   checked={useMultipleDates}
                   onCheckedChange={(checked) => {
+                    console.log("useMultipleDates checkbox changed:", checked);
                     setUseMultipleDates(!!checked);
                     if (checked) {
                       // 繰り返しと排他
                       setRecurrenceType("none");
                       // 現在の開始日を選択済みに
                       if (startDate) {
+                        console.log("Initial startDate for selectedDates:", startDate);
                         setSelectedDates([startDate]);
                       }
                     } else {
@@ -735,11 +737,14 @@ export function EventModal({
                                   key={dateStr}
                                   type="button"
                                   onClick={() => {
-                                    setSelectedDates((prev) =>
-                                      isSelected
+                                    console.log("Date clicked:", dateStr, "isSelected:", isSelected);
+                                    setSelectedDates((prev) => {
+                                      const newDates = isSelected
                                         ? prev.filter((d) => d !== dateStr)
-                                        : [...prev, dateStr].sort()
-                                    );
+                                        : [...prev, dateStr].sort();
+                                      console.log("New selectedDates:", JSON.stringify(newDates));
+                                      return newDates;
+                                    });
                                   }}
                                   className={`w-6 h-6 rounded text-center text-xs ${
                                     isSelected
