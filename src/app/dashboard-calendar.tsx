@@ -15,7 +15,14 @@ import {
   User,
   UsersRound,
   Settings,
+  GripVertical,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -120,16 +127,88 @@ export function DashboardCalendar({
   const [selectedStartTime, setSelectedStartTime] = useState<{ hour: string; minute: string } | null>(null);
   const [selectedEndTime, setSelectedEndTime] = useState<{ hour: string; minute: string } | null>(null);
   const [employeeFilter, setEmployeeFilter] = useState<EmployeeFilter>("me");
+  const [showEmployeeOrderModal, setShowEmployeeOrderModal] = useState(false);
+  const [employeeOrder, setEmployeeOrder] = useState<string[]>([]);
+  const [draggingEmployeeId, setDraggingEmployeeId] = useState<string | null>(null);
 
-  // 社員リストをソート
+  // localStorageから社員順序を読み込み
+  useEffect(() => {
+    const saved = localStorage.getItem("calendarEmployeeOrder");
+    if (saved) {
+      try {
+        setEmployeeOrder(JSON.parse(saved));
+      } catch {
+        // パースエラーの場合は無視
+      }
+    }
+  }, []);
+
+  // 社員リストをソート（カスタム順序を優先）
   const sortedEmployees = useMemo(() => {
-    if (!currentEmployeeId) return employees;
+    if (employeeOrder.length === 0) {
+      // デフォルト: 自分を先頭に
+      if (!currentEmployeeId) return employees;
+      return [...employees].sort((a, b) => {
+        if (a.id === currentEmployeeId) return -1;
+        if (b.id === currentEmployeeId) return 1;
+        return 0;
+      });
+    }
+    // カスタム順序で並び替え
     return [...employees].sort((a, b) => {
-      if (a.id === currentEmployeeId) return -1;
-      if (b.id === currentEmployeeId) return 1;
-      return 0;
+      const indexA = employeeOrder.indexOf(a.id);
+      const indexB = employeeOrder.indexOf(b.id);
+      // 順序に含まれない社員は末尾に
+      if (indexA === -1 && indexB === -1) return 0;
+      if (indexA === -1) return 1;
+      if (indexB === -1) return -1;
+      return indexA - indexB;
     });
-  }, [employees, currentEmployeeId]);
+  }, [employees, currentEmployeeId, employeeOrder]);
+
+  // 社員順序を保存
+  const saveEmployeeOrder = useCallback((order: string[]) => {
+    setEmployeeOrder(order);
+    localStorage.setItem("calendarEmployeeOrder", JSON.stringify(order));
+  }, []);
+
+  // 社員をドラッグ開始
+  const handleEmployeeOrderDragStart = useCallback((employeeId: string) => {
+    setDraggingEmployeeId(employeeId);
+  }, []);
+
+  // 社員をドロップ
+  const handleEmployeeOrderDrop = useCallback((targetEmployeeId: string) => {
+    if (!draggingEmployeeId || draggingEmployeeId === targetEmployeeId) {
+      setDraggingEmployeeId(null);
+      return;
+    }
+
+    const currentOrder = employeeOrder.length > 0
+      ? [...employeeOrder]
+      : sortedEmployees.map(e => e.id);
+
+    const dragIndex = currentOrder.indexOf(draggingEmployeeId);
+    const dropIndex = currentOrder.indexOf(targetEmployeeId);
+
+    if (dragIndex === -1 || dropIndex === -1) {
+      setDraggingEmployeeId(null);
+      return;
+    }
+
+    // 並び替え
+    currentOrder.splice(dragIndex, 1);
+    currentOrder.splice(dropIndex, 0, draggingEmployeeId);
+
+    saveEmployeeOrder(currentOrder);
+    setDraggingEmployeeId(null);
+  }, [draggingEmployeeId, employeeOrder, sortedEmployees, saveEmployeeOrder]);
+
+  // 順序をリセット
+  const resetEmployeeOrder = useCallback(() => {
+    setEmployeeOrder([]);
+    localStorage.removeItem("calendarEmployeeOrder");
+  }, []);
 
   // フィルタリングされたイベント
   const filteredEvents = useMemo(() => {
@@ -307,17 +386,23 @@ export function DashboardCalendar({
   };
 
   // イベント更新後（楽観的UI更新）
-  const handleEventSaved = useCallback((savedEvent: CalendarEventWithParticipants, isNew: boolean) => {
+  const handleEventSaved = useCallback((savedEvent: CalendarEventWithParticipants | CalendarEventWithParticipants[], isNew: boolean) => {
     setShowEventModal(false);
     setShowDetailModal(false);
     if (isNew) {
-      // 新規イベントを追加
-      setEvents((prev) => [...prev, savedEvent]);
+      // 新規イベントを追加（配列の場合は複数追加）
+      if (Array.isArray(savedEvent)) {
+        setEvents((prev) => [...prev, ...savedEvent]);
+      } else {
+        setEvents((prev) => [...prev, savedEvent]);
+      }
     } else {
-      // 既存イベントを更新
-      setEvents((prev) =>
-        prev.map((e) => (e.id === savedEvent.id ? savedEvent : e))
-      );
+      // 既存イベントを更新（配列は想定しない）
+      if (!Array.isArray(savedEvent)) {
+        setEvents((prev) =>
+          prev.map((e) => (e.id === savedEvent.id ? savedEvent : e))
+        );
+      }
     }
   }, []);
 
@@ -1556,6 +1641,19 @@ export function DashboardCalendar({
             追加
           </Button>
 
+          {/* 社員順序設定ボタン（1日全員・5日全員表示のときのみ） */}
+          {(viewMode === "dayAll" || viewMode === "fiveDayAll") && (
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setShowEmployeeOrderModal(true)}
+              title="社員の表示順を変更"
+            >
+              <GripVertical className="h-4 w-4" />
+            </Button>
+          )}
+
           {/* 設定リンク */}
           <Link href="/calendar/settings">
             <Button variant="outline" size="icon" className="h-8 w-8">
@@ -1602,6 +1700,48 @@ export function DashboardCalendar({
         onEdit={handleEditEvent}
         onDeleted={handleEventDeleted}
       />
+
+      {/* 社員順序設定モーダル */}
+      <Dialog open={showEmployeeOrderModal} onOpenChange={setShowEmployeeOrderModal}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>社員の表示順</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">
+              ドラッグ＆ドロップで並び替えができます
+            </p>
+            <div className="border rounded-md divide-y max-h-[400px] overflow-auto">
+              {sortedEmployees.map((emp) => (
+                <div
+                  key={emp.id}
+                  draggable
+                  onDragStart={() => handleEmployeeOrderDragStart(emp.id)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={() => handleEmployeeOrderDrop(emp.id)}
+                  className={`flex items-center gap-2 p-2 cursor-grab hover:bg-muted/50 ${
+                    draggingEmployeeId === emp.id ? "opacity-50 bg-primary/10" : ""
+                  }`}
+                >
+                  <GripVertical className="h-4 w-4 text-muted-foreground" />
+                  <span className="flex-1">{emp.name}</span>
+                  {emp.id === currentEmployeeId && (
+                    <span className="text-xs text-muted-foreground">（自分）</span>
+                  )}
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" size="sm" onClick={resetEmployeeOrder}>
+                リセット
+              </Button>
+              <Button size="sm" onClick={() => setShowEmployeeOrderModal(false)}>
+                閉じる
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Card>
   );
 }

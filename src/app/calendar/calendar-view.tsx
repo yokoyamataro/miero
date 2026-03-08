@@ -218,15 +218,23 @@ export function CalendarView({
   };
 
   // イベント更新後（楽観的UI更新）
-  const handleEventSaved = useCallback((savedEvent: CalendarEventWithParticipants, isNew: boolean) => {
+  const handleEventSaved = useCallback((savedEvent: CalendarEventWithParticipants | CalendarEventWithParticipants[], isNew: boolean) => {
     setShowEventModal(false);
     setShowDetailModal(false);
     if (isNew) {
-      setEvents((prev) => [...prev, savedEvent]);
+      // 新規イベントを追加（配列の場合は複数追加）
+      if (Array.isArray(savedEvent)) {
+        setEvents((prev) => [...prev, ...savedEvent]);
+      } else {
+        setEvents((prev) => [...prev, savedEvent]);
+      }
     } else {
-      setEvents((prev) =>
-        prev.map((e) => (e.id === savedEvent.id ? savedEvent : e))
-      );
+      // 既存イベントを更新（配列は想定しない）
+      if (!Array.isArray(savedEvent)) {
+        setEvents((prev) =>
+          prev.map((e) => (e.id === savedEvent.id ? savedEvent : e))
+        );
+      }
     }
   }, []);
 

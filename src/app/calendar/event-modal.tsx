@@ -34,7 +34,7 @@ interface EventModalProps {
   eventCategories: EventCategory[];
   selectedDate: Date | null;
   event: CalendarEventWithParticipants | null;
-  onSaved: (savedEvent: CalendarEventWithParticipants, isNew: boolean) => void;
+  onSaved: (savedEvent: CalendarEventWithParticipants | CalendarEventWithParticipants[], isNew: boolean) => void;
   currentEmployeeId: string | null;
   initialStartTime?: { hour: string; minute: string } | null;
   initialEndTime?: { hour: string; minute: string } | null;
@@ -295,35 +295,15 @@ export function EventModal({
         }
       } else if (useMultipleDates) {
         // 複数日選択の場合
-        console.log("=== CLIENT: createMultipleDateEvents ===");
-        console.log("selectedDates:", JSON.stringify(selectedDates));
-        console.log("participantIds:", JSON.stringify(participantIds));
-        console.log("eventData.start_date:", eventData.start_date);
-        console.log("eventData.end_date:", eventData.end_date);
         const result = await createMultipleDateEvents(eventData, participantIds, selectedDates);
         if (result.error) {
           setError(result.error);
           return;
         }
-        // 複数作成の場合はダミーのイベントで完了通知
-        onSaved({
-          ...eventData,
-          id: "",
-          recurrence_type: "none",
-          recurrence_day_of_week: null,
-          recurrence_day_of_month: null,
-          recurrence_month: null,
-          recurrence_group_id: null,
-          recurrence_end_date: null,
-          created_by: null,
-          created_at: "",
-          updated_at: "",
-          participants: [],
-          creator: null,
-          project: null,
-          task: null,
-          eventCategory: null,
-        }, true);
+        // 作成されたイベントを通知
+        if (result.events && result.events.length > 0) {
+          onSaved(result.events, true);
+        }
       } else if (recurrenceType !== "none") {
         // 繰り返し予定の作成
         const result = await createRecurringEvents(

@@ -67,7 +67,7 @@ export function DashboardView({
   }, []);
 
   // イベント保存後
-  const handleEventSaved = () => {
+  const handleEventSaved = (_savedEvent: CalendarEventWithParticipants | CalendarEventWithParticipants[], _isNew: boolean) => {
     setShowEventModal(false);
     setDroppedDate(null);
     setDroppedTaskData(null);

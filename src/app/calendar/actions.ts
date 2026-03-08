@@ -343,7 +343,7 @@ export async function createMultipleDateEvents(
   data: CalendarEventInsert,
   participantIds: string[],
   dates: string[]
-): Promise<{ success?: boolean; error?: string; count?: number }> {
+): Promise<{ success?: boolean; error?: string; count?: number; events?: CalendarEventWithParticipants[] }> {
   const supabase = await createClient();
 
   const employeeId = await getCurrentEmployeeIdInternal(supabase);
@@ -355,15 +355,7 @@ export async function createMultipleDateEvents(
     return { error: "日付を選択してください" };
   }
 
-  console.log("=== createMultipleDateEvents START ===");
-  console.log("dates array:", JSON.stringify(dates));
-  console.log("participantIds array:", JSON.stringify(participantIds));
-  console.log("datesLength:", dates.length);
-  console.log("participantIdsLength:", participantIds.length);
-  console.log("data.start_date (original):", data.start_date);
-  console.log("data.end_date (original):", data.end_date);
-
-  let createdCount = 0;
+  const createdEventIds: string[] = [];
   for (const dateStr of dates) {
     const eventData = {
       ...data,
@@ -371,10 +363,6 @@ export async function createMultipleDateEvents(
       end_date: dateStr,
       created_by: employeeId,
     };
-
-    console.log(`Creating event for date [${createdCount}]:`, dateStr);
-    console.log("eventData.start_date:", eventData.start_date);
-    console.log("eventData.end_date:", eventData.end_date);
 
     const { data: event, error } = await supabase
       .from("calendar_events")
@@ -387,7 +375,7 @@ export async function createMultipleDateEvents(
       continue;
     }
 
-    console.log("Event created:", event.id);
+    createdEventIds.push(event.id);
 
     // 参加者を追加
     if (participantIds.length > 0 && event) {
@@ -395,7 +383,6 @@ export async function createMultipleDateEvents(
         event_id: event.id,
         employee_id: empId,
       }));
-      console.log("Adding participants:", participantInserts);
       const { error: participantError } = await supabase
         .from("calendar_event_participants")
         .insert(participantInserts as never);
@@ -403,15 +390,36 @@ export async function createMultipleDateEvents(
         console.error("Error adding participants:", participantError);
       }
     }
-
-    createdCount++;
   }
 
-  console.log("Total events created:", createdCount);
-  console.log("=== createMultipleDateEvents END ===");
+  // 作成したイベントを参加者情報付きで取得
+  let createdEvents: CalendarEventWithParticipants[] = [];
+  if (createdEventIds.length > 0) {
+    const { data: events } = await supabase
+      .from("calendar_events")
+      .select(`
+        *,
+        participants:calendar_event_participants(
+          employee:employees(id, name, email, avatar_url)
+        ),
+        creator:employees!calendar_events_created_by_fkey(id, name, email, avatar_url),
+        project:projects(id, code, name),
+        task:tasks(id, title),
+        eventCategory:event_categories(id, name, color, sort_order)
+      `)
+      .in("id", createdEventIds);
+
+    if (events) {
+      createdEvents = events.map((e) => ({
+        ...e,
+        participants: e.participants?.map((p: { employee: Employee }) => p.employee).filter(Boolean) || [],
+      })) as CalendarEventWithParticipants[];
+    }
+  }
+
   revalidatePath("/calendar");
   revalidatePath("/");
-  return { success: true, count: createdCount };
+  return { success: true, count: createdEventIds.length, events: createdEvents };
 }
 
 // イベントを更新
