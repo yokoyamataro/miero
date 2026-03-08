@@ -51,7 +51,7 @@ import { EventDetailModal } from "./calendar/event-detail-modal";
 import { updateEvent } from "./calendar/actions";
 import { type TaskWithProject } from "./dashboard-actions";
 
-type ViewMode = "dayAll" | "fiveDay" | "fiveDayAll" | "month";
+type ViewMode = "day" | "dayAll" | "fiveDay" | "fiveDayAll" | "month";
 type EmployeeFilter = "me" | "all" | string; // "me" = 自分のみ, "all" = 全員, string = 特定の社員ID
 
 interface DashboardCalendarProps {
@@ -221,6 +221,7 @@ export function DashboardCalendar({
       case "fiveDayAll":
         setCurrentDate(subDays(currentDate, 5));
         break;
+      case "day":
       case "dayAll":
         setCurrentDate(subDays(currentDate, 1));
         break;
@@ -236,6 +237,7 @@ export function DashboardCalendar({
       case "fiveDayAll":
         setCurrentDate(addDays(currentDate, 5));
         break;
+      case "day":
       case "dayAll":
         setCurrentDate(addDays(currentDate, 1));
         break;
@@ -677,6 +679,7 @@ export function DashboardCalendar({
         const fiveDayEnd = addDays(currentDate, 4);
         return `${format(currentDate, "M月d日", { locale: ja })} - ${format(fiveDayEnd, "M月d日", { locale: ja })}`;
       }
+      case "day":
       case "dayAll":
         return format(currentDate, "M月d日(E)", { locale: ja });
     }
@@ -1286,6 +1289,145 @@ export function DashboardCalendar({
     );
   };
 
+  // 1日表示（個人別、時間軸付き）
+  const renderDayView = () => {
+    // 終日または時間なしイベント
+    const getAllDayEvents = (date: Date) => {
+      return getFilteredEventsForDate(date).filter((e) => !e.start_time || e.all_day);
+    };
+
+    // 時間指定イベント
+    const getTimedEvents = (date: Date) => {
+      return getFilteredEventsForDate(date).filter((e) => e.start_time && !e.all_day);
+    };
+
+    const dateStr = format(currentDate, "yyyy-MM-dd");
+    const dayOfWeek = currentDate.getDay();
+
+    return (
+      <div className="overflow-auto">
+        {/* ヘッダー: 日付 */}
+        <div className="grid grid-cols-[60px_1fr] border-b">
+          <div className="p-2 bg-muted border-r text-center text-xs font-medium">時間</div>
+          <div
+            className={`p-2 bg-muted border-r text-center ${
+              dayOfWeek === 0 ? "text-red-500" : dayOfWeek === 6 ? "text-blue-500" : ""
+            }`}
+          >
+            <div className="text-sm font-medium">{format(currentDate, "M/d(E)", { locale: ja })}</div>
+            {isToday(currentDate) && (
+              <span className="inline-block w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs leading-6">
+                今
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* 終日イベント行 */}
+        <div className="grid grid-cols-[60px_1fr] border-b bg-gray-50">
+          <div className="p-1 border-r text-xs text-muted-foreground text-center">終日</div>
+          <div
+            className={`p-1 border-r min-h-[32px] cursor-pointer hover:bg-muted/50 ${
+              dragOverDate === dateStr ? "bg-blue-100 ring-2 ring-blue-400" : ""
+            }`}
+            onClick={() => handleDateClick(currentDate)}
+            onDrop={(e) => handleDrop(currentDate, e)}
+            onDragOver={(e) => handleDragOver(currentDate, e)}
+            onDragLeave={handleDragLeave}
+          >
+            {getAllDayEvents(currentDate).map((event) => renderEvent(event, true))}
+          </div>
+        </div>
+
+        {/* 時間軸 */}
+        <div className="grid grid-cols-[60px_1fr]">
+          {/* 時間ラベル列 */}
+          <div className="border-r">
+            {hourLabels.map((slot, idx) => (
+              <div key={idx} className={`h-12 border-b text-xs text-muted-foreground text-right pr-2 pt-0.5 ${slot.hour === 12 ? "bg-gray-100" : ""}`}>
+                {slot.label}
+              </div>
+            ))}
+          </div>
+
+          {/* イベント列 */}
+          <div className="border-r relative">
+            {/* 時間枠の背景線 */}
+            {hourLabels.map((slot, idx) => {
+              const isSlotDragOver = dragOverSlot?.date === dateStr && dragOverSlot?.hour === slot.hour;
+              const isLunchTime = slot.hour === 12;
+              return (
+                <div
+                  key={idx}
+                  className={`h-12 border-b cursor-pointer ${
+                    isSlotDragOver ? "bg-blue-200" : isLunchTime ? "bg-gray-100" : "hover:bg-muted/30"
+                  }`}
+                  onClick={() => handleTimeSlotClick(currentDate, slot.hour)}
+                  onDrop={(e) => handleTimeSlotDrop(currentDate, slot.hour, e)}
+                  onDragOver={(e) => handleTimeSlotDragOver(currentDate, slot.hour, e)}
+                  onDragLeave={() => setDragOverSlot(null)}
+                />
+              );
+            })}
+
+            {/* イベント */}
+            {getTimedEvents(currentDate).map((event) => {
+              const pos = getEventPosition(event);
+              if (!pos) return null;
+              const categoryColor = getCategoryColor(event);
+              const lightBgColor = getLightBgColor(categoryColor);
+              const categoryName = getCategoryName(event);
+              const isDragging = draggingEventId === event.id;
+              const isResizing = resizingEvent?.eventId === event.id;
+              const displayTop = isResizing ? resizingEvent.previewTop : pos.top;
+              const displayHeight = isResizing ? resizingEvent.previewHeight : pos.height;
+              return (
+                <div
+                  key={event.id}
+                  draggable={!isResizing}
+                  onDragStart={(e) => !isResizing && handleEventDragStart(event, e)}
+                  onDragEnd={handleEventDragEnd}
+                  className={`absolute left-0.5 right-0.5 rounded px-1 py-0.5 overflow-hidden border ${lightBgColor} ${
+                    isDragging ? "opacity-50 ring-2 ring-primary" : ""
+                  } ${isResizing ? "ring-2 ring-primary z-10" : "cursor-grab hover:opacity-80"}`}
+                  style={{ top: displayTop, height: displayHeight }}
+                  onClick={(e) => handleEventClick(event, e)}
+                >
+                  <div
+                    className="absolute top-0 left-0 right-0 h-2 cursor-ns-resize hover:bg-primary/20 z-10"
+                    onMouseDown={(e) => handleResizeStart(event, "top", e, currentDate, pos.top, pos.height)}
+                  />
+                  <div className="text-xs font-medium truncate text-black">
+                    {event.start_time?.slice(0, 5)} {event.title}
+                  </div>
+                  {categoryName && displayHeight >= 36 && (
+                    <span className={`${categoryColor} text-white px-1 rounded text-[10px]`}>{categoryName}</span>
+                  )}
+                  {event.location && displayHeight >= 48 && (
+                    <div className="text-[10px] text-black truncate flex items-center gap-0.5">
+                      <MapPin className="h-2.5 w-2.5" />
+                      {event.location}
+                    </div>
+                  )}
+                  {event.participants.length > 0 && displayHeight >= 60 && (
+                    <div className="text-[10px] text-black truncate flex items-center gap-0.5">
+                      <Users className="h-2.5 w-2.5" />
+                      {event.participants.map((p) => p.name).join(", ")}
+                    </div>
+                  )}
+                  <div
+                    className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize hover:bg-primary/20 z-10"
+                    onMouseDown={(e) => handleResizeStart(event, "bottom", e, currentDate, pos.top, pos.height)}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <Card className="h-full flex flex-col">
       {/* ナビゲーション */}
@@ -1302,8 +1444,8 @@ export function DashboardCalendar({
           </Button>
           <h2 className="text-lg font-semibold ml-2">{getTitle()}</h2>
 
-          {/* 社員フィルター（5日表示・月表示でのみ表示） */}
-          {(viewMode === "fiveDay" || viewMode === "month") && (
+          {/* 社員フィルター（1日・5日表示・月表示でのみ表示） */}
+          {(viewMode === "day" || viewMode === "fiveDay" || viewMode === "month") && (
             <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
               <SelectTrigger className="w-[140px] h-8 ml-2">
                 <SelectValue />
@@ -1337,16 +1479,25 @@ export function DashboardCalendar({
         </div>
 
         <div className="flex gap-2 flex-wrap items-center">
-          {/* 表示切替: 1日（全員）/5日（個人）/5日全員/月 */}
+          {/* 表示切替: 1日（個人）/1日全員/5日（個人）/5日全員/月 */}
           <div className="flex border rounded-md">
+            <Button
+              variant={viewMode === "day" ? "default" : "ghost"}
+              size="sm"
+              className="rounded-r-none"
+              onClick={() => setViewMode("day")}
+            >
+              <User className="h-4 w-4 mr-1" />
+              1日
+            </Button>
             <Button
               variant={viewMode === "dayAll" ? "default" : "ghost"}
               size="sm"
-              className="rounded-r-none"
+              className="rounded-none border-x"
               onClick={() => setViewMode("dayAll")}
             >
               <UsersRound className="h-4 w-4 mr-1" />
-              1日
+              1日全員
             </Button>
             <Button
               variant={viewMode === "fiveDay" ? "default" : "ghost"}
@@ -1420,6 +1571,7 @@ export function DashboardCalendar({
         {viewMode === "fiveDayAll" && renderFiveDayAllView()}
         {viewMode === "dayAll" && renderDayAllView()}
         {viewMode === "fiveDay" && renderFiveDayView()}
+        {viewMode === "day" && renderDayView()}
       </CardContent>
 
       {/* イベント作成・編集モーダル */}
