@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -15,7 +16,7 @@ import {
   SelectGroup,
   SelectLabel,
 } from "@/components/ui/select";
-import { ArrowLeft, Loader2, Plus } from "lucide-react";
+import { ArrowLeft, Loader2, Plus, FileText } from "lucide-react";
 import {
   PROJECT_CATEGORY_LABELS,
   PROJECT_AREA_GROUPS,
@@ -64,6 +65,7 @@ export function ProjectForm({ customerData, employees, industries }: ProjectForm
   const [managerId, setManagerId] = useState<string>("");
   const [location, setLocation] = useState<string>("");
   const [locationDetail, setLocationDetail] = useState<string>("");
+  const [notes, setNotes] = useState<string>("");
 
   // カテゴリ変更時に業務コードを自動生成
   const handleCategoryChange = async (val: ProjectCategory) => {
@@ -178,6 +180,7 @@ export function ProjectForm({ customerData, employees, industries }: ProjectForm
         : null,
       location: location || null,
       location_detail: locationDetail || null,
+      notes: notes.trim() || null,
     };
 
     startTransition(async () => {
@@ -438,6 +441,25 @@ export function ProjectForm({ customerData, employees, industries }: ProjectForm
                 />
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* ノート */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              ノート
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <Textarea
+              id="notes"
+              placeholder="業務に関するメモや詳細情報を入力..."
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={4}
+            />
           </CardContent>
         </Card>
 

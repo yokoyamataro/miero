@@ -65,6 +65,7 @@ export interface CreateProjectData {
   fee_tax_excluded: number | null;
   location: string | null;
   location_detail: string | null;
+  notes: string | null;
 }
 
 export async function createProject(data: CreateProjectData) {
@@ -82,6 +83,7 @@ export async function createProject(data: CreateProjectData) {
     fee_tax_excluded: data.fee_tax_excluded || 0,
     location: data.location || null,
     location_detail: data.location_detail || null,
+    notes: data.notes || null,
   });
 
   if (error) {
