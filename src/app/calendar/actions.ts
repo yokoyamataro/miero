@@ -355,6 +355,13 @@ export async function createMultipleDateEvents(
     return { error: "日付を選択してください" };
   }
 
+  console.log("createMultipleDateEvents called with:", {
+    dates,
+    participantIds,
+    datesLength: dates.length,
+    participantIdsLength: participantIds.length,
+  });
+
   let createdCount = 0;
   for (const dateStr of dates) {
     const eventData = {
@@ -363,6 +370,8 @@ export async function createMultipleDateEvents(
       end_date: dateStr,
       created_by: employeeId,
     };
+
+    console.log("Creating event for date:", dateStr, eventData);
 
     const { data: event, error } = await supabase
       .from("calendar_events")
@@ -375,20 +384,27 @@ export async function createMultipleDateEvents(
       continue;
     }
 
+    console.log("Event created:", event.id);
+
     // 参加者を追加
     if (participantIds.length > 0 && event) {
       const participantInserts = participantIds.map((empId) => ({
         event_id: event.id,
         employee_id: empId,
       }));
-      await supabase
+      console.log("Adding participants:", participantInserts);
+      const { error: participantError } = await supabase
         .from("calendar_event_participants")
         .insert(participantInserts as never);
+      if (participantError) {
+        console.error("Error adding participants:", participantError);
+      }
     }
 
     createdCount++;
   }
 
+  console.log("Total events created:", createdCount);
   revalidatePath("/calendar");
   revalidatePath("/");
   return { success: true, count: createdCount };

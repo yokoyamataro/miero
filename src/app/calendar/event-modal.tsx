@@ -295,6 +295,11 @@ export function EventModal({
         }
       } else if (useMultipleDates) {
         // 複数日選択の場合
+        console.log("Calling createMultipleDateEvents with:", {
+          eventData,
+          participantIds,
+          selectedDates,
+        });
         const result = await createMultipleDateEvents(eventData, participantIds, selectedDates);
         if (result.error) {
           setError(result.error);
