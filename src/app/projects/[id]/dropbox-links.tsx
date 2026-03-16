@@ -13,7 +13,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { FolderOpen, Pencil, ExternalLink, AlertCircle } from "lucide-react";
+import { FolderOpen, Pencil, Copy, AlertCircle, FileText } from "lucide-react";
 import { updateProject } from "./actions";
 
 interface DropboxLinksProps {
@@ -52,7 +52,7 @@ export function DropboxLinks({
       return;
     }
 
-    // パスの結合（末尾/の有無を考慮）
+    // パスの結合（末尾\の有無を考慮）
     const basePath = dropboxBasePath.endsWith("/") || dropboxBasePath.endsWith("\\")
       ? dropboxBasePath.slice(0, -1)
       : dropboxBasePath;
@@ -60,11 +60,16 @@ export function DropboxLinks({
       ? relativePath.slice(1)
       : relativePath;
 
-    // パス区切りを/に統一
-    const fullPath = `${basePath}/${relPath}`.replace(/\\/g, "/");
+    // Windowsパス形式で結合
+    const fullPath = `${basePath}\\${relPath}`.replace(/\//g, "\\");
 
-    // dropbox-efile:// プロトコルで開く
-    window.location.href = `dropbox-efile://${fullPath}`;
+    // クリップボードにコピーしてユーザーに通知
+    navigator.clipboard.writeText(fullPath).then(() => {
+      alert(`パスをクリップボードにコピーしました:\n${fullPath}\n\nエクスプローラーのアドレスバーに貼り付けてください。`);
+    }).catch(() => {
+      // クリップボードへのコピーが失敗した場合はパスを表示
+      prompt("以下のパスをコピーしてエクスプローラーで開いてください:", fullPath);
+    });
   };
 
   const hasAnyPath = mainFolderPath || cadFolderPath;
@@ -118,15 +123,16 @@ export function DropboxLinks({
                   disabled={!dropboxBasePath}
                   className="h-8"
                 >
-                  <ExternalLink className="h-4 w-4 mr-1" />
-                  開く
+                  <Copy className="h-4 w-4 mr-1" />
+                  コピー
                 </Button>
               </div>
             )}
 
             {cadFolderPath && (
               <div className="flex items-center justify-between p-2 bg-muted/50 rounded-md">
-                <div className="text-sm">
+                <div className="text-sm flex items-center gap-1">
+                  <FileText className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="text-muted-foreground">CAD:</span>{" "}
                   <span className="font-mono text-xs">{cadFolderPath}</span>
                 </div>
@@ -137,8 +143,8 @@ export function DropboxLinks({
                   disabled={!dropboxBasePath}
                   className="h-8"
                 >
-                  <ExternalLink className="h-4 w-4 mr-1" />
-                  開く
+                  <Copy className="h-4 w-4 mr-1" />
+                  コピー
                 </Button>
               </div>
             )}
@@ -171,15 +177,15 @@ export function DropboxLinks({
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="cadPath">CADデータフォルダパス</Label>
+              <Label htmlFor="cadPath">CADデータファイルパス</Label>
               <Input
                 id="cadPath"
                 value={cadPath}
                 onChange={(e) => setCadPath(e.target.value)}
-                placeholder="例: CAD/〇〇株式会社/案件001"
+                placeholder="例: B_境界測量/00_地番データ/羅臼町.jww"
               />
               <p className="text-xs text-muted-foreground">
-                Dropboxベースパスからの相対パスを入力
+                Dropboxベースパスからの相対パス（ファイル名含む）を入力
               </p>
             </div>
           </div>
