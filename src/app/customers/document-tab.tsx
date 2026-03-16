@@ -213,7 +213,9 @@ export function DocumentTab({
       const supabase = createClient();
 
       const timestamp = Date.now();
-      const storagePath = `${timestamp}_${selectedFile.name}`;
+      // Supabase Storageは日本語ファイル名をサポートしないため、安全なファイル名を生成
+      const safeFileName = `${timestamp}.docx`;
+      const storagePath = safeFileName;
 
       // Storageにアップロード
       const { error: uploadErr } = await supabase.storage
