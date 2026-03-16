@@ -40,6 +40,8 @@ export async function updateProject(
     location?: string | null;
     location_detail?: string | null;
     notes?: string | null;
+    main_folder_path?: string | null;
+    cad_folder_path?: string | null;
   }
 ) {
   const supabase = await createClient();
@@ -521,6 +523,22 @@ export async function getCurrentEmployeeId(): Promise<string | null> {
     .single();
 
   return employee?.id || null;
+}
+
+// 現在のユーザーの社員情報を取得（Dropboxパス含む）
+export async function getCurrentEmployee(): Promise<{ id: string; dropbox_base_path: string | null } | null> {
+  const supabase = await createClient();
+
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return null;
+
+  const { data: employee } = await supabase
+    .from("employees")
+    .select("id, dropbox_base_path")
+    .eq("auth_id", user.id)
+    .single();
+
+  return employee || null;
 }
 
 // ============================================

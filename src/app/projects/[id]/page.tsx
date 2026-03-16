@@ -22,7 +22,8 @@ import { ProjectInfo, type CustomerData, type CorporateContact } from "./project
 import { StakeholderSection } from "./stakeholder-section";
 import { ProjectNotes } from "./project-notes";
 import { InvoiceSection } from "./invoice-section";
-import { getCurrentEmployeeId, getStakeholderTags, getProjectStakeholders, getIndustries, getRelatedProjects } from "./actions";
+import { getCurrentEmployee, getStakeholderTags, getProjectStakeholders, getIndustries, getRelatedProjects } from "./actions";
+import { DropboxLinks } from "./dropbox-links";
 import { RelatedProjectsSection } from "./related-projects-section";
 import { getBusinessEntities, getProjectInvoices } from "@/app/invoices/actions";
 import { getDocumentTemplates } from "@/app/customers/document-actions";
@@ -59,7 +60,7 @@ export default async function ProjectDetailPage({
     { data: acknowledgements },
     { data: allContacts },
     { data: allAccounts },
-    currentEmployeeId,
+    currentEmployee,
     stakeholderTags,
     projectStakeholders,
     industries,
@@ -105,7 +106,7 @@ export default async function ProjectDetailPage({
     supabase.from("contacts" as never).select("*").is("deleted_at", null).order("last_name"),
     // 顧客選択用：全法人を取得
     supabase.from("accounts" as never).select("*").is("deleted_at", null),
-    getCurrentEmployeeId(),
+    getCurrentEmployee(),
     getStakeholderTags(),
     getProjectStakeholders(id),
     getIndustries(),
@@ -190,7 +191,7 @@ export default async function ProjectDetailPage({
             manager={typedManager}
             employees={typedEmployees}
             customerData={customerData}
-            currentEmployeeId={currentEmployeeId}
+            currentEmployeeId={currentEmployee?.id || null}
             taskTimeTotals={taskTimeTotals}
             industries={industries}
             documentTemplates={documentTemplates}
@@ -202,9 +203,17 @@ export default async function ProjectDetailPage({
                 customerData={customerData}
                 documentTemplates={documentTemplates}
                 employees={typedEmployees}
-                currentEmployeeId={currentEmployeeId}
+                currentEmployeeId={currentEmployee?.id || null}
               />
             }
+          />
+
+          {/* Dropboxフォルダリンク */}
+          <DropboxLinks
+            projectId={id}
+            mainFolderPath={typedProject.main_folder_path}
+            cadFolderPath={typedProject.cad_folder_path}
+            dropboxBasePath={currentEmployee?.dropbox_base_path || null}
           />
 
           {/* 請求管理セクション */}
@@ -244,7 +253,7 @@ export default async function ProjectDetailPage({
             comments={typedComments}
             employees={typedEmployees}
             acknowledgementsByCommentId={acknowledgementsByCommentId}
-            currentEmployeeId={currentEmployeeId}
+            currentEmployeeId={currentEmployee?.id || null}
           />
         </div>
       </div>

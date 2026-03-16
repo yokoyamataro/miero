@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { ArrowLeft, Loader2, Trash2, KeyRound } from "lucide-react";
+import { ArrowLeft, Loader2, Trash2, KeyRound, FolderOpen } from "lucide-react";
 import type { Employee, EmployeeRole } from "@/types/database";
 import {
   createEmployeeWithAuth,
@@ -25,7 +25,7 @@ import {
 } from "./actions";
 
 interface EmployeeFormProps {
-  employee?: Employee & { auth_id?: string | null };
+  employee?: Employee & { auth_id?: string | null; dropbox_base_path?: string | null };
   isEdit?: boolean;
 }
 
@@ -47,6 +47,7 @@ export function EmployeeForm({ employee, isEdit = false }: EmployeeFormProps) {
       name: formData.get("name") as string,
       email: formData.get("email") as string,
       role: role,
+      dropbox_base_path: (formData.get("dropbox_base_path") as string) || null,
     };
 
     const password = formData.get("password") as string;
@@ -182,6 +183,22 @@ export function EmployeeForm({ employee, isEdit = false }: EmployeeFormProps) {
                   <SelectItem value="staff">スタッフ</SelectItem>
                 </SelectContent>
               </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="dropbox_base_path" className="flex items-center gap-2">
+                <FolderOpen className="h-4 w-4" />
+                Dropboxベースパス
+              </Label>
+              <Input
+                id="dropbox_base_path"
+                name="dropbox_base_path"
+                placeholder="例: C:/Users/Name/Dropbox/"
+                defaultValue={employee?.dropbox_base_path || ""}
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                このPCのDropboxフォルダのパスを入力してください（業務フォルダへのリンクに使用）
+              </p>
             </div>
           </CardContent>
         </Card>

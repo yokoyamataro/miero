@@ -200,6 +200,7 @@ export interface Employee {
   name: string;
   email: string;
   role: EmployeeRole;
+  dropbox_base_path: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -223,6 +224,8 @@ export interface Project {
   location: string | null;
   location_detail: string | null;
   notes: string | null;
+  main_folder_path: string | null;
+  cad_folder_path: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -243,6 +246,8 @@ export interface ProjectInsert {
   location?: string | null;
   location_detail?: string | null;
   notes?: string | null;
+  main_folder_path?: string | null;
+  cad_folder_path?: string | null;
 }
 
 // プロジェクト一覧用（JOINした結果）

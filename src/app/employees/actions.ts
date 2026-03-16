@@ -9,6 +9,7 @@ export interface EmployeeData {
   name: string;
   email: string;
   role: EmployeeRole;
+  dropbox_base_path?: string | null;
 }
 
 export async function getEmployeeById(id: string) {
@@ -55,6 +56,7 @@ export async function createEmployeeWithAuth(data: EmployeeData, password: strin
       email: data.email,
       role: data.role,
       auth_id: authUser.user.id,
+      dropbox_base_path: data.dropbox_base_path || null,
     });
 
     if (employeeError) {
@@ -130,6 +132,7 @@ export async function updateEmployee(id: string, data: EmployeeData) {
       name: data.name,
       email: data.email,
       role: data.role,
+      dropbox_base_path: data.dropbox_base_path || null,
     })
     .eq("id", id);
 
