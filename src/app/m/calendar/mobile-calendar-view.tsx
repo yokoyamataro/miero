@@ -65,6 +65,32 @@ const LIGHT_BG_MAP: Record<string, string> = {
   "bg-slate-400": "bg-slate-100",
 };
 
+// テキスト色マッピング（カテゴリ色→テキスト色）
+const TEXT_COLOR_MAP: Record<string, string> = {
+  "bg-blue-500": "text-blue-600",
+  "bg-blue-300": "text-blue-500",
+  "bg-indigo-500": "text-indigo-600",
+  "bg-sky-500": "text-sky-600",
+  "bg-green-500": "text-green-600",
+  "bg-green-300": "text-green-500",
+  "bg-teal-500": "text-teal-600",
+  "bg-emerald-500": "text-emerald-600",
+  "bg-yellow-500": "text-yellow-600",
+  "bg-orange-500": "text-orange-600",
+  "bg-red-500": "text-red-600",
+  "bg-pink-500": "text-pink-600",
+  "bg-purple-500": "text-purple-600",
+  "bg-violet-500": "text-violet-600",
+  "bg-fuchsia-500": "text-fuchsia-600",
+  "bg-cyan-500": "text-cyan-600",
+  "bg-rose-500": "text-rose-600",
+  "bg-amber-500": "text-amber-600",
+  "bg-gray-500": "text-gray-600",
+  "bg-gray-400": "text-gray-500",
+  "bg-slate-500": "text-slate-600",
+  "bg-slate-400": "text-slate-500",
+};
+
 export function MobileCalendarView({
   events,
   categories,
@@ -185,6 +211,10 @@ export function MobileCalendarView({
     return LIGHT_BG_MAP[categoryColor] || "bg-gray-100";
   };
 
+  const getTextColor = (categoryColor: string) => {
+    return TEXT_COLOR_MAP[categoryColor] || "text-gray-600";
+  };
+
   // イベント位置計算（1日・5日表示用）
   const getEventPosition = (event: CalendarEventWithParticipants) => {
     if (!event.start_time) return null;
@@ -255,14 +285,17 @@ export function MobileCalendarView({
       return getEventsForDateAndEmployee(date, selectedEmployeeId);
     };
 
+    // 週の数を計算（表示に必要な行数）
+    const weeksCount = Math.ceil(monthDays.length / 7);
+
     return (
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* メンバー選択 */}
         {renderMemberSelector()}
 
-        <div className="flex-1 px-2 py-2 overflow-auto">
+        <div className="flex-1 flex flex-col overflow-hidden">
           {/* 曜日ヘッダー */}
-          <div className="grid grid-cols-7 mb-1">
+          <div className="grid grid-cols-7 border-b flex-shrink-0">
             {WEEKDAYS.map((day, i) => (
               <div
                 key={day}
@@ -275,11 +308,14 @@ export function MobileCalendarView({
             ))}
           </div>
 
-          {/* 日付グリッド */}
-          <div className="grid grid-cols-7 gap-px bg-border">
+          {/* 日付グリッド - フルスクリーン表示 */}
+          <div
+            className="flex-1 grid grid-cols-7 gap-px bg-border"
+            style={{ gridTemplateRows: `repeat(${weeksCount}, 1fr)` }}
+          >
             {monthDays.map((day, index) => {
               if (!day) {
-                return <div key={`empty-${index}`} className="bg-background aspect-square" />;
+                return <div key={`empty-${index}`} className="bg-background" />;
               }
 
               const dayEvents = getFilteredEventsForDate(day);
@@ -292,12 +328,12 @@ export function MobileCalendarView({
                 <button
                   key={format(day, "yyyy-MM-dd")}
                   onClick={() => handleDateClick(day)}
-                  className={`bg-background aspect-square p-1 flex flex-col items-center relative ${
+                  className={`bg-background p-0.5 flex flex-col items-start overflow-hidden ${
                     !isSameMonth(day, currentDate) ? "opacity-40" : ""
                   }`}
                 >
                   <span
-                    className={`text-sm w-7 h-7 flex items-center justify-center rounded-full ${
+                    className={`text-xs w-5 h-5 flex items-center justify-center rounded-full flex-shrink-0 ${
                       isToday
                         ? "bg-primary text-primary-foreground font-bold"
                         : isSunday
@@ -309,20 +345,23 @@ export function MobileCalendarView({
                   >
                     {format(day, "d")}
                   </span>
-                  {/* イベントドット */}
+                  {/* イベントタイトル表示 */}
                   {dayEvents.length > 0 && (
-                    <div className="flex gap-0.5 mt-0.5 flex-wrap justify-center">
+                    <div className="w-full flex-1 overflow-hidden mt-0.5 space-y-px">
                       {dayEvents.slice(0, 3).map((event, i) => {
                         const color = getCategoryColor(event);
+                        const textColor = getTextColor(color);
                         return (
-                          <span
+                          <div
                             key={i}
-                            className={`w-1.5 h-1.5 rounded-full ${color}`}
-                          />
+                            className={`text-[10px] leading-tight truncate font-medium ${textColor}`}
+                          >
+                            {event.title}
+                          </div>
                         );
                       })}
                       {dayEvents.length > 3 && (
-                        <span className="text-[10px] text-muted-foreground">+{dayEvents.length - 3}</span>
+                        <div className="text-[9px] text-muted-foreground">+{dayEvents.length - 3}</div>
                       )}
                     </div>
                   )}

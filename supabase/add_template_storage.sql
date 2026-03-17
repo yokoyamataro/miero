@@ -9,39 +9,21 @@ ON storage.objects FOR SELECT
 TO authenticated
 USING (bucket_id = 'document-templates');
 
--- 管理者はテンプレートをアップロード・削除可能
-CREATE POLICY "Admin can upload templates"
+-- 認証済みユーザーはテンプレートをアップロード可能
+CREATE POLICY "Authenticated can upload templates"
 ON storage.objects FOR INSERT
 TO authenticated
-WITH CHECK (
-  bucket_id = 'document-templates' AND
-  EXISTS (
-    SELECT 1 FROM employees
-    WHERE auth_id = auth.uid() AND role = 'admin'
-  )
-);
+WITH CHECK (bucket_id = 'document-templates');
 
-CREATE POLICY "Admin can update templates"
+CREATE POLICY "Authenticated can update templates"
 ON storage.objects FOR UPDATE
 TO authenticated
-USING (
-  bucket_id = 'document-templates' AND
-  EXISTS (
-    SELECT 1 FROM employees
-    WHERE auth_id = auth.uid() AND role = 'admin'
-  )
-);
+USING (bucket_id = 'document-templates');
 
-CREATE POLICY "Admin can delete templates"
+CREATE POLICY "Authenticated can delete templates"
 ON storage.objects FOR DELETE
 TO authenticated
-USING (
-  bucket_id = 'document-templates' AND
-  EXISTS (
-    SELECT 1 FROM employees
-    WHERE auth_id = auth.uid() AND role = 'admin'
-  )
-);
+USING (bucket_id = 'document-templates');
 
 -- document_templatesテーブルにstorage_pathカラムを追加
 ALTER TABLE document_templates

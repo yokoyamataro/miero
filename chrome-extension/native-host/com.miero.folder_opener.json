@@ -1,0 +1,9 @@
+{
+  "name": "com.miero.folder_opener",
+  "description": "Miero Folder Opener - Opens local folders and files",
+  "path": "C:\\Users\\Yokoyama Taro\\Documents\\lab\\Miero\\chrome-extension\\native-host\\folder_opener.bat",
+  "type": "stdio",
+  "allowed_origins": [
+    "chrome-extension://YOUR_EXTENSION_ID_HERE/"
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "manifest_version": 3,
+  "name": "Miero ローカルフォルダオープナー",
+  "version": "1.0.0",
+  "description": "MieroからDropboxフォルダ/ファイルを直接開きます",
+  "permissions": [
+    "nativeMessaging"
+  ],
+  "host_permissions": [
+    "http://localhost:*/*",
+    "https://*.vercel.app/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://localhost:*/*", "https://*.vercel.app/*"],
+      "js": ["content.js"]
+    }
+  ],
+  "icons": {
+    "16": "icon16.png",
+    "48": "icon48.png",
+    "128": "icon128.png"
+  }
+}
