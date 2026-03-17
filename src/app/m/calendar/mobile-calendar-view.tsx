@@ -73,11 +73,17 @@ export function MobileCalendarView({
   initialMonth,
 }: MobileCalendarViewProps) {
   const router = useRouter();
-  const [currentDate, setCurrentDate] = useState(new Date(initialMonth + "-01"));
+  const today = new Date();
+  // 月表示は初期月、1日・5日表示は当日を基準にする
+  const [monthDate, setMonthDate] = useState(new Date(initialMonth + "-01"));
+  const [dayDate, setDayDate] = useState(today);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showEventSheet, setShowEventSheet] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("month");
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(currentEmployeeId);
+
+  // 現在の表示モードに応じた日付を返す
+  const currentDate = viewMode === "month" ? monthDate : dayDate;
 
   // 月の日付を生成
   const monthDays = useMemo(() => {
@@ -132,15 +138,15 @@ export function MobileCalendarView({
   const navigatePrev = () => {
     switch (viewMode) {
       case "month":
-        const prevMonth = subMonths(currentDate, 1);
-        setCurrentDate(prevMonth);
+        const prevMonth = subMonths(monthDate, 1);
+        setMonthDate(prevMonth);
         router.push(`/m/calendar?month=${format(prevMonth, "yyyy-MM")}`);
         break;
       case "fiveDay":
-        setCurrentDate(subDays(currentDate, 5));
+        setDayDate(subDays(dayDate, 5));
         break;
       case "day":
-        setCurrentDate(subDays(currentDate, 1));
+        setDayDate(subDays(dayDate, 1));
         break;
     }
   };
@@ -148,15 +154,15 @@ export function MobileCalendarView({
   const navigateNext = () => {
     switch (viewMode) {
       case "month":
-        const nextMonth = addMonths(currentDate, 1);
-        setCurrentDate(nextMonth);
+        const nextMonth = addMonths(monthDate, 1);
+        setMonthDate(nextMonth);
         router.push(`/m/calendar?month=${format(nextMonth, "yyyy-MM")}`);
         break;
       case "fiveDay":
-        setCurrentDate(addDays(currentDate, 5));
+        setDayDate(addDays(dayDate, 5));
         break;
       case "day":
-        setCurrentDate(addDays(currentDate, 1));
+        setDayDate(addDays(dayDate, 1));
         break;
     }
   };
@@ -165,8 +171,6 @@ export function MobileCalendarView({
     setSelectedDate(date);
     setShowEventSheet(true);
   };
-
-  const today = new Date();
 
   // カテゴリー色を取得
   const getCategoryColor = (event: CalendarEventWithParticipants) => {
@@ -222,81 +226,114 @@ export function MobileCalendarView({
     }
   };
 
-  // 月表示
-  const renderMonthView = () => (
-    <div className="flex-1 px-2 py-2">
-      {/* 曜日ヘッダー */}
-      <div className="grid grid-cols-7 mb-1">
-        {WEEKDAYS.map((day, i) => (
-          <div
-            key={day}
-            className={`text-center text-xs font-medium py-1 ${
-              i === 0 ? "text-red-500" : i === 6 ? "text-blue-500" : "text-muted-foreground"
+  // メンバー選択UI（共通）
+  const renderMemberSelector = () => (
+    <div className="px-2 py-2 border-b bg-muted/50 overflow-x-auto">
+      <div className="flex gap-1 min-w-max">
+        {employees.map((emp) => (
+          <button
+            key={emp.id}
+            onClick={() => setSelectedEmployeeId(emp.id)}
+            className={`px-3 py-1.5 text-xs rounded-full whitespace-nowrap transition-colors ${
+              selectedEmployeeId === emp.id
+                ? "bg-primary text-primary-foreground"
+                : "bg-background border hover:bg-muted"
             }`}
           >
-            {day}
-          </div>
+            {emp.name}
+            {emp.id === currentEmployeeId && " (自分)"}
+          </button>
         ))}
-      </div>
-
-      {/* 日付グリッド */}
-      <div className="grid grid-cols-7 gap-px bg-border">
-        {monthDays.map((day, index) => {
-          if (!day) {
-            return <div key={`empty-${index}`} className="bg-background aspect-square" />;
-          }
-
-          const dateKey = format(day, "yyyy-MM-dd");
-          const dayEvents = eventsByDate.get(dateKey) || [];
-          const isToday = isSameDay(day, today);
-          const dayOfWeek = getDay(day);
-          const isSunday = dayOfWeek === 0;
-          const isSaturday = dayOfWeek === 6;
-
-          return (
-            <button
-              key={dateKey}
-              onClick={() => handleDateClick(day)}
-              className={`bg-background aspect-square p-1 flex flex-col items-center relative ${
-                !isSameMonth(day, currentDate) ? "opacity-40" : ""
-              }`}
-            >
-              <span
-                className={`text-sm w-7 h-7 flex items-center justify-center rounded-full ${
-                  isToday
-                    ? "bg-primary text-primary-foreground font-bold"
-                    : isSunday
-                    ? "text-red-500"
-                    : isSaturday
-                    ? "text-blue-500"
-                    : ""
-                }`}
-              >
-                {format(day, "d")}
-              </span>
-              {/* イベントドット */}
-              {dayEvents.length > 0 && (
-                <div className="flex gap-0.5 mt-0.5 flex-wrap justify-center">
-                  {dayEvents.slice(0, 3).map((event, i) => {
-                    const color = getCategoryColor(event);
-                    return (
-                      <span
-                        key={i}
-                        className={`w-1.5 h-1.5 rounded-full ${color}`}
-                      />
-                    );
-                  })}
-                  {dayEvents.length > 3 && (
-                    <span className="text-[10px] text-muted-foreground">+{dayEvents.length - 3}</span>
-                  )}
-                </div>
-              )}
-            </button>
-          );
-        })}
       </div>
     </div>
   );
+
+  // 月表示
+  const renderMonthView = () => {
+    // 選択されたメンバーのイベントのみフィルタ
+    const getFilteredEventsForDate = (date: Date) => {
+      return getEventsForDateAndEmployee(date, selectedEmployeeId);
+    };
+
+    return (
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* メンバー選択 */}
+        {renderMemberSelector()}
+
+        <div className="flex-1 px-2 py-2 overflow-auto">
+          {/* 曜日ヘッダー */}
+          <div className="grid grid-cols-7 mb-1">
+            {WEEKDAYS.map((day, i) => (
+              <div
+                key={day}
+                className={`text-center text-xs font-medium py-1 ${
+                  i === 0 ? "text-red-500" : i === 6 ? "text-blue-500" : "text-muted-foreground"
+                }`}
+              >
+                {day}
+              </div>
+            ))}
+          </div>
+
+          {/* 日付グリッド */}
+          <div className="grid grid-cols-7 gap-px bg-border">
+            {monthDays.map((day, index) => {
+              if (!day) {
+                return <div key={`empty-${index}`} className="bg-background aspect-square" />;
+              }
+
+              const dayEvents = getFilteredEventsForDate(day);
+              const isToday = isSameDay(day, today);
+              const dayOfWeek = getDay(day);
+              const isSunday = dayOfWeek === 0;
+              const isSaturday = dayOfWeek === 6;
+
+              return (
+                <button
+                  key={format(day, "yyyy-MM-dd")}
+                  onClick={() => handleDateClick(day)}
+                  className={`bg-background aspect-square p-1 flex flex-col items-center relative ${
+                    !isSameMonth(day, currentDate) ? "opacity-40" : ""
+                  }`}
+                >
+                  <span
+                    className={`text-sm w-7 h-7 flex items-center justify-center rounded-full ${
+                      isToday
+                        ? "bg-primary text-primary-foreground font-bold"
+                        : isSunday
+                        ? "text-red-500"
+                        : isSaturday
+                        ? "text-blue-500"
+                        : ""
+                    }`}
+                  >
+                    {format(day, "d")}
+                  </span>
+                  {/* イベントドット */}
+                  {dayEvents.length > 0 && (
+                    <div className="flex gap-0.5 mt-0.5 flex-wrap justify-center">
+                      {dayEvents.slice(0, 3).map((event, i) => {
+                        const color = getCategoryColor(event);
+                        return (
+                          <span
+                            key={i}
+                            className={`w-1.5 h-1.5 rounded-full ${color}`}
+                          />
+                        );
+                      })}
+                      {dayEvents.length > 3 && (
+                        <span className="text-[10px] text-muted-foreground">+{dayEvents.length - 3}</span>
+                      )}
+                    </div>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   // 5日表示
   const renderFiveDayView = () => {
@@ -307,110 +344,111 @@ export function MobileCalendarView({
     ];
 
     const getAllDayEvents = (date: Date) => {
-      const dateKey = format(date, "yyyy-MM-dd");
-      const dayEvents = eventsByDate.get(dateKey) || [];
-      return dayEvents.filter((e) => !e.start_time || e.all_day);
+      return getEventsForDateAndEmployee(date, selectedEmployeeId).filter((e) => !e.start_time || e.all_day);
     };
 
     const getTimedEvents = (date: Date) => {
-      const dateKey = format(date, "yyyy-MM-dd");
-      const dayEvents = eventsByDate.get(dateKey) || [];
-      return dayEvents.filter((e) => e.start_time && !e.all_day);
+      return getEventsForDateAndEmployee(date, selectedEmployeeId).filter((e) => e.start_time && !e.all_day);
     };
 
     return (
-      <div className="flex-1 overflow-auto">
-        {/* ヘッダー */}
-        <div className="grid sticky top-0 bg-background z-10 border-b" style={{ gridTemplateColumns: '40px repeat(5, 1fr)' }}>
-          <div className="p-1 bg-muted border-r text-center text-[10px] font-medium">時間</div>
-          {fiveDays.map((date, idx) => {
-            const dayOfWeek = getDay(date);
-            const isToday = isSameDay(date, today);
-            return (
-              <div
-                key={idx}
-                className={`p-1 bg-muted border-r text-center ${
-                  dayOfWeek === 0 ? "text-red-500" : dayOfWeek === 6 ? "text-blue-500" : ""
-                }`}
-              >
-                <div className="text-[10px] font-medium">{format(date, "M/d")}</div>
-                <div className={`text-xs ${isToday ? "bg-primary text-primary-foreground rounded-full w-5 h-5 flex items-center justify-center mx-auto" : ""}`}>
-                  {format(date, "E", { locale: ja })}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* メンバー選択 */}
+        {renderMemberSelector()}
+
+        <div className="flex-1 overflow-auto">
+          {/* ヘッダー */}
+          <div className="grid sticky top-0 bg-background z-10 border-b" style={{ gridTemplateColumns: '40px repeat(5, 1fr)' }}>
+            <div className="p-1 bg-muted border-r text-center text-[10px] font-medium">時間</div>
+            {fiveDays.map((date, idx) => {
+              const dayOfWeek = getDay(date);
+              const isTodayDate = isSameDay(date, today);
+              return (
+                <div
+                  key={idx}
+                  className={`p-1 bg-muted border-r text-center ${
+                    dayOfWeek === 0 ? "text-red-500" : dayOfWeek === 6 ? "text-blue-500" : ""
+                  }`}
+                >
+                  <div className="text-[10px] font-medium">{format(date, "M/d")}</div>
+                  <div className={`text-xs ${isTodayDate ? "bg-primary text-primary-foreground rounded-full w-5 h-5 flex items-center justify-center mx-auto" : ""}`}>
+                    {format(date, "E", { locale: ja })}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* 終日イベント */}
-        <div className="grid border-b bg-gray-50" style={{ gridTemplateColumns: '40px repeat(5, 1fr)' }}>
-          <div className="p-0.5 border-r text-[9px] text-muted-foreground text-center">終日</div>
-          {fiveDays.map((date, idx) => {
-            const allDayEvents = getAllDayEvents(date);
-            return (
-              <div
-                key={idx}
-                className="p-0.5 border-r min-h-[24px] overflow-hidden"
-                onClick={() => handleDateClick(date)}
-              >
-                {allDayEvents.slice(0, 2).map((event, i) => {
-                  const color = getCategoryColor(event);
-                  return (
-                    <div key={i} className={`text-[9px] truncate px-0.5 rounded ${color} text-white`}>
-                      {event.title}
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })}
-        </div>
-
-        {/* 時間軸 */}
-        <div className="grid" style={{ gridTemplateColumns: '40px repeat(5, 1fr)' }}>
-          <div className="border-r">
-            {hourLabels.map((slot, idx) => (
-              <div key={idx} className={`h-10 border-b text-[9px] text-muted-foreground text-right pr-1 pt-0.5 ${slot.hour === 12 ? "bg-gray-100" : ""}`}>
-                {slot.label}
-              </div>
-            ))}
+              );
+            })}
           </div>
 
-          {fiveDays.map((date, dayIdx) => {
-            const timedEvents = getTimedEvents(date);
-            return (
-              <div
-                key={dayIdx}
-                className="border-r relative"
-                onClick={() => handleDateClick(date)}
-              >
-                {hourLabels.map((slot, idx) => (
-                  <div key={idx} className={`h-10 border-b ${slot.hour === 12 ? "bg-gray-100" : ""}`} />
-                ))}
-
-                {timedEvents.map((event) => {
-                  const pos = getEventPosition(event);
-                  if (!pos) return null;
-                  const categoryColor = getCategoryColor(event);
-                  const lightBgColor = getLightBgColor(categoryColor);
-                  return (
-                    <div
-                      key={event.id}
-                      className={`absolute left-0 right-0 mx-0.5 rounded px-0.5 overflow-hidden border text-[9px] ${lightBgColor}`}
-                      style={{ top: pos.top, height: pos.height }}
-                    >
-                      <div className="truncate text-black font-medium">
-                        {event.start_time?.slice(0, 5)}
-                      </div>
-                      <div className="truncate text-black">
+          {/* 終日イベント */}
+          <div className="grid border-b bg-gray-50" style={{ gridTemplateColumns: '40px repeat(5, 1fr)' }}>
+            <div className="p-0.5 border-r text-[9px] text-muted-foreground text-center">終日</div>
+            {fiveDays.map((date, idx) => {
+              const allDayEvents = getAllDayEvents(date);
+              return (
+                <div
+                  key={idx}
+                  className="p-0.5 border-r min-h-[24px] overflow-hidden"
+                  onClick={() => handleDateClick(date)}
+                >
+                  {allDayEvents.slice(0, 2).map((event, i) => {
+                    const color = getCategoryColor(event);
+                    return (
+                      <div key={i} className={`text-[9px] truncate px-0.5 rounded ${color} text-white`}>
                         {event.title}
                       </div>
-                    </div>
-                  );
-                })}
-              </div>
-            );
-          })}
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* 時間軸 */}
+          <div className="grid" style={{ gridTemplateColumns: '40px repeat(5, 1fr)' }}>
+            <div className="border-r">
+              {hourLabels.map((slot, idx) => (
+                <div key={idx} className={`h-10 border-b text-[9px] text-muted-foreground text-right pr-1 pt-0.5 ${slot.hour === 12 ? "bg-gray-100" : ""}`}>
+                  {slot.label}
+                </div>
+              ))}
+            </div>
+
+            {fiveDays.map((date, dayIdx) => {
+              const timedEvents = getTimedEvents(date);
+              return (
+                <div
+                  key={dayIdx}
+                  className="border-r relative"
+                  onClick={() => handleDateClick(date)}
+                >
+                  {hourLabels.map((slot, idx) => (
+                    <div key={idx} className={`h-10 border-b ${slot.hour === 12 ? "bg-gray-100" : ""}`} />
+                  ))}
+
+                  {timedEvents.map((event) => {
+                    const pos = getEventPosition(event);
+                    if (!pos) return null;
+                    const categoryColor = getCategoryColor(event);
+                    const lightBgColor = getLightBgColor(categoryColor);
+                    return (
+                      <div
+                        key={event.id}
+                        className={`absolute left-0 right-0 mx-0.5 rounded px-0.5 overflow-hidden border text-[9px] ${lightBgColor}`}
+                        style={{ top: pos.top, height: pos.height }}
+                      >
+                        <div className="truncate text-black font-medium">
+                          {event.start_time?.slice(0, 5)}
+                        </div>
+                        <div className="truncate text-black">
+                          {event.title}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
         </div>
       </div>
     );
@@ -425,49 +463,32 @@ export function MobileCalendarView({
     ];
 
     const getAllDayEvents = () => {
-      return getEventsForDateAndEmployee(currentDate, selectedEmployeeId).filter((e) => !e.start_time || e.all_day);
+      return getEventsForDateAndEmployee(dayDate, selectedEmployeeId).filter((e) => !e.start_time || e.all_day);
     };
 
     const getTimedEvents = () => {
-      return getEventsForDateAndEmployee(currentDate, selectedEmployeeId).filter((e) => e.start_time && !e.all_day);
+      return getEventsForDateAndEmployee(dayDate, selectedEmployeeId).filter((e) => e.start_time && !e.all_day);
     };
 
     const allDayEvents = getAllDayEvents();
     const timedEvents = getTimedEvents();
-    const dayOfWeek = getDay(currentDate);
-    const isToday = isSameDay(currentDate, today);
+    const dayOfWeek = getDay(dayDate);
+    const isTodayDate = isSameDay(dayDate, today);
 
     return (
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* メンバー選択 */}
-        <div className="px-2 py-2 border-b bg-muted/50 overflow-x-auto">
-          <div className="flex gap-1 min-w-max">
-            {employees.map((emp) => (
-              <button
-                key={emp.id}
-                onClick={() => setSelectedEmployeeId(emp.id)}
-                className={`px-3 py-1.5 text-xs rounded-full whitespace-nowrap transition-colors ${
-                  selectedEmployeeId === emp.id
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-background border hover:bg-muted"
-                }`}
-              >
-                {emp.name}
-                {emp.id === currentEmployeeId && " (自分)"}
-              </button>
-            ))}
-          </div>
-        </div>
+        {renderMemberSelector()}
 
         {/* 日付ヘッダー */}
         <div className={`p-2 text-center border-b ${
           dayOfWeek === 0 ? "text-red-500" : dayOfWeek === 6 ? "text-blue-500" : ""
         }`}>
-          <div className={`text-lg font-bold ${isToday ? "bg-primary text-primary-foreground rounded-full w-8 h-8 flex items-center justify-center mx-auto" : ""}`}>
-            {format(currentDate, "d")}
+          <div className={`text-lg font-bold ${isTodayDate ? "bg-primary text-primary-foreground rounded-full w-8 h-8 flex items-center justify-center mx-auto" : ""}`}>
+            {format(dayDate, "d")}
           </div>
           <div className="text-xs text-muted-foreground">
-            {format(currentDate, "E", { locale: ja })}
+            {format(dayDate, "E", { locale: ja })}
           </div>
         </div>
 
@@ -516,7 +537,7 @@ export function MobileCalendarView({
                     style={{ top: pos.top, height: pos.height }}
                     onClick={(e) => {
                       e.stopPropagation();
-                      setSelectedDate(currentDate);
+                      setSelectedDate(dayDate);
                       setShowEventSheet(true);
                     }}
                   >
