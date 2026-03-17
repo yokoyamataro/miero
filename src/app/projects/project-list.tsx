@@ -18,10 +18,7 @@ import {
   type ProjectCategory,
   type ProjectStatus,
 } from "@/types/database";
-import { ProjectFilters, type FilterState, NULL_MARKER } from "./project-filters";
-
-// 有効なステータスの一覧
-const VALID_STATUSES = new Set(Object.keys(PROJECT_STATUS_COLORS) as ProjectStatus[]);
+import { ProjectFilters, type FilterState, NULL_MARKER, ALL_MARKER } from "./project-filters";
 
 // ソート用の型
 type SortKey = "code" | "status" | "is_urgent" | "is_on_hold" | "customer" | "name" | "location" | "manager";
@@ -64,41 +61,34 @@ interface ProjectListProps {
   employeeMap: Record<string, string>;
 }
 
+// デフォルトのフィルター状態
+const DEFAULT_FILTERS: FilterState = {
+  search: "",
+  category: ALL_MARKER,
+  status: "進行中",
+  managerId: ALL_MARKER,
+};
+
 // フィルター状態をlocalStorageから読み込む
 function loadFiltersFromStorage(): FilterState {
   if (typeof window === "undefined") {
-    return {
-      search: "",
-      categories: new Set(),
-      statuses: new Set(["進行中"] as ProjectStatus[]),
-      managerIds: new Set(),
-    };
+    return DEFAULT_FILTERS;
   }
   try {
     const saved = localStorage.getItem(FILTER_STORAGE_KEY);
     if (saved) {
       const parsed = JSON.parse(saved);
-      // 無効なステータス（削除された「未着手」など）を除外
-      const savedStatuses = (parsed.statuses || ["進行中"]) as string[];
-      const validStatuses = savedStatuses.filter(
-        (s) => VALID_STATUSES.has(s as ProjectStatus) || s === NULL_MARKER
-      ) as (ProjectStatus | typeof NULL_MARKER)[];
       return {
         search: parsed.search || "",
-        categories: new Set(parsed.categories || []),
-        statuses: new Set(validStatuses.length > 0 ? validStatuses : ["進行中"] as ProjectStatus[]),
-        managerIds: new Set(parsed.managerIds || []),
+        category: parsed.category || ALL_MARKER,
+        status: parsed.status || "進行中",
+        managerId: parsed.managerId || ALL_MARKER,
       };
     }
   } catch {
     // ignore
   }
-  return {
-    search: "",
-    categories: new Set(),
-    statuses: new Set(["進行中"] as ProjectStatus[]),
-    managerIds: new Set(),
-  };
+  return DEFAULT_FILTERS;
 }
 
 // ソート状態をlocalStorageから読み込む
@@ -125,9 +115,9 @@ export function ProjectList({ projects, employees, contactDisplayMap, employeeMa
   useEffect(() => {
     const toSave = {
       search: filters.search,
-      categories: Array.from(filters.categories),
-      statuses: Array.from(filters.statuses),
-      managerIds: Array.from(filters.managerIds),
+      category: filters.category,
+      status: filters.status,
+      managerId: filters.managerId,
     };
     localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(toSave));
   }, [filters]);
@@ -167,25 +157,27 @@ export function ProjectList({ projects, employees, contactDisplayMap, employeeMa
         if (!matchName && !matchCode) return false;
       }
 
-      // カテゴリフィルタ（何も選択されていなければ全表示）
-      if (filters.categories.size > 0) {
-        const matchCategory = filters.categories.has(p.category as ProjectCategory);
-        const matchNull = !p.category && filters.categories.has(NULL_MARKER);
-        if (!matchCategory && !matchNull) return false;
+      // カテゴリフィルタ（単一選択、ALL_MARKERなら全表示）
+      if (filters.category !== ALL_MARKER) {
+        if (filters.category === NULL_MARKER) {
+          if (p.category) return false;
+        } else {
+          if (p.category !== filters.category) return false;
+        }
       }
 
-      // ステータスフィルタ（何も選択されていなければ全表示）
-      if (filters.statuses.size > 0) {
-        const matchStatus = filters.statuses.has(p.status as ProjectStatus);
-        const matchNull = !p.status && filters.statuses.has(NULL_MARKER);
-        if (!matchStatus && !matchNull) return false;
+      // ステータスフィルタ（単一選択、ALL_MARKERなら全表示）
+      if (filters.status !== ALL_MARKER) {
+        if (p.status !== filters.status) return false;
       }
 
-      // 担当者フィルタ（何も選択されていなければ全表示）
-      if (filters.managerIds.size > 0) {
-        const matchManager = p.manager_id && filters.managerIds.has(p.manager_id);
-        const matchNull = !p.manager_id && filters.managerIds.has(NULL_MARKER);
-        if (!matchManager && !matchNull) return false;
+      // 担当者フィルタ（単一選択、ALL_MARKERなら全表示）
+      if (filters.managerId !== ALL_MARKER) {
+        if (filters.managerId === NULL_MARKER) {
+          if (p.manager_id) return false;
+        } else {
+          if (p.manager_id !== filters.managerId) return false;
+        }
       }
 
       return true;
