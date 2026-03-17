@@ -4,6 +4,15 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 // 認証不要なパス
 const publicPaths = ["/login", "/auth/callback"];
 
+// モバイル端末判定用のUser-Agentパターン
+const mobileUserAgentPattern = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i;
+
+// モバイル版対応パス（/m/で始まるパス）
+const mobilePaths = ["/m"];
+
+// モバイル版に対応するPC版パス
+const mobileEnabledPcPaths = ["/", "/calendar", "/projects", "/leaves"];
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -58,6 +67,33 @@ export async function middleware(request: NextRequest) {
   if (!user) {
     const loginUrl = new URL("/login", request.url);
     return NextResponse.redirect(loginUrl);
+  }
+
+  // モバイル自動判定ロジック
+  const viewPreferenceCookie = request.cookies.get("view-preference")?.value;
+  const userAgent = request.headers.get("user-agent") || "";
+  const isMobileDevice = mobileUserAgentPattern.test(userAgent);
+
+  // Cookieで明示的に設定されていない場合のみ自動判定
+  if (!viewPreferenceCookie) {
+    // モバイル端末からPC版パスにアクセスした場合
+    if (isMobileDevice && mobileEnabledPcPaths.some((p) => pathname === p || pathname.startsWith(p + "/"))) {
+      // /m/で始まるパスでない場合のみリダイレクト
+      if (!pathname.startsWith("/m")) {
+        // パスを変換: /calendar -> /m/calendar, / -> /m/calendar
+        let mobilePathname = pathname === "/" ? "/m/calendar" : `/m${pathname}`;
+        // /projects/xxx -> /m/projects/xxx
+        if (pathname.startsWith("/projects")) {
+          mobilePathname = `/m${pathname}`;
+        }
+        // /leaves -> /m/leaves
+        if (pathname.startsWith("/leaves")) {
+          mobilePathname = `/m${pathname}`;
+        }
+        const mobileUrl = new URL(mobilePathname, request.url);
+        return NextResponse.redirect(mobileUrl);
+      }
+    }
   }
 
   response.headers.set("x-pathname", pathname);

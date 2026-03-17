@@ -16,6 +16,7 @@ import {
 import { format, addHours } from "date-fns";
 import { ja } from "date-fns/locale";
 import { LogoutButton } from "./logout-button";
+import { MobileSwitchButton } from "./mobile-switch-button";
 // import { HeaderAttendance } from "./header-attendance"; // 一時的に非表示
 import {
   DropdownMenu,
@@ -128,6 +129,7 @@ export async function Header() {
                 <span className="text-sm text-muted-foreground">
                   {employeeName}さん
                 </span>
+                <MobileSwitchButton />
                 <LogoutButton />
               </div>
             )}
@@ -151,6 +153,10 @@ export async function Header() {
                   ))}
                   {user && (
                     <>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem asChild>
+                        <MobileSwitchButton />
+                      </DropdownMenuItem>
                       <DropdownMenuSeparator />
                       <div className="px-2 py-1.5 text-xs text-muted-foreground flex items-center gap-1">
                         <RefreshCw className="h-3 w-3" />
