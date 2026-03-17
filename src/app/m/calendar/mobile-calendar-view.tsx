@@ -215,29 +215,57 @@ export function MobileCalendarView({
     return TEXT_COLOR_MAP[categoryColor] || "text-gray-600";
   };
 
-  // イベント位置計算（1日・5日表示用）
+  // イベント位置計算（5日表示用 - h-10 = 40px）
   const getEventPosition = (event: CalendarEventWithParticipants) => {
     if (!event.start_time) return null;
     const [startHour, startMin] = event.start_time.split(":").map(Number);
     const startMinutes = startHour * 60 + startMin;
 
     const baseMinutes = 8 * 60;
-    const firstSlotHeight = 40; // ~8:00枠の高さ
+    const slotHeight = 40;
     let top: number;
 
     if (startMinutes < baseMinutes) {
       top = 0;
     } else if (startMinutes >= 18 * 60) {
-      top = firstSlotHeight + 10 * 40;
+      top = slotHeight + 10 * slotHeight;
     } else {
-      top = firstSlotHeight + ((startMinutes - baseMinutes) / 60) * 40;
+      top = slotHeight + ((startMinutes - baseMinutes) / 60) * slotHeight;
     }
 
-    let height = 40;
+    let height = slotHeight;
     if (event.end_time) {
       const [endHour, endMin] = event.end_time.split(":").map(Number);
       const endMinutes = endHour * 60 + endMin;
-      height = Math.max(20, ((endMinutes - startMinutes) / 60) * 40);
+      height = Math.max(20, ((endMinutes - startMinutes) / 60) * slotHeight);
+    }
+
+    return { top, height };
+  };
+
+  // イベント位置計算（1日表示用 - h-9 = 36px）
+  const getDayEventPosition = (event: CalendarEventWithParticipants) => {
+    if (!event.start_time) return null;
+    const [startHour, startMin] = event.start_time.split(":").map(Number);
+    const startMinutes = startHour * 60 + startMin;
+
+    const baseMinutes = 8 * 60;
+    const slotHeight = 36;
+    let top: number;
+
+    if (startMinutes < baseMinutes) {
+      top = 0;
+    } else if (startMinutes >= 18 * 60) {
+      top = slotHeight + 10 * slotHeight;
+    } else {
+      top = slotHeight + ((startMinutes - baseMinutes) / 60) * slotHeight;
+    }
+
+    let height = slotHeight;
+    if (event.end_time) {
+      const [endHour, endMin] = event.end_time.split(":").map(Number);
+      const endMinutes = endHour * 60 + endMin;
+      height = Math.max(18, ((endMinutes - startMinutes) / 60) * slotHeight);
     }
 
     return { top, height };
@@ -496,9 +524,9 @@ export function MobileCalendarView({
   // 1日表示（メンバー選択付き）
   const renderDayView = () => {
     const hourLabels = [
-      { label: "~8:00", hour: -1 },
-      ...Array.from({ length: 10 }, (_, i) => ({ label: `${i + 8}:00`, hour: i + 8 })),
-      { label: "18:00~", hour: 18 },
+      { label: "~8", hour: -1 },
+      ...Array.from({ length: 10 }, (_, i) => ({ label: `${i + 8}`, hour: i + 8 })),
+      { label: "18~", hour: 18 },
     ];
 
     const getAllDayEvents = () => {
@@ -511,35 +539,20 @@ export function MobileCalendarView({
 
     const allDayEvents = getAllDayEvents();
     const timedEvents = getTimedEvents();
-    const dayOfWeek = getDay(dayDate);
-    const isTodayDate = isSameDay(dayDate, today);
 
     return (
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* メンバー選択 */}
         {renderMemberSelector()}
 
-        {/* 日付ヘッダー */}
-        <div className={`p-2 text-center border-b ${
-          dayOfWeek === 0 ? "text-red-500" : dayOfWeek === 6 ? "text-blue-500" : ""
-        }`}>
-          <div className={`text-lg font-bold ${isTodayDate ? "bg-primary text-primary-foreground rounded-full w-8 h-8 flex items-center justify-center mx-auto" : ""}`}>
-            {format(dayDate, "d")}
-          </div>
-          <div className="text-xs text-muted-foreground">
-            {format(dayDate, "E", { locale: ja })}
-          </div>
-        </div>
-
         {/* 終日イベント */}
         {allDayEvents.length > 0 && (
-          <div className="p-2 border-b bg-gray-50">
-            <div className="text-[10px] text-muted-foreground mb-1">終日</div>
-            <div className="space-y-1">
+          <div className="px-2 py-1 border-b bg-gray-50">
+            <div className="flex gap-1 flex-wrap">
               {allDayEvents.map((event) => {
                 const color = getCategoryColor(event);
                 return (
-                  <div key={event.id} className={`text-xs px-2 py-1 rounded ${color} text-white`}>
+                  <div key={event.id} className={`text-[10px] px-2 py-0.5 rounded ${color} text-white`}>
                     {event.title}
                   </div>
                 );
@@ -553,8 +566,8 @@ export function MobileCalendarView({
           <div className="relative">
             {/* 時間ラベル */}
             {hourLabels.map((slot, idx) => (
-              <div key={idx} className={`h-12 border-b flex ${slot.hour === 12 ? "bg-gray-100" : ""}`}>
-                <div className="w-12 text-[10px] text-muted-foreground text-right pr-2 pt-0.5 flex-shrink-0">
+              <div key={idx} className={`h-9 border-b flex ${slot.hour === 12 ? "bg-gray-100" : ""}`}>
+                <div className="w-8 text-[9px] text-muted-foreground text-right pr-1 pt-0.5 flex-shrink-0">
                   {slot.label}
                 </div>
                 <div className="flex-1 border-l" />
@@ -562,17 +575,16 @@ export function MobileCalendarView({
             ))}
 
             {/* イベント */}
-            <div className="absolute top-0 left-12 right-0">
+            <div className="absolute top-0 left-8 right-0">
               {timedEvents.map((event) => {
-                const pos = getEventPosition(event);
+                const pos = getDayEventPosition(event);
                 if (!pos) return null;
                 const categoryColor = getCategoryColor(event);
                 const lightBgColor = getLightBgColor(categoryColor);
-                const categoryName = event.eventCategory?.name || categories.find((c) => c.id === event.event_category_id)?.name;
                 return (
                   <div
                     key={event.id}
-                    className={`absolute left-1 right-1 rounded px-2 py-1 overflow-hidden border ${lightBgColor}`}
+                    className={`absolute left-0.5 right-0.5 rounded px-1 py-0.5 overflow-hidden border ${lightBgColor}`}
                     style={{ top: pos.top, height: pos.height }}
                     onClick={(e) => {
                       e.stopPropagation();
@@ -580,14 +592,11 @@ export function MobileCalendarView({
                       setShowEventSheet(true);
                     }}
                   >
-                    <div className="text-xs font-medium truncate text-black">
+                    <div className="text-[10px] font-medium truncate text-black">
                       {event.start_time?.slice(0, 5)} {event.title}
                     </div>
-                    {categoryName && pos.height >= 36 && (
-                      <span className={`${categoryColor} text-white px-1 rounded text-[10px]`}>{categoryName}</span>
-                    )}
-                    {event.location && pos.height >= 48 && (
-                      <div className="text-[10px] text-black truncate">{event.location}</div>
+                    {event.location && pos.height >= 32 && (
+                      <div className="text-[9px] text-muted-foreground truncate">{event.location}</div>
                     )}
                   </div>
                 );
