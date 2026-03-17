@@ -1,6 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
-import { type Employee, type BusinessEntity } from "@/types/database";
-import { getAllInvoices, getBusinessEntities } from "./actions";
+import { type Employee } from "@/types/database";
+import { getAllInvoices, getBusinessEntities, getProjectsForInvoice } from "./actions";
 import { InvoiceList } from "./invoice-list";
 
 export default async function InvoicesPage() {
@@ -10,10 +10,12 @@ export default async function InvoicesPage() {
     { data: employees },
     businessEntities,
     invoices,
+    projects,
   ] = await Promise.all([
     supabase.from("employees").select("*").order("name"),
     getBusinessEntities(),
     getAllInvoices(),
+    getProjectsForInvoice(),
   ]);
 
   const typedEmployees = (employees as Employee[]) || [];
@@ -31,6 +33,7 @@ export default async function InvoicesPage() {
         invoices={invoices}
         businessEntities={businessEntities}
         employees={typedEmployees}
+        projects={projects}
       />
     </main>
   );

@@ -453,3 +453,85 @@ export async function uploadInvoicePdf(
 
   return { pdfPath: fileName };
 }
+
+// ============================================
+// 業務一覧取得（請求書登録用）
+// ============================================
+export async function getProjectsForInvoice(): Promise<
+  { id: string; code: string; name: string; contact_id: string | null }[]
+> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("projects")
+    .select("id, code, name, contact_id")
+    .in("status", ["active", "completed"])
+    .order("code", { ascending: false })
+    .limit(500);
+
+  if (error) {
+    console.error("Error fetching projects for invoice:", error);
+    return [];
+  }
+
+  return (data as { id: string; code: string; name: string; contact_id: string | null }[]) || [];
+}
+
+// ============================================
+// 業務の顧客情報取得
+// ============================================
+export async function getProjectCustomerInfo(projectId: string): Promise<{
+  contacts: { id: string; name: string; accountName: string | null }[];
+} | null> {
+  const supabase = await createClient();
+
+  // プロジェクトの情報を取得
+  const { data: project, error: projectError } = await supabase
+    .from("projects")
+    .select("contact_id")
+    .eq("id", projectId)
+    .single();
+
+  if (projectError || !project) {
+    return null;
+  }
+
+  const contactId = (project as { contact_id: string | null }).contact_id;
+  if (!contactId) {
+    return { contacts: [] };
+  }
+
+  // 連絡先を取得
+  const { data: contact, error: contactError } = await supabase
+    .from("contacts" as never)
+    .select("id, last_name, first_name, account_id")
+    .eq("id", contactId)
+    .single();
+
+  if (contactError || !contact) {
+    return { contacts: [] };
+  }
+
+  const typedContact = contact as { id: string; last_name: string; first_name: string; account_id: string | null };
+
+  // 法人情報を取得
+  let accountName: string | null = null;
+  if (typedContact.account_id) {
+    const { data: account } = await supabase
+      .from("accounts" as never)
+      .select("company_name")
+      .eq("id", typedContact.account_id)
+      .single();
+    accountName = (account as { company_name: string } | null)?.company_name || null;
+  }
+
+  return {
+    contacts: [
+      {
+        id: typedContact.id,
+        name: `${typedContact.last_name} ${typedContact.first_name}`,
+        accountName,
+      },
+    ],
+  };
+}
