@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import type { ProjectCategory, ProjectStatus, Contact, Account } from "@/types/database";
+import { createProjectFolder } from "@/lib/dropbox/client";
 
 // カテゴリからプレフィックス文字を取得
 const CATEGORY_PREFIX: Record<ProjectCategory, string> = {
@@ -71,6 +72,16 @@ export interface CreateProjectData {
 export async function createProject(data: CreateProjectData) {
   const supabase = await createClient();
 
+  // Dropboxフォルダを自動作成
+  let mainFolderPath: string | null = null;
+  const dropboxResult = await createProjectFolder(data.category, data.code, data.name);
+  if (dropboxResult.success && dropboxResult.path) {
+    mainFolderPath = dropboxResult.path;
+  } else if (dropboxResult.error) {
+    console.warn("Dropbox folder creation failed:", dropboxResult.error);
+    // フォルダ作成に失敗しても業務登録は続行
+  }
+
   const { error } = await supabase.from("projects").insert({
     code: data.code,
     category: data.category,
@@ -84,6 +95,7 @@ export async function createProject(data: CreateProjectData) {
     location: data.location || null,
     location_detail: data.location_detail || null,
     notes: data.notes || null,
+    main_folder_path: mainFolderPath,
   });
 
   if (error) {
