@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, MapPin, User, Calendar, FolderOpen, CheckCircle2, Circle, Plus, Pencil, Trash2, Loader2, FileText } from "lucide-react";
+import { ArrowLeft, MapPin, User, Calendar, FolderOpen, CheckCircle2, Circle, Plus, Pencil, Trash2, Loader2, FileText, Check, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -13,8 +13,8 @@ import {
   SheetTitle,
   SheetFooter,
 } from "@/components/ui/sheet";
-import { PROJECT_CATEGORY_LABELS, type ProjectCategory } from "@/types/database";
-import { toggleTaskComplete, createTask, updateTask, deleteTask, saveProjectView } from "./actions";
+import { PROJECT_CATEGORY_LABELS, type ProjectCategory, type ProjectStatus } from "@/types/database";
+import { toggleTaskComplete, createTask, updateTask, deleteTask, saveProjectView, updateProjectStatus } from "./actions";
 import { MobileTemplateSheet } from "./mobile-template-sheet";
 
 interface Project {
@@ -67,6 +67,10 @@ export function MobileProjectDetail({
 
   // テンプレート選択用state
   const [showTemplateSheet, setShowTemplateSheet] = useState(false);
+
+  // ステータス変更用state
+  const [currentStatus, setCurrentStatus] = useState<ProjectStatus>(project.status as ProjectStatus);
+  const [isStatusChanging, setIsStatusChanging] = useState(false);
 
   // 閲覧履歴をDBに保存
   useEffect(() => {
@@ -158,6 +162,25 @@ export function MobileProjectDetail({
     router.refresh();
   };
 
+  // ステータス変更
+  const handleStatusChange = async (newStatus: ProjectStatus) => {
+    if (newStatus === currentStatus || isStatusChanging) return;
+
+    setIsStatusChanging(true);
+    const oldStatus = currentStatus;
+    setCurrentStatus(newStatus); // 楽観的更新
+
+    try {
+      const result = await updateProjectStatus(project.id, newStatus);
+      if (result.error) {
+        setCurrentStatus(oldStatus); // エラー時は元に戻す
+        alert("ステータスの更新に失敗しました");
+      }
+    } finally {
+      setIsStatusChanging(false);
+    }
+  };
+
   return (
     <div className="flex flex-col h-full">
       {/* ヘッダー */}
@@ -170,6 +193,28 @@ export function MobileProjectDetail({
             <p className="text-xs text-muted-foreground font-mono">{project.code}</p>
             <h1 className="text-base font-bold truncate">{project.name}</h1>
           </div>
+          {/* ステータス変更ボタン */}
+          <Button
+            variant={currentStatus === "完了" ? "default" : "outline"}
+            size="sm"
+            onClick={() => handleStatusChange(currentStatus === "進行中" ? "完了" : "進行中")}
+            disabled={isStatusChanging}
+            className={currentStatus === "完了" ? "bg-green-600 hover:bg-green-700" : ""}
+          >
+            {isStatusChanging ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : currentStatus === "完了" ? (
+              <>
+                <Check className="h-4 w-4 mr-1" />
+                完了
+              </>
+            ) : (
+              <>
+                <Play className="h-4 w-4 mr-1" />
+                進行中
+              </>
+            )}
+          </Button>
         </div>
       </header>
 

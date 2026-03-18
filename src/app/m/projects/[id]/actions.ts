@@ -119,6 +119,31 @@ export async function deleteTask(
 }
 
 // ============================================
+// 業務ステータス変更
+// ============================================
+
+export async function updateProjectStatus(
+  projectId: string,
+  status: "進行中" | "完了"
+): Promise<{ success?: boolean; error?: string }> {
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("projects")
+    .update({ status })
+    .eq("id", projectId);
+
+  if (error) {
+    console.error("Error updating project status:", error);
+    return { error: error.message };
+  }
+
+  revalidatePath("/m/projects");
+  revalidatePath(`/m/projects/${projectId}`);
+  return { success: true };
+}
+
+// ============================================
 // 閲覧履歴関連
 // ============================================
 
