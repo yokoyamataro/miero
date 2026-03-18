@@ -2,6 +2,23 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
+import {
+  getTaskTemplateSets as getTaskTemplateSetsOriginal,
+  createTasksFromTemplateSet as createTasksFromTemplateSetOriginal,
+} from "@/app/projects/[id]/actions";
+
+// PC版のテンプレート関連関数をラップしてexport
+export async function getTaskTemplateSets() {
+  return getTaskTemplateSetsOriginal();
+}
+
+export async function createTasksFromTemplateSet(
+  projectId: string,
+  setId: string,
+  defaultAssigneeId?: string | null
+) {
+  return createTasksFromTemplateSetOriginal(projectId, setId, defaultAssigneeId);
+}
 
 export async function toggleTaskComplete(
   taskId: string,
@@ -99,4 +116,37 @@ export async function deleteTask(
 
   revalidatePath("/m/projects");
   return { success: true };
+}
+
+// ============================================
+// 閲覧履歴関連
+// ============================================
+
+// 閲覧履歴を保存（upsert）
+export async function saveProjectView(projectId: string): Promise<void> {
+  const supabase = await createClient();
+
+  // ログインユーザーの社員IDを取得
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return;
+
+  const { data: employee } = await supabase
+    .from("employees")
+    .select("id")
+    .eq("auth_id", user.id)
+    .single();
+
+  if (!employee) return;
+
+  // upsert: 既存のレコードがあれば更新、なければ挿入
+  await supabase.from("project_views" as never).upsert(
+    {
+      project_id: projectId,
+      employee_id: employee.id,
+      viewed_at: new Date().toISOString(),
+    } as never,
+    { onConflict: "project_id,employee_id" }
+  );
 }

@@ -1,12 +1,10 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import Link from "next/link";
 import { Search, AlertTriangle, Pause, ChevronRight, Clock } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { PROJECT_CATEGORY_LABELS, type ProjectCategory } from "@/types/database";
-import { getRecentProjectIds } from "./[id]/mobile-project-detail";
 
 interface Project {
   id: string;
@@ -33,6 +31,7 @@ interface MobileProjectListProps {
   contactDisplayMap: Record<string, string>;
   employeeMap: Record<string, string>;
   currentEmployeeId: string | null;
+  recentProjectIds: string[]; // サーバーから渡される2週間以内の閲覧履歴
 }
 
 export function MobileProjectList({
@@ -41,15 +40,10 @@ export function MobileProjectList({
   contactDisplayMap,
   employeeMap,
   currentEmployeeId,
+  recentProjectIds,
 }: MobileProjectListProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [filterManagerId, setFilterManagerId] = useState<string | null>(currentEmployeeId);
-  const [recentIds, setRecentIds] = useState<string[]>([]);
-
-  // クライアントサイドで閲覧履歴を取得
-  useEffect(() => {
-    setRecentIds(getRecentProjectIds());
-  }, []);
 
   // フィルタリングとソート
   const { recentProjects, otherProjects } = useMemo(() => {
@@ -74,24 +68,23 @@ export function MobileProjectList({
       return true;
     });
 
-    // 最近表示した業務（上位3件）とその他に分ける
-    const recentTop3 = recentIds.slice(0, 3);
+    // 2週間以内に表示した業務とその他に分ける
     const recent: Project[] = [];
     const other: Project[] = [];
 
     filtered.forEach((p) => {
-      if (recentTop3.includes(p.id)) {
+      if (recentProjectIds.includes(p.id)) {
         recent.push(p);
       } else {
         other.push(p);
       }
     });
 
-    // 最近表示した業務を閲覧順にソート
-    recent.sort((a, b) => recentTop3.indexOf(a.id) - recentTop3.indexOf(b.id));
+    // 最近表示した業務を閲覧順（最新順）にソート
+    recent.sort((a, b) => recentProjectIds.indexOf(a.id) - recentProjectIds.indexOf(b.id));
 
     return { recentProjects: recent, otherProjects: other };
-  }, [projects, searchQuery, filterManagerId, contactDisplayMap, recentIds]);
+  }, [projects, searchQuery, filterManagerId, contactDisplayMap, recentProjectIds]);
 
   const totalCount = recentProjects.length + otherProjects.length;
 

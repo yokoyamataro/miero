@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, MapPin, User, Calendar, FolderOpen, CheckCircle2, Circle, Plus, Pencil, Trash2, Loader2 } from "lucide-react";
+import { ArrowLeft, MapPin, User, Calendar, FolderOpen, CheckCircle2, Circle, Plus, Pencil, Trash2, Loader2, FileText } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -14,42 +14,8 @@ import {
   SheetFooter,
 } from "@/components/ui/sheet";
 import { PROJECT_CATEGORY_LABELS, type ProjectCategory } from "@/types/database";
-import { toggleTaskComplete, createTask, updateTask, deleteTask } from "./actions";
-
-// 閲覧履歴をlocalStorageに保存
-const RECENT_PROJECTS_KEY = "miero_recent_projects";
-const MAX_RECENT_PROJECTS = 10;
-
-export function saveRecentProject(projectId: string) {
-  if (typeof window === "undefined") return;
-
-  try {
-    const stored = localStorage.getItem(RECENT_PROJECTS_KEY);
-    let recent: string[] = stored ? JSON.parse(stored) : [];
-
-    // 既存の同じIDを削除
-    recent = recent.filter((id) => id !== projectId);
-    // 先頭に追加
-    recent.unshift(projectId);
-    // 最大件数に制限
-    recent = recent.slice(0, MAX_RECENT_PROJECTS);
-
-    localStorage.setItem(RECENT_PROJECTS_KEY, JSON.stringify(recent));
-  } catch (e) {
-    console.error("Error saving recent project:", e);
-  }
-}
-
-export function getRecentProjectIds(): string[] {
-  if (typeof window === "undefined") return [];
-
-  try {
-    const stored = localStorage.getItem(RECENT_PROJECTS_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch {
-    return [];
-  }
-}
+import { toggleTaskComplete, createTask, updateTask, deleteTask, saveProjectView } from "./actions";
+import { MobileTemplateSheet } from "./mobile-template-sheet";
 
 interface Project {
   id: string;
@@ -99,9 +65,12 @@ export function MobileProjectDetail({
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // 閲覧履歴に保存
+  // テンプレート選択用state
+  const [showTemplateSheet, setShowTemplateSheet] = useState(false);
+
+  // 閲覧履歴をDBに保存
   useEffect(() => {
-    saveRecentProject(project.id);
+    saveProjectView(project.id);
   }, [project.id]);
 
   const managerName = project.manager_id ? employeeMap[project.manager_id] : null;
@@ -181,6 +150,12 @@ export function MobileProjectDetail({
     } finally {
       setIsDeleting(false);
     }
+  };
+
+  // テンプレートからタスク作成後のリロード
+  const handleTasksCreatedFromTemplate = async (count: number) => {
+    // ページをリロードして最新のタスクを取得
+    router.refresh();
   };
 
   return (
@@ -275,6 +250,10 @@ export function MobileProjectDetail({
                   {completedCount}/{totalCount}
                 </span>
               )}
+              <Button size="sm" variant="outline" onClick={() => setShowTemplateSheet(true)}>
+                <FileText className="h-4 w-4 mr-1" />
+                テンプレ
+              </Button>
               <Button size="sm" variant="outline" onClick={handleAddTask}>
                 <Plus className="h-4 w-4 mr-1" />
                 追加
@@ -287,10 +266,16 @@ export function MobileProjectDetail({
               <p className="text-sm text-muted-foreground mb-4">
                 タスクがありません
               </p>
-              <Button variant="outline" onClick={handleAddTask}>
-                <Plus className="h-4 w-4 mr-1" />
-                タスクを追加
-              </Button>
+              <div className="flex gap-2 justify-center">
+                <Button variant="outline" onClick={() => setShowTemplateSheet(true)}>
+                  <FileText className="h-4 w-4 mr-1" />
+                  テンプレートから
+                </Button>
+                <Button variant="outline" onClick={handleAddTask}>
+                  <Plus className="h-4 w-4 mr-1" />
+                  追加
+                </Button>
+              </div>
             </div>
           ) : (
             <div className="space-y-2">
@@ -382,6 +367,14 @@ export function MobileProjectDetail({
           </SheetFooter>
         </SheetContent>
       </Sheet>
+
+      {/* テンプレート選択シート */}
+      <MobileTemplateSheet
+        open={showTemplateSheet}
+        onOpenChange={setShowTemplateSheet}
+        projectId={project.id}
+        onTasksCreated={handleTasksCreatedFromTemplate}
+      />
     </div>
   );
 }

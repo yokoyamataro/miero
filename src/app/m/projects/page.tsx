@@ -31,6 +31,24 @@ export default async function MobileProjectsPage() {
     .select("id, company_name")
     .is("deleted_at", null);
 
+  // 2週間以内の閲覧履歴を取得（自分のもののみ）
+  const twoWeeksAgo = new Date();
+  twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+
+  const { data: recentViews } = currentEmployeeId
+    ? await supabase
+        .from("project_views" as never)
+        .select("project_id, viewed_at")
+        .eq("employee_id", currentEmployeeId)
+        .gte("viewed_at", twoWeeksAgo.toISOString())
+        .order("viewed_at", { ascending: false })
+    : { data: null };
+
+  // 最近閲覧した業務IDのリスト（最新順）
+  const recentProjectIds = (recentViews as { project_id: string; viewed_at: string }[] | null)?.map(
+    (v) => v.project_id
+  ) || [];
+
   // マップ作成
   type ContactType = { id: string; last_name: string; first_name: string; account_id: string | null };
   type AccountType = { id: string; company_name: string };
@@ -54,6 +72,7 @@ export default async function MobileProjectsPage() {
       contactDisplayMap={contactDisplayMap}
       employeeMap={employeeMap}
       currentEmployeeId={currentEmployeeId}
+      recentProjectIds={recentProjectIds}
     />
   );
 }
