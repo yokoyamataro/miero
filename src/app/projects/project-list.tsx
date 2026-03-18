@@ -59,6 +59,7 @@ interface ProjectListProps {
   employees: Employee[];
   contactDisplayMap: Record<string, string>;
   employeeMap: Record<string, string>;
+  recentProjectIds: string[]; // 2週間以内の閲覧履歴（最新順）
 }
 
 // デフォルトのフィルター状態
@@ -107,7 +108,7 @@ function loadSortFromStorage(): SortState {
   return { key: null, order: "asc" };
 }
 
-export function ProjectList({ projects, employees, contactDisplayMap, employeeMap }: ProjectListProps) {
+export function ProjectList({ projects, employees, contactDisplayMap, employeeMap, recentProjectIds }: ProjectListProps) {
   const [filters, setFilters] = useState<FilterState>(loadFiltersFromStorage);
   const [sort, setSort] = useState<SortState>(loadSortFromStorage);
 
@@ -184,16 +185,34 @@ export function ProjectList({ projects, employees, contactDisplayMap, employeeMa
     });
   }, [projects, filters]);
 
-  // ソート処理
+  // ソート処理（デフォルトは閲覧履歴順）
   const sorted = useMemo(() => {
-    if (!sort.key) return filtered;
-
     const getCustomerName = (p: ProjectData) =>
       p.contact_id ? contactDisplayMap[p.contact_id] || "" : "";
     const getManagerName = (p: ProjectData) =>
       p.manager_id ? employeeMap[p.manager_id] || "" : "";
     const getLocation = (p: ProjectData) =>
       [p.location, p.location_detail].filter(Boolean).join(" ");
+
+    // ソートキーが指定されていない場合は閲覧履歴順
+    if (!sort.key) {
+      // 最近閲覧した業務を上に、それ以外は元の順序（作成日時降順）
+      return [...filtered].sort((a, b) => {
+        const aIndex = recentProjectIds.indexOf(a.id);
+        const bIndex = recentProjectIds.indexOf(b.id);
+
+        // 両方とも閲覧履歴にある場合は閲覧順
+        if (aIndex !== -1 && bIndex !== -1) {
+          return aIndex - bIndex;
+        }
+        // aのみ閲覧履歴にある場合はaを上に
+        if (aIndex !== -1) return -1;
+        // bのみ閲覧履歴にある場合はbを上に
+        if (bIndex !== -1) return 1;
+        // どちらも閲覧履歴にない場合は元の順序を維持
+        return 0;
+      });
+    }
 
     return [...filtered].sort((a, b) => {
       let cmp = 0;
@@ -225,7 +244,7 @@ export function ProjectList({ projects, employees, contactDisplayMap, employeeMa
       }
       return sort.order === "asc" ? cmp : -cmp;
     });
-  }, [filtered, sort, contactDisplayMap, employeeMap]);
+  }, [filtered, sort, contactDisplayMap, employeeMap, recentProjectIds]);
 
   return (
     <>

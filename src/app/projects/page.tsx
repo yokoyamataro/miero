@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Plus } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { getCurrentEmployeeId } from "@/app/calendar/actions";
 import { CSVActions } from "./csv-actions";
 import { ProjectList } from "./project-list";
 
@@ -10,13 +11,12 @@ export const dynamic = "force-dynamic";
 
 export default async function ProjectsPage() {
   const supabase = await createClient();
+  const currentEmployeeId = await getCurrentEmployeeId();
 
-  // 業務データを取得（緊急を先頭に、待機を最後に、その後は作成日時の降順）
+  // 業務データを取得
   const { data: projects, error } = await supabase
     .from("projects")
     .select("*")
-    .order("is_urgent", { ascending: false })
-    .order("is_on_hold", { ascending: true })
     .order("created_at", { ascending: false });
 
   // 連絡先を取得
@@ -69,6 +69,24 @@ export default async function ProjectsPage() {
     employeeNameMap[e.id] = e.name;
   }
 
+  // 2週間以内の閲覧履歴を取得（自分のもののみ）
+  const twoWeeksAgo = new Date();
+  twoWeeksAgo.setDate(twoWeeksAgo.getDate() - 14);
+
+  const { data: recentViews } = currentEmployeeId
+    ? await supabase
+        .from("project_views" as never)
+        .select("project_id, viewed_at")
+        .eq("employee_id", currentEmployeeId)
+        .gte("viewed_at", twoWeeksAgo.toISOString())
+        .order("viewed_at", { ascending: false })
+    : { data: null };
+
+  // 最近閲覧した業務IDのリスト（最新順）
+  const recentProjectIds = (recentViews as { project_id: string; viewed_at: string }[] | null)?.map(
+    (v) => v.project_id
+  ) || [];
+
   if (error) {
     console.error("Error fetching projects:", error);
   }
@@ -104,6 +122,7 @@ export default async function ProjectsPage() {
         employees={employees}
         contactDisplayMap={contactDisplayMap}
         employeeMap={employeeNameMap}
+        recentProjectIds={recentProjectIds}
       />
     </main>
   );

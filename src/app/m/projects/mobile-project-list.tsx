@@ -29,7 +29,6 @@ interface MobileProjectListProps {
   projects: Project[];
   employees: Employee[];
   contactDisplayMap: Record<string, string>;
-  employeeMap: Record<string, string>;
   currentEmployeeId: string | null;
   recentProjectIds: string[]; // サーバーから渡される2週間以内の閲覧履歴
 }
@@ -38,7 +37,6 @@ export function MobileProjectList({
   projects,
   employees,
   contactDisplayMap,
-  employeeMap,
   currentEmployeeId,
   recentProjectIds,
 }: MobileProjectListProps) {
@@ -91,9 +89,6 @@ export function MobileProjectList({
   const renderProjectItem = (project: Project, isRecent: boolean = false) => {
     const customerName = project.contact_id
       ? contactDisplayMap[project.contact_id]
-      : null;
-    const managerName = project.manager_id
-      ? employeeMap[project.manager_id]
       : null;
     const location = [project.location, project.location_detail]
       .filter(Boolean)
@@ -153,13 +148,6 @@ export function MobileProjectList({
                 </>
               )}
             </div>
-
-            {/* 担当者 */}
-            {managerName && (
-              <div className="mt-1 text-xs text-muted-foreground">
-                担当: {managerName}
-              </div>
-            )}
           </div>
 
           <ChevronRight className="h-5 w-5 text-muted-foreground flex-shrink-0 mt-2" />

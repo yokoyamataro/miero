@@ -60,17 +60,11 @@ export default async function MobileProjectsPage() {
     contactDisplayMap[c.id] = accountName || `${c.last_name} ${c.first_name}`;
   });
 
-  const employeeMap: Record<string, string> = {};
-  (employees || []).forEach((e) => {
-    employeeMap[e.id] = e.name;
-  });
-
   return (
     <MobileProjectList
       projects={projects || []}
       employees={employees || []}
       contactDisplayMap={contactDisplayMap}
-      employeeMap={employeeMap}
       currentEmployeeId={currentEmployeeId}
       recentProjectIds={recentProjectIds}
     />
