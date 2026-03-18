@@ -132,7 +132,6 @@ export async function createPersonalTask(data: {
   description?: string | null;
   assigned_to: string | null;
   due_date?: string | null;
-  estimated_minutes?: number | null;
 }): Promise<{ task?: PersonalTask; error?: string }> {
   const supabase = await createClient();
 
@@ -154,7 +153,6 @@ export async function createPersonalTask(data: {
       description: data.description || null,
       assigned_to: data.assigned_to,
       due_date: data.due_date || null,
-      estimated_minutes: data.estimated_minutes || null,
       sort_order: maxOrder + 1,
       is_completed: false,
     } as never)

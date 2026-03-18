@@ -299,13 +299,13 @@ export function CustomerTabs({
             <div className="flex-1 border rounded-lg" ref={tableContainerRef}>
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-12"></TableHead>
-                    <TableHead>法人名</TableHead>
-                    <TableHead>主担当者</TableHead>
-                    <TableHead>電話番号</TableHead>
-                    <TableHead>所在地</TableHead>
-                    <TableHead className="w-24">操作</TableHead>
+                  <TableRow className="h-8">
+                    <TableHead className="w-12 py-1 text-xs"></TableHead>
+                    <TableHead className="py-1 text-xs">法人名</TableHead>
+                    <TableHead className="py-1 text-xs">主担当者</TableHead>
+                    <TableHead className="py-1 text-xs">電話番号</TableHead>
+                    <TableHead className="py-1 text-xs">所在地</TableHead>
+                    <TableHead className="w-20 py-1 text-xs">操作</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -318,11 +318,11 @@ export function CustomerTabs({
                         (c) => c.is_primary
                       );
                       return (
-                        <TableRow key={account.id} id={idx === 0 ? `row-accounts-${row}` : undefined}>
-                          <TableCell className="font-bold text-lg text-muted-foreground">
+                        <TableRow key={account.id} id={idx === 0 ? `row-accounts-${row}` : undefined} className="h-8">
+                          <TableCell className="py-1 font-bold text-sm text-muted-foreground">
                             {idx === 0 ? row : ""}
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="py-1 text-sm">
                             <Link
                               href={`/accounts/${account.id}/edit`}
                               className="text-primary hover:underline font-medium"
@@ -330,34 +330,36 @@ export function CustomerTabs({
                               {account.company_name}
                             </Link>
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="py-1 text-sm">
                             {primaryContact
                               ? `${primaryContact.last_name} ${primaryContact.first_name}`
                               : "-"}
                           </TableCell>
-                          <TableCell>{account.main_phone || "-"}</TableCell>
-                          <TableCell>
+                          <TableCell className="py-1 text-sm">{account.main_phone || "-"}</TableCell>
+                          <TableCell className="py-1 text-sm">
                             {account.prefecture && account.city
                               ? `${account.prefecture}${account.city}`
                               : "-"}
                           </TableCell>
-                          <TableCell>
-                            <div className="flex gap-1">
+                          <TableCell className="py-1">
+                            <div className="flex gap-0.5">
                               <Button
                                 variant="ghost"
                                 size="icon"
+                                className="h-7 w-7"
                                 title="個人に移行"
                                 onClick={() => openConvertDialog(account)}
                               >
-                                <UserMinus className="h-4 w-4" />
+                                <UserMinus className="h-3.5 w-3.5" />
                               </Button>
                               <Button
                                 variant="ghost"
                                 size="icon"
+                                className="h-7 w-7"
                                 title="統合"
                                 onClick={() => openMergeDialog(account)}
                               >
-                                <Merge className="h-4 w-4" />
+                                <Merge className="h-3.5 w-3.5" />
                               </Button>
                             </div>
                           </TableCell>
@@ -409,12 +411,12 @@ export function CustomerTabs({
             <div className="flex-1 border rounded-lg">
               <Table>
                 <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-12"></TableHead>
-                    <TableHead>氏名</TableHead>
-                    <TableHead>フリガナ</TableHead>
-                    <TableHead>電話番号</TableHead>
-                    <TableHead>住所</TableHead>
+                  <TableRow className="h-8">
+                    <TableHead className="w-12 py-1 text-xs"></TableHead>
+                    <TableHead className="py-1 text-xs">氏名</TableHead>
+                    <TableHead className="py-1 text-xs">フリガナ</TableHead>
+                    <TableHead className="py-1 text-xs">電話番号</TableHead>
+                    <TableHead className="py-1 text-xs">住所</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -423,11 +425,11 @@ export function CustomerTabs({
                     if (!rowIndividuals || rowIndividuals.length === 0) return null;
 
                     return rowIndividuals.map((individual, idx) => (
-                      <TableRow key={individual.id} id={idx === 0 ? `row-individuals-${row}` : undefined}>
-                        <TableCell className="font-bold text-lg text-muted-foreground">
+                      <TableRow key={individual.id} id={idx === 0 ? `row-individuals-${row}` : undefined} className="h-8">
+                        <TableCell className="py-1 font-bold text-sm text-muted-foreground">
                           {idx === 0 ? row : ""}
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="py-1 text-sm">
                           <Link
                             href={`/contacts/${individual.id}/edit`}
                             className="text-primary hover:underline font-medium"
@@ -435,13 +437,13 @@ export function CustomerTabs({
                             {individual.last_name} {individual.first_name}
                           </Link>
                         </TableCell>
-                        <TableCell>
+                        <TableCell className="py-1 text-sm">
                           {individual.last_name_kana && individual.first_name_kana
                             ? `${individual.last_name_kana} ${individual.first_name_kana}`
                             : "-"}
                         </TableCell>
-                        <TableCell>{individual.phone || "-"}</TableCell>
-                        <TableCell>
+                        <TableCell className="py-1 text-sm">{individual.phone || "-"}</TableCell>
+                        <TableCell className="py-1 text-sm">
                           {individual.prefecture && individual.city
                             ? `${individual.prefecture}${individual.city}`
                             : "-"}

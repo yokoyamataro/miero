@@ -102,9 +102,6 @@ export async function updateTask(
     due_date?: string | null;
     assigned_to?: string | null;
     sort_order?: number;
-    // 時間管理
-    estimated_minutes?: number | null;
-    actual_minutes?: number | null;
   }
 ) {
   const supabase = await createClient();
@@ -266,7 +263,6 @@ export async function createTaskTemplateSetFromProject(
   const itemsToInsert = (tasks as Task[]).map((task, index) => ({
     set_id: setId,
     title: task.title,
-    estimated_minutes: task.estimated_minutes,
     sort_order: index,
   }));
 
@@ -343,7 +339,6 @@ export async function createTasksFromTemplateSet(
   const tasksToInsert = (items as TaskTemplateItem[]).map((item) => ({
     project_id: projectId,
     title: item.title,
-    estimated_minutes: item.estimated_minutes,
     is_completed: false,
     sort_order: currentSortOrder++,
     assigned_to: defaultAssigneeId || null,

@@ -19,7 +19,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ListTodo, User, UsersRound, GripVertical, Clock, AlertTriangle, Pause, ChevronDown, ChevronRight, Plus, Info, Trash2, UserCheck, Briefcase } from "lucide-react";
+import { ListTodo, User, UsersRound, GripVertical, AlertTriangle, Pause, ChevronDown, ChevronRight, Plus, Info, Trash2, UserCheck, Briefcase } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -36,13 +36,6 @@ interface DashboardTaskListProps {
   employees: Employee[];
   currentEmployeeId: string | null;
   onDragStart: (task: TaskWithProject) => void;
-}
-
-// 時間表示（分 → 小数時間）
-function formatHours(minutes: number | null): string {
-  if (minutes === null || minutes === 0) return "";
-  const hours = minutes / 60;
-  return `${hours.toFixed(1)}h`;
 }
 
 export function DashboardTaskList({
@@ -372,12 +365,6 @@ export function DashboardTaskList({
                                 </Tooltip>
                               </TooltipProvider>
                             )}
-                            {task.estimated_minutes && (
-                              <span className="text-xs text-muted-foreground flex items-center gap-0.5 flex-shrink-0">
-                                <Clock className="h-3 w-3" />
-                                {formatHours(task.estimated_minutes)}
-                              </span>
-                            )}
                           </div>
                         ))}
                       </div>
@@ -421,12 +408,6 @@ export function DashboardTaskList({
                           </TooltipContent>
                         </Tooltip>
                       </TooltipProvider>
-                    )}
-                    {task.estimated_minutes && (
-                      <span className="text-xs text-muted-foreground flex items-center gap-0.5 flex-shrink-0">
-                        <Clock className="h-3 w-3" />
-                        {formatHours(task.estimated_minutes)}
-                      </span>
                     )}
                     <Button
                       variant="ghost"

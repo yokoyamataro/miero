@@ -18,7 +18,6 @@ import {
   Plus,
   Trash2,
   Calendar,
-  Timer,
   GripVertical,
   BookTemplate,
   Save,
@@ -71,25 +70,6 @@ interface TaskListProps {
   defaultAssigneeId?: string | null;
 }
 
-// 分を小数時間に変換してフォーマット（例: 90分 → "1.5h"）
-function formatHours(minutes: number | null): string {
-  if (minutes === null || minutes === 0) return "-";
-  const hours = minutes / 60;
-  // 小数点以下1桁まで表示
-  return `${hours.toFixed(1)}h`;
-}
-
-// 小数時間を分に変換
-function hoursToMinutes(hours: number): number {
-  return Math.round(hours * 60);
-}
-
-// 分を小数時間に変換
-function minutesToHours(minutes: number | null): number {
-  if (minutes === null || minutes === 0) return 0;
-  return minutes / 60;
-}
-
 function SortableTaskItem({
   task,
   employees,
@@ -101,8 +81,6 @@ function SortableTaskItem({
   const [isPending, startTransition] = useTransition();
   const [isEditing, setIsEditing] = useState(false);
   const [title, setTitle] = useState(task.title);
-  const [showTimeModal, setShowTimeModal] = useState(false);
-  const [showEditTimeModal, setShowEditTimeModal] = useState(false);
 
   const {
     attributes,
@@ -122,16 +100,10 @@ function SortableTaskItem({
   const isCompleted = task.is_completed;
 
   const handleToggleComplete = () => {
-    if (!isCompleted) {
-      // 完了にする際は実時間入力モーダルを表示
-      setShowTimeModal(true);
-    } else {
-      // 未完了に戻す
-      startTransition(async () => {
-        await updateTask(task.id, { is_completed: false, actual_minutes: null });
-        router.refresh();
-      });
-    }
+    startTransition(async () => {
+      await updateTask(task.id, { is_completed: !isCompleted });
+      router.refresh();
+    });
   };
 
   const handleTitleSave = () => {
@@ -171,313 +143,93 @@ function SortableTaskItem({
   const isOverdue =
     task.due_date && !isCompleted && new Date(task.due_date) < new Date();
 
-  // 時間情報があるかどうか
-  const hasTimeInfo = task.estimated_minutes || task.actual_minutes;
-
   return (
-    <>
-      <div
-        ref={setNodeRef}
-        style={style}
-        className={`flex items-center gap-3 p-2 rounded border hover:bg-muted/50 ${
-          isPending ? "opacity-50" : ""
-        }`}
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={`flex items-center gap-3 p-2 rounded border hover:bg-muted/50 ${
+        isPending ? "opacity-50" : ""
+      }`}
+    >
+      {/* ドラッグハンドル */}
+      <button
+        {...attributes}
+        {...listeners}
+        className="flex-shrink-0 p-1 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
+        title="ドラッグして並び替え"
       >
-        {/* ドラッグハンドル */}
-        <button
-          {...attributes}
-          {...listeners}
-          className="flex-shrink-0 p-1 cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground"
-          title="ドラッグして並び替え"
-        >
-          <GripVertical className="h-4 w-4" />
-        </button>
+        <GripVertical className="h-4 w-4" />
+      </button>
 
-        {/* チェックボックス */}
-        <Checkbox
-          checked={isCompleted}
-          onCheckedChange={handleToggleComplete}
-          className="flex-shrink-0"
-        />
+      {/* チェックボックス */}
+      <Checkbox
+        checked={isCompleted}
+        onCheckedChange={handleToggleComplete}
+        className="flex-shrink-0"
+      />
 
-        {/* タイトル */}
-        <div className="flex-1 min-w-0">
-          {isEditing ? (
-            <Input
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              onBlur={handleTitleSave}
-              onKeyDown={(e) => e.key === "Enter" && handleTitleSave()}
-              autoFocus
-              className="h-7"
-            />
-          ) : (
-            <span
-              onClick={() => setIsEditing(true)}
-              className={`cursor-pointer ${isCompleted ? "line-through text-muted-foreground" : ""}`}
-            >
-              {task.title}
-            </span>
-          )}
-        </div>
-
-        {/* 時間表示（クリックで編集） */}
-        <button
-          onClick={() => setShowEditTimeModal(true)}
-          className="flex items-center gap-1 text-xs text-muted-foreground flex-shrink-0 hover:text-foreground"
-          title="時間を編集"
-        >
-          <Timer className="h-3 w-3" />
-          {task.actual_minutes ? (
-            <span>{formatHours(task.actual_minutes)}</span>
-          ) : task.estimated_minutes ? (
-            <span className="text-blue-500">{formatHours(task.estimated_minutes)}</span>
-          ) : (
-            <span className="text-muted-foreground/50">--</span>
-          )}
-        </button>
-
-        {/* 期限 */}
-        <div className="flex items-center gap-1 flex-shrink-0">
-          <Calendar className={`h-4 w-4 ${isOverdue ? "text-red-500" : "text-muted-foreground"}`} />
+      {/* タイトル */}
+      <div className="flex-1 min-w-0">
+        {isEditing ? (
           <Input
-            type="date"
-            value={task.due_date || ""}
-            onChange={handleDueDateChange}
-            className={`w-32 h-7 text-sm ${isOverdue ? "text-red-500" : ""}`}
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            onBlur={handleTitleSave}
+            onKeyDown={(e) => e.key === "Enter" && handleTitleSave()}
+            autoFocus
+            className="h-7"
           />
-        </div>
-
-        {/* 担当者 */}
-        <Select
-          value={task.assigned_to || "none"}
-          onValueChange={handleAssigneeChange}
-        >
-          <SelectTrigger className="w-44 h-7">
-            <SelectValue>
-              {assignee?.name || <span className="text-muted-foreground">未割当</span>}
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="none">未割当</SelectItem>
-            {employees.map((emp) => (
-              <SelectItem key={emp.id} value={emp.id}>
-                {emp.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {/* 削除ボタン */}
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={handleDelete}
-          className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-        >
-          <Trash2 className="h-4 w-4" />
-        </Button>
+        ) : (
+          <span
+            onClick={() => setIsEditing(true)}
+            className={`cursor-pointer ${isCompleted ? "line-through text-muted-foreground" : ""}`}
+          >
+            {task.title}
+          </span>
+        )}
       </div>
 
-      {/* 完了時の時間入力モーダル */}
-      <CompleteTaskModal
-        task={task}
-        open={showTimeModal}
-        onOpenChange={setShowTimeModal}
-      />
+      {/* 期限 */}
+      <div className="flex items-center gap-1 flex-shrink-0">
+        <Calendar className={`h-4 w-4 ${isOverdue ? "text-red-500" : "text-muted-foreground"}`} />
+        <Input
+          type="date"
+          value={task.due_date || ""}
+          onChange={handleDueDateChange}
+          className={`w-32 h-7 text-sm ${isOverdue ? "text-red-500" : ""}`}
+        />
+      </div>
 
-      {/* 時間編集モーダル */}
-      <EditTimeModal
-        task={task}
-        open={showEditTimeModal}
-        onOpenChange={setShowEditTimeModal}
-      />
-    </>
-  );
-}
+      {/* 担当者 */}
+      <Select
+        value={task.assigned_to || "none"}
+        onValueChange={handleAssigneeChange}
+      >
+        <SelectTrigger className="w-44 h-7">
+          <SelectValue>
+            {assignee?.name || <span className="text-muted-foreground">未割当</span>}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="none">未割当</SelectItem>
+          {employees.map((emp) => (
+            <SelectItem key={emp.id} value={emp.id}>
+              {emp.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
 
-// 時間編集モーダル（標準時間・実績時間を編集）
-function EditTimeModal({
-  task,
-  open,
-  onOpenChange,
-}: {
-  task: Task;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
-  const [estimatedHours, setEstimatedHours] = useState(
-    minutesToHours(task.estimated_minutes).toString()
-  );
-  const [actualHours, setActualHours] = useState(
-    minutesToHours(task.actual_minutes).toString()
-  );
-
-  useEffect(() => {
-    if (open) {
-      setEstimatedHours(minutesToHours(task.estimated_minutes).toString());
-      setActualHours(minutesToHours(task.actual_minutes).toString());
-    }
-  }, [open, task.estimated_minutes, task.actual_minutes]);
-
-  const handleSave = () => {
-    startTransition(async () => {
-      const estHours = parseFloat(estimatedHours) || 0;
-      const actHours = parseFloat(actualHours) || 0;
-      const estimatedMinutes = estHours > 0 ? hoursToMinutes(estHours) : null;
-      const actualMinutes = actHours > 0 ? hoursToMinutes(actHours) : null;
-      await updateTask(task.id, {
-        estimated_minutes: estimatedMinutes,
-        actual_minutes: actualMinutes,
-      });
-      router.refresh();
-      onOpenChange(false);
-    });
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xs">
-        <DialogHeader>
-          <DialogTitle>時間を編集</DialogTitle>
-        </DialogHeader>
-
-        <div className="space-y-4">
-          <p className="text-sm text-muted-foreground">{task.title}</p>
-
-          <div className="space-y-2">
-            <Label>標準時間（時間）</Label>
-            <div className="flex items-center gap-2">
-              <Input
-                type="number"
-                min="0"
-                step="0.25"
-                value={estimatedHours}
-                onChange={(e) => setEstimatedHours(e.target.value)}
-                className="w-24"
-                autoFocus
-              />
-              <span className="text-sm text-muted-foreground">時間</span>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label>実績時間（時間）</Label>
-            <div className="flex items-center gap-2">
-              <Input
-                type="number"
-                min="0"
-                step="0.25"
-                value={actualHours}
-                onChange={(e) => setActualHours(e.target.value)}
-                className="w-24"
-              />
-              <span className="text-sm text-muted-foreground">時間</span>
-            </div>
-          </div>
-
-          <p className="text-xs text-muted-foreground">
-            例: 0.25=15分, 0.5=30分, 1.5=1時間30分
-          </p>
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            キャンセル
-          </Button>
-          <Button onClick={handleSave} disabled={isPending}>
-            保存
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-// 完了時の時間入力モーダル
-function CompleteTaskModal({
-  task,
-  open,
-  onOpenChange,
-}: {
-  task: Task;
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-}) {
-  const router = useRouter();
-  const [isPending, startTransition] = useTransition();
-  const [actualHours, setActualHours] = useState(
-    minutesToHours(task.estimated_minutes).toString()
-  );
-
-  // 標準時間をデフォルト値としてセット
-  useEffect(() => {
-    if (open) {
-      setActualHours(minutesToHours(task.estimated_minutes).toString());
-    }
-  }, [open, task.estimated_minutes]);
-
-  const handleComplete = () => {
-    startTransition(async () => {
-      const hours = parseFloat(actualHours) || 0;
-      const actualMinutes = hours > 0 ? hoursToMinutes(hours) : null;
-      await updateTask(task.id, {
-        is_completed: true,
-        actual_minutes: actualMinutes,
-      });
-      router.refresh();
-      onOpenChange(false);
-    });
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-xs">
-        <DialogHeader>
-          <DialogTitle>タスク完了</DialogTitle>
-        </DialogHeader>
-
-        <div className="space-y-4">
-          <p className="text-sm">{task.title}</p>
-
-          {task.estimated_minutes && (
-            <p className="text-sm text-muted-foreground">
-              標準時間: {formatHours(task.estimated_minutes)}
-            </p>
-          )}
-
-          <div className="space-y-2">
-            <Label>実時間（時間）</Label>
-            <div className="flex items-center gap-2">
-              <Input
-                type="number"
-                min="0"
-                step="0.25"
-                value={actualHours}
-                onChange={(e) => setActualHours(e.target.value)}
-                className="w-24"
-                autoFocus
-              />
-              <span className="text-sm text-muted-foreground">時間</span>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              例: 0.25=15分, 0.5=30分, 1.5=1時間30分
-            </p>
-          </div>
-        </div>
-
-        <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            キャンセル
-          </Button>
-          <Button onClick={handleComplete} disabled={isPending}>
-            完了
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+      {/* 削除ボタン */}
+      <Button
+        variant="ghost"
+        size="sm"
+        onClick={handleDelete}
+        className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+      >
+        <Trash2 className="h-4 w-4" />
+      </Button>
+    </div>
   );
 }
 
@@ -578,11 +330,8 @@ function TemplateModal({
                 {expandedSetId === set.id && (
                   <div className="mt-2 pl-2 border-l-2 space-y-1">
                     {set.items.map((item) => (
-                      <div key={item.id} className="text-sm text-muted-foreground flex justify-between">
+                      <div key={item.id} className="text-sm text-muted-foreground">
                         <span>{item.title}</span>
-                        {item.estimated_minutes && (
-                          <span className="text-xs">{formatHours(item.estimated_minutes)}</span>
-                        )}
                       </div>
                     ))}
                   </div>
@@ -691,12 +440,10 @@ function AddTaskModal({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [title, setTitle] = useState("");
-  const [estimatedHours, setEstimatedHours] = useState("");
 
   useEffect(() => {
     if (open) {
       setTitle("");
-      setEstimatedHours("");
     }
   }, [open]);
 
@@ -707,12 +454,9 @@ function AddTaskModal({
     }
 
     startTransition(async () => {
-      const hours = parseFloat(estimatedHours) || 0;
-      const estimatedMinutes = hours > 0 ? hoursToMinutes(hours) : null;
       await createTask({
         project_id: projectId,
         title: title.trim(),
-        estimated_minutes: estimatedMinutes,
         assigned_to: defaultAssigneeId || null,
       });
       router.refresh();
@@ -736,25 +480,6 @@ function AddTaskModal({
               placeholder="タスク名を入力..."
               autoFocus
             />
-          </div>
-
-          <div className="space-y-2">
-            <Label>標準時間（時間）</Label>
-            <div className="flex items-center gap-2">
-              <Input
-                type="number"
-                min="0"
-                step="0.25"
-                value={estimatedHours}
-                onChange={(e) => setEstimatedHours(e.target.value)}
-                placeholder="0"
-                className="w-24"
-              />
-              <span className="text-sm text-muted-foreground">時間</span>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              例: 0.25=15分, 0.5=30分（省略可）
-            </p>
           </div>
         </div>
 

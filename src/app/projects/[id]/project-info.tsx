@@ -46,7 +46,6 @@ import {
   AlertTriangle,
   PauseCircle,
   Plus,
-  Clock,
 } from "lucide-react";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -106,10 +105,6 @@ interface ProjectInfoProps {
   employees: Employee[];
   customerData: CustomerData;
   currentEmployeeId: string | null;
-  taskTimeTotals: {
-    estimatedMinutes: number;
-    actualMinutes: number;
-  };
   industries: Industry[];
   stakeholderSection?: React.ReactNode;
   documentTemplates: DocumentTemplate[];
@@ -128,13 +123,6 @@ function formatDate(dateStr: string | null): string {
 function formatCurrency(amount: number | null): string {
   if (amount === null || amount === undefined) return "-";
   return `¥${amount.toLocaleString()}`;
-}
-
-// 時間フォーマット（分 → 小数時間）
-function formatHours(minutes: number): string {
-  if (minutes === 0) return "0h";
-  const hours = minutes / 60;
-  return `${hours.toFixed(1)}h`;
 }
 
 // 顧客選択モーダル（2段階選択 + 新規追加）
@@ -1398,7 +1386,6 @@ export function ProjectInfo({
   employees,
   customerData,
   currentEmployeeId,
-  taskTimeTotals,
   industries,
   stakeholderSection,
   documentTemplates,
@@ -1633,23 +1620,6 @@ export function ProjectInfo({
             onSave={(val) => handleUpdate("fee_tax_excluded", val)}
             placeholder="金額を入力"
           />
-
-          <div className="flex items-start gap-3">
-            <Clock className="h-5 w-5 text-muted-foreground mt-0.5" />
-            <div className="flex-1">
-              <div className="text-sm text-muted-foreground">タスク時間</div>
-              <div className="flex items-center gap-4">
-                <div>
-                  <span className="text-xs text-muted-foreground mr-1">予定:</span>
-                  <span className="font-medium">{formatHours(taskTimeTotals.estimatedMinutes)}</span>
-                </div>
-                <div>
-                  <span className="text-xs text-muted-foreground mr-1">実績:</span>
-                  <span className="font-medium">{formatHours(taskTimeTotals.actualMinutes)}</span>
-                </div>
-              </div>
-            </div>
-          </div>
 
           <EditableField
             label="所在地"

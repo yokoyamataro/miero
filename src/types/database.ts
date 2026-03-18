@@ -269,9 +269,6 @@ export interface Task {
   due_date: string | null;
   assigned_to: string | null;
   sort_order: number;
-  // 時間管理
-  estimated_minutes: number | null;  // 標準時間（分単位）
-  actual_minutes: number | null;     // 実時間（分単位）
   created_at: string;
   updated_at: string;
 }
@@ -286,9 +283,6 @@ export interface TaskInsert {
   due_date?: string | null;
   assigned_to?: string | null;
   sort_order?: number;
-  // 時間管理
-  estimated_minutes?: number | null;
-  actual_minutes?: number | null;
 }
 
 // ============================================
@@ -310,7 +304,6 @@ export interface TaskTemplateItem {
   id: string;
   set_id: string;
   title: string;
-  estimated_minutes: number | null;
   sort_order: number;
   created_at: string;
 }
@@ -319,7 +312,6 @@ export interface TaskTemplateItemInsert {
   id?: string;
   set_id: string;
   title: string;
-  estimated_minutes?: number | null;
   sort_order?: number;
 }
 
