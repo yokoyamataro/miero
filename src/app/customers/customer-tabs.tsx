@@ -29,7 +29,7 @@ import {
 } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Building2, User, FileText, UserMinus, Merge, Loader2 } from "lucide-react";
+import { Building2, User, FileText, UserMinus, Merge, Loader2, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { DocumentTab } from "./document-tab";
 import { convertAccountToIndividual, mergeAccounts } from "@/app/accounts/actions";
@@ -107,6 +107,10 @@ export function CustomerTabs({
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<"accounts" | "individuals" | "documents">("accounts");
   const tableContainerRef = useRef<HTMLDivElement>(null);
+
+  // 検索クエリ
+  const [accountSearch, setAccountSearch] = useState("");
+  const [individualSearch, setIndividualSearch] = useState("");
 
   // 個人移行ダイアログ
   const [convertDialogOpen, setConvertDialogOpen] = useState(false);
@@ -210,27 +214,68 @@ export function CustomerTabs({
   const accountsLocal = accounts as unknown as AccountLocal[];
   const individualsLocal = individuals as unknown as IndividualLocal[];
 
+  // 法人を検索でフィルタリング
+  const filteredAccounts = useMemo(() => {
+    if (!accountSearch.trim()) return accountsLocal;
+    const q = accountSearch.toLowerCase();
+    return accountsLocal.filter((account) => {
+      const companyName = account.company_name?.toLowerCase() || "";
+      const companyNameKana = account.company_name_kana?.toLowerCase() || "";
+      const phone = account.main_phone?.toLowerCase() || "";
+      const location = `${account.prefecture || ""}${account.city || ""}`.toLowerCase();
+      const primaryContact = account.contacts?.find((c) => c.is_primary);
+      const contactName = primaryContact
+        ? `${primaryContact.last_name} ${primaryContact.first_name}`.toLowerCase()
+        : "";
+      return (
+        companyName.includes(q) ||
+        companyNameKana.includes(q) ||
+        phone.includes(q) ||
+        location.includes(q) ||
+        contactName.includes(q)
+      );
+    });
+  }, [accountsLocal, accountSearch]);
+
+  // 個人を検索でフィルタリング
+  const filteredIndividuals = useMemo(() => {
+    if (!individualSearch.trim()) return individualsLocal;
+    const q = individualSearch.toLowerCase();
+    return individualsLocal.filter((individual) => {
+      const fullName = `${individual.last_name} ${individual.first_name}`.toLowerCase();
+      const fullNameKana = `${individual.last_name_kana || ""} ${individual.first_name_kana || ""}`.toLowerCase();
+      const phone = individual.phone?.toLowerCase() || "";
+      const location = `${individual.prefecture || ""}${individual.city || ""}`.toLowerCase();
+      return (
+        fullName.includes(q) ||
+        fullNameKana.includes(q) ||
+        phone.includes(q) ||
+        location.includes(q)
+      );
+    });
+  }, [individualsLocal, individualSearch]);
+
   // 法人を五十音行ごとにグループ化
   const accountsByRow = useMemo(() => {
     const grouped: Record<string, AccountLocal[]> = {};
-    for (const account of accountsLocal) {
+    for (const account of filteredAccounts) {
       const row = getKanaRow(account.company_name_kana) || "他";
       if (!grouped[row]) grouped[row] = [];
       grouped[row].push(account);
     }
     return grouped;
-  }, [accountsLocal]);
+  }, [filteredAccounts]);
 
   // 個人を五十音行ごとにグループ化
   const individualsByRow = useMemo(() => {
     const grouped: Record<string, IndividualLocal[]> = {};
-    for (const individual of individualsLocal) {
+    for (const individual of filteredIndividuals) {
       const row = getKanaRow(individual.last_name_kana) || "他";
       if (!grouped[row]) grouped[row] = [];
       grouped[row].push(individual);
     }
     return grouped;
-  }, [individualsLocal]);
+  }, [filteredIndividuals]);
 
   // 該当行へスクロール
   const scrollToRow = (row: string) => {
@@ -263,9 +308,22 @@ export function CustomerTabs({
       </TabsList>
 
       <TabsContent value="accounts">
-        {accountsLocal.length === 0 ? (
+        {/* 検索バー */}
+        <div className="mb-4 relative max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="法人名、担当者、電話番号、住所で検索..."
+            value={accountSearch}
+            onChange={(e) => setAccountSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+
+        {filteredAccounts.length === 0 ? (
           <p className="text-muted-foreground text-center py-8">
-            法人顧客がまだ登録されていません
+            {accountsLocal.length === 0
+              ? "法人顧客がまだ登録されていません"
+              : "検索結果がありません"}
           </p>
         ) : (
           <div className="flex gap-4">
@@ -375,9 +433,22 @@ export function CustomerTabs({
       </TabsContent>
 
       <TabsContent value="individuals">
-        {individualsLocal.length === 0 ? (
+        {/* 検索バー */}
+        <div className="mb-4 relative max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="氏名、フリガナ、電話番号、住所で検索..."
+            value={individualSearch}
+            onChange={(e) => setIndividualSearch(e.target.value)}
+            className="pl-9"
+          />
+        </div>
+
+        {filteredIndividuals.length === 0 ? (
           <p className="text-muted-foreground text-center py-8">
-            個人顧客がまだ登録されていません
+            {individualsLocal.length === 0
+              ? "個人顧客がまだ登録されていません"
+              : "検索結果がありません"}
           </p>
         ) : (
           <div className="flex gap-4">
