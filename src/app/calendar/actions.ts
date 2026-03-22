@@ -4,16 +4,14 @@ import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import {
   type CalendarEventInsert,
-  type CalendarEvent,
   type CalendarEventWithParticipants,
   type Employee,
   type EventCategory,
   type EventCategoryInsert,
   type Project,
-  type Task,
   type RecurrenceType,
 } from "@/types/database";
-import { addDays, addWeeks, addMonths, addYears, format, getDay, getDate, getMonth, setDate, setMonth, isBefore, isAfter, parseISO } from "date-fns";
+import { addDays, addWeeks, addMonths, addYears, format, getDay, setDate, setMonth, isBefore, isAfter, parseISO } from "date-fns";
 
 // 現在のユーザーの社員IDを取得（内部用）
 async function getCurrentEmployeeIdInternal(supabase: Awaited<ReturnType<typeof createClient>>) {
@@ -94,17 +92,6 @@ export async function getEventsInRange(
     projects?.forEach((p) => projectMap.set(p.id, p as Project));
   }
 
-  // タスク情報を取得
-  const taskIds = events.map((e) => e.task_id).filter(Boolean) as string[];
-  const taskMap = new Map<string, Task>();
-  if (taskIds.length > 0) {
-    const { data: tasks } = await supabase
-      .from("tasks" as never)
-      .select("*")
-      .in("id", taskIds);
-    (tasks as Task[])?.forEach((t) => taskMap.set(t.id, t));
-  }
-
   // 区分マスタ情報を取得
   const categoryIds = events.map((e) => e.event_category_id).filter(Boolean) as string[];
   const categoryMap = new Map<string, EventCategory>();
@@ -125,7 +112,6 @@ export async function getEventsInRange(
 
     const creator = event.created_by ? employeeMap.get(event.created_by) : null;
     const project = event.project_id ? projectMap.get(event.project_id) : null;
-    const task = event.task_id ? taskMap.get(event.task_id) : null;
     const eventCategory = event.event_category_id ? categoryMap.get(event.event_category_id) : null;
 
     return {
@@ -133,7 +119,7 @@ export async function getEventsInRange(
       participants: eventParticipants || [],
       creator: creator || null,
       project: project || null,
-      task: task || null,
+      task: null,
       eventCategory: eventCategory || null,
     } as CalendarEventWithParticipants;
   });
@@ -647,18 +633,21 @@ export async function getEvent(eventId: string): Promise<CalendarEventWithPartic
   } as CalendarEventWithParticipants;
 }
 
-// 進行中の業務とタスクを取得
-export type ProjectWithTasks = Project & {
-  tasks: Task[];
+// 進行中の業務を取得（カレンダーリンク用）
+export type ProjectForLink = {
+  id: string;
+  code: string;
+  name: string;
+  location: string | null;
 };
 
-export async function getActiveProjectsWithTasks(): Promise<ProjectWithTasks[]> {
+export async function getActiveProjects(): Promise<ProjectForLink[]> {
   const supabase = await createClient();
 
   // 進行中の業務を取得
   const { data: projects, error: projectsError } = await supabase
     .from("projects")
-    .select("*")
+    .select("id, code, name, location")
     .in("status", ["受注", "着手", "進行中"])
     .order("code", { ascending: false });
 
@@ -667,33 +656,7 @@ export async function getActiveProjectsWithTasks(): Promise<ProjectWithTasks[]> 
     return [];
   }
 
-  if (!projects || projects.length === 0) {
-    return [];
-  }
-
-  // 各業務のタスクを取得（未完了のもの）
-  const projectIds = projects.map((p) => p.id);
-  const { data: tasks, error: tasksError } = await supabase
-    .from("tasks" as never)
-    .select("*")
-    .in("project_id", projectIds)
-    .eq("is_completed", false)
-    .order("sort_order", { ascending: true });
-
-  const allTasks = (tasks as Task[]) || [];
-
-  // プロジェクトにタスクを紐付け（project_idがnullのタスクは除外）
-  const tasksByProjectId = allTasks.reduce((acc, task) => {
-    if (task.project_id === null) return acc;
-    if (!acc[task.project_id]) acc[task.project_id] = [];
-    acc[task.project_id].push(task);
-    return acc;
-  }, {} as Record<string, Task[]>);
-
-  return (projects as Project[]).map((project) => ({
-    ...project,
-    tasks: tasksByProjectId[project.id] || [],
-  }));
+  return (projects as ProjectForLink[]) || [];
 }
 
 // ============================================

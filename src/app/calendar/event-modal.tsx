@@ -13,19 +13,18 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { format, addMonths, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isSameDay, getDay, getDate, getMonth } from "date-fns";
+import { format, addMonths, startOfMonth, endOfMonth, eachDayOfInterval, getDay, getDate, getMonth } from "date-fns";
 import { ja } from "date-fns/locale";
-import { Briefcase, ChevronDown, ChevronRight, ChevronLeft, LinkIcon, X, Calendar, Repeat } from "lucide-react";
+import { Briefcase, ChevronRight, ChevronLeft, LinkIcon, X, Calendar, Repeat } from "lucide-react";
 import {
   type CalendarEventWithParticipants,
   type Employee,
   type EventCategory,
-  type Task,
   type RecurrenceType,
   RECURRENCE_TYPE_LABELS,
   DAY_OF_WEEK_LABELS,
 } from "@/types/database";
-import { createEvent, updateEvent, createRecurringEvents, createMultipleDateEvents, getActiveProjectsWithTasks, type ProjectWithTasks } from "./actions";
+import { createEvent, updateEvent, createRecurringEvents, createMultipleDateEvents, getActiveProjects, type ProjectForLink } from "./actions";
 
 interface EventModalProps {
   open: boolean;
@@ -99,15 +98,13 @@ export function EventModal({
   const [mapUrl, setMapUrl] = useState("");
   const [participantIds, setParticipantIds] = useState<string[]>([]);
 
-  // 業務ToDo選択用
+  // 業務選択用
   const [showProjectSelector, setShowProjectSelector] = useState(false);
-  const [projectsWithTasks, setProjectsWithTasks] = useState<ProjectWithTasks[]>([]);
+  const [projects, setProjects] = useState<ProjectForLink[]>([]);
   const [loadingProjects, setLoadingProjects] = useState(false);
-  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set());
 
   // 業務リンク
   const [linkedProjectId, setLinkedProjectId] = useState<string | null>(null);
-  const [linkedTaskId, setLinkedTaskId] = useState<string | null>(null);
   const [linkedProjectCode, setLinkedProjectCode] = useState<string | null>(null);
 
   // 繰り返し設定
@@ -142,7 +139,6 @@ export function EventModal({
       setParticipantIds(event.participants.map((p) => p.id));
       setShowProjectSelector(false);
       setLinkedProjectId(event.project_id);
-      setLinkedTaskId(event.task_id);
       setLinkedProjectCode(event.project?.code || null);
     } else if (selectedDate) {
       const dateStr = format(selectedDate, "yyyy-MM-dd");
@@ -163,7 +159,6 @@ export function EventModal({
       setParticipantIds(currentEmployeeId ? [currentEmployeeId] : []);
       setShowProjectSelector(false);
       setLinkedProjectId(null);
-      setLinkedTaskId(null);
       setLinkedProjectCode(null);
       // 繰り返し設定をリセット
       setRecurrenceType("none");
@@ -178,17 +173,17 @@ export function EventModal({
     }
   }, [event, selectedDate, open, eventCategories, currentEmployeeId, initialStartTime, initialEndTime]);
 
-  // 業務ToDoを読み込む
-  const loadProjectsWithTasks = async () => {
-    if (projectsWithTasks.length > 0) {
+  // 業務を読み込む
+  const loadProjects = async () => {
+    if (projects.length > 0) {
       setShowProjectSelector(!showProjectSelector);
       return;
     }
 
     setLoadingProjects(true);
     try {
-      const data = await getActiveProjectsWithTasks();
-      setProjectsWithTasks(data);
+      const data = await getActiveProjects();
+      setProjects(data);
       setShowProjectSelector(true);
     } catch (err) {
       console.error("Error loading projects:", err);
@@ -204,26 +199,12 @@ export function EventModal({
   };
 
   // 業務を選択
-  const selectProject = (project: ProjectWithTasks) => {
+  const selectProject = (project: ProjectForLink) => {
     setTitle(truncateName(project.name));
     if (project.location) {
       setLocation(project.location);
     }
     setLinkedProjectId(project.id);
-    setLinkedTaskId(null);
-    setLinkedProjectCode(project.code);
-    setShowProjectSelector(false);
-  };
-
-  // タスクを選択
-  const selectTask = (project: ProjectWithTasks, task: Task) => {
-    // 業務名(先頭10文字)>タスク名
-    setTitle(`${truncateName(project.name)}>${task.title}`);
-    if (project.location) {
-      setLocation(project.location);
-    }
-    setLinkedProjectId(project.id);
-    setLinkedTaskId(task.id);
     setLinkedProjectCode(project.code);
     setShowProjectSelector(false);
   };
@@ -231,21 +212,7 @@ export function EventModal({
   // 業務リンクを解除
   const clearProjectLink = () => {
     setLinkedProjectId(null);
-    setLinkedTaskId(null);
     setLinkedProjectCode(null);
-  };
-
-  // プロジェクトの展開/折りたたみ
-  const toggleProjectExpand = (projectId: string) => {
-    setExpandedProjects((prev) => {
-      const next = new Set(prev);
-      if (next.has(projectId)) {
-        next.delete(projectId);
-      } else {
-        next.add(projectId);
-      }
-      return next;
-    });
   };
 
   const handleSubmit = async () => {
@@ -280,7 +247,7 @@ export function EventModal({
         location: location.trim() || null,
         map_url: mapUrl.trim() || null,
         project_id: linkedProjectId,
-        task_id: linkedTaskId,
+        task_id: null,
       };
 
       if (event && event.id) {
@@ -380,7 +347,7 @@ export function EventModal({
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={loadProjectsWithTasks}
+                onClick={loadProjects}
                 disabled={loadingProjects}
               >
                 <Briefcase className="h-4 w-4 mr-1" />
@@ -409,68 +376,25 @@ export function EventModal({
               </div>
             )}
 
-            {/* 業務ToDo選択パネル */}
+            {/* 業務選択パネル */}
             {showProjectSelector && (
               <div className="border rounded-md p-2 max-h-48 overflow-y-auto bg-muted/30">
-                {projectsWithTasks.length === 0 ? (
+                {projects.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-2">
                     進行中の業務がありません
                   </p>
                 ) : (
                   <div className="space-y-1">
-                    {projectsWithTasks.map((project) => (
-                      <div key={project.id} className="text-sm">
-                        <div
-                          className="flex items-center gap-1 p-1 rounded hover:bg-muted cursor-pointer"
-                          onClick={() => {
-                            if (project.tasks.length > 0) {
-                              toggleProjectExpand(project.id);
-                            } else {
-                              selectProject(project);
-                            }
-                          }}
-                        >
-                          {project.tasks.length > 0 ? (
-                            expandedProjects.has(project.id) ? (
-                              <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                            ) : (
-                              <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                            )
-                          ) : (
-                            <span className="w-4" />
-                          )}
-                          <span className="font-mono text-xs text-muted-foreground">
-                            {project.code}
-                          </span>
-                          <span className="truncate flex-1">{project.name}</span>
-                          {project.tasks.length > 0 && (
-                            <span className="text-xs text-muted-foreground">
-                              ({project.tasks.length})
-                            </span>
-                          )}
-                        </div>
-
-                        {/* タスク一覧 */}
-                        {expandedProjects.has(project.id) && project.tasks.length > 0 && (
-                          <div className="ml-5 border-l pl-2 space-y-0.5">
-                            {/* 業務自体を選択するオプション */}
-                            <div
-                              className="p-1 rounded hover:bg-muted cursor-pointer text-muted-foreground"
-                              onClick={() => selectProject(project)}
-                            >
-                              → 業務全体を選択
-                            </div>
-                            {project.tasks.map((task) => (
-                              <div
-                                key={task.id}
-                                className="p-1 rounded hover:bg-muted cursor-pointer"
-                                onClick={() => selectTask(project, task)}
-                              >
-                                {task.title}
-                              </div>
-                            ))}
-                          </div>
-                        )}
+                    {projects.map((project) => (
+                      <div
+                        key={project.id}
+                        className="flex items-center gap-1 p-1 rounded hover:bg-muted cursor-pointer text-sm"
+                        onClick={() => selectProject(project)}
+                      >
+                        <span className="font-mono text-xs text-muted-foreground">
+                          {project.code}
+                        </span>
+                        <span className="truncate flex-1">{project.name}</span>
                       </div>
                     ))}
                   </div>

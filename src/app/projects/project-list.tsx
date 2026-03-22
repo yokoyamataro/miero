@@ -21,7 +21,7 @@ import {
 import { ProjectFilters, type FilterState, NULL_MARKER, ALL_MARKER } from "./project-filters";
 
 // ソート用の型
-type SortKey = "code" | "status" | "is_urgent" | "is_on_hold" | "customer" | "name" | "location" | "manager";
+type SortKey = "code" | "status" | "customer" | "name" | "location" | "manager";
 
 interface SortState {
   key: SortKey | null;
@@ -223,12 +223,6 @@ export function ProjectList({ projects, employees, contactDisplayMap, employeeMa
         case "status":
           cmp = a.status.localeCompare(b.status);
           break;
-        case "is_urgent":
-          cmp = (a.is_urgent ? 1 : 0) - (b.is_urgent ? 1 : 0);
-          break;
-        case "is_on_hold":
-          cmp = (a.is_on_hold ? 1 : 0) - (b.is_on_hold ? 1 : 0);
-          break;
         case "customer":
           cmp = getCustomerName(a).localeCompare(getCustomerName(b));
           break;
@@ -277,12 +271,6 @@ export function ProjectList({ projects, employees, contactDisplayMap, employeeMa
                 <TableHead className="w-[70px] py-1 text-xs whitespace-nowrap cursor-pointer hover:bg-muted/50" onClick={() => handleSort("status")}>
                   ステータス<SortIcon columnKey="status" />
                 </TableHead>
-                <TableHead className="w-[32px] py-1 text-xs text-center cursor-pointer hover:bg-muted/50" onClick={() => handleSort("is_urgent")}>
-                  重要<SortIcon columnKey="is_urgent" />
-                </TableHead>
-                <TableHead className="w-[32px] py-1 text-xs text-center cursor-pointer hover:bg-muted/50" onClick={() => handleSort("is_on_hold")}>
-                  待機<SortIcon columnKey="is_on_hold" />
-                </TableHead>
                 <TableHead className="w-[140px] py-1 text-xs cursor-pointer hover:bg-muted/50" onClick={() => handleSort("customer")}>
                   顧客<SortIcon columnKey="customer" />
                 </TableHead>
@@ -316,12 +304,6 @@ export function ProjectList({ projects, employees, contactDisplayMap, employeeMa
                     <Badge className={`${PROJECT_STATUS_COLORS[project.status as ProjectStatus]} text-xs`}>
                       {project.status}
                     </Badge>
-                  </TableCell>
-                  <TableCell className="text-xs py-1 text-center">
-                    {project.is_urgent ? "⚠️" : ""}
-                  </TableCell>
-                  <TableCell className="text-xs py-1 text-center">
-                    {project.is_on_hold ? "⏸" : ""}
                   </TableCell>
                   <TableCell className="text-xs py-1 truncate max-w-[140px]">
                     {project.contact_id ? (contactDisplayMap[project.contact_id] || "-").slice(0, 16) : "-"}
