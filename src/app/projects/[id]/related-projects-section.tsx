@@ -2,7 +2,6 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -12,11 +11,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Plus, X, Link2, Loader2, Search, ExternalLink } from "lucide-react";
+import { Plus, X, Loader2, Search } from "lucide-react";
 import {
   type RelatedProjectWithDetails,
   type ProjectCategory,
-  PROJECT_CATEGORY_LABELS,
 } from "@/types/database";
 import {
   addRelatedProject,
@@ -26,11 +24,13 @@ import {
 
 interface RelatedProjectsSectionProps {
   projectId: string;
+  projectCode: string;
   relatedProjects: RelatedProjectWithDetails[];
 }
 
 export function RelatedProjectsSection({
   projectId,
+  projectCode,
   relatedProjects,
 }: RelatedProjectsSectionProps) {
   const [isPending, startTransition] = useTransition();
@@ -77,139 +77,194 @@ export function RelatedProjectsSection({
     });
   };
 
-  // カテゴリラベルを取得
-  const getCategoryLabel = (category: ProjectCategory | null) => {
-    if (!category) return "";
-    return PROJECT_CATEGORY_LABELS[category] || category;
-  };
-
-  return (
-    <Card>
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base flex items-center gap-2">
-            <Link2 className="h-4 w-4" />
-            関連業務
-          </CardTitle>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline" size="sm">
-                <Plus className="h-4 w-4 mr-1" />
-                追加
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>関連業務を追加</DialogTitle>
-              </DialogHeader>
-              <div className="space-y-4">
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="業務コードまたは業務名で検索..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        handleSearch();
-                      }
-                    }}
-                  />
-                  <Button onClick={handleSearch} disabled={isSearching}>
-                    {isSearching ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Search className="h-4 w-4" />
-                    )}
-                  </Button>
-                </div>
-
-                {searchResults.length > 0 && (
-                  <div className="border rounded-md max-h-64 overflow-y-auto">
-                    {searchResults.map((project) => (
-                      <div
-                        key={project.id}
-                        className="flex items-center justify-between p-2 hover:bg-muted border-b last:border-b-0"
-                      >
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium truncate">
-                            {project.code}
-                          </div>
-                          <div className="text-xs text-muted-foreground truncate">
-                            {getCategoryLabel(project.category)} / {project.name}
-                          </div>
-                        </div>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={() => handleAdd(project.id)}
-                          disabled={isPending}
-                        >
-                          {isPending ? (
-                            <Loader2 className="h-4 w-4 animate-spin" />
-                          ) : (
-                            <Plus className="h-4 w-4" />
-                          )}
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                {searchQuery && searchResults.length === 0 && !isSearching && (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    該当する業務が見つかりません
-                  </p>
-                )}
-              </div>
-            </DialogContent>
-          </Dialog>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {relatedProjects.length === 0 ? (
-          <p className="text-sm text-muted-foreground text-center py-4">
-            関連業務はありません
-          </p>
-        ) : (
-          <div className="space-y-2">
-            {relatedProjects.map((relation) => (
-              <div
-                key={relation.id}
-                className="flex items-center justify-between p-2 rounded-md border bg-muted/30"
-              >
-                <Link
-                  href={`/projects/${relation.project.id}`}
-                  className="flex-1 min-w-0 hover:underline"
-                >
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">
-                      {relation.project.code}
-                    </span>
-                    <ExternalLink className="h-3 w-3 text-muted-foreground" />
-                  </div>
-                  <div className="text-xs text-muted-foreground truncate">
-                    {getCategoryLabel(relation.project.category)} / {relation.project.name}
-                  </div>
-                </Link>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  onClick={() => handleRemove(relation.id)}
-                  disabled={removingId === relation.id}
-                  className="text-muted-foreground hover:text-destructive"
-                >
-                  {removingId === relation.id ? (
+  // 関連業務がない場合は表示しない
+  if (relatedProjects.length === 0) {
+    return (
+      <div className="flex items-center gap-2 text-sm">
+        <span className="text-muted-foreground">関連業務:</span>
+        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+          <DialogTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-6 px-2">
+              <Plus className="h-3 w-3 mr-1" />
+              追加
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>関連業務を追加</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="flex gap-2">
+                <Input
+                  placeholder="業務コードまたは業務名で検索..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.preventDefault();
+                      handleSearch();
+                    }
+                  }}
+                />
+                <Button onClick={handleSearch} disabled={isSearching}>
+                  {isSearching ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
-                    <X className="h-4 w-4" />
+                    <Search className="h-4 w-4" />
                   )}
                 </Button>
               </div>
-            ))}
+
+              {searchResults.length > 0 && (
+                <div className="border rounded-md max-h-64 overflow-y-auto">
+                  {searchResults.map((project) => (
+                    <div
+                      key={project.id}
+                      className="flex items-center justify-between p-2 hover:bg-muted border-b last:border-b-0"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="text-sm font-medium truncate">
+                          {project.code}
+                        </div>
+                        <div className="text-xs text-muted-foreground truncate">
+                          {project.name}
+                        </div>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => handleAdd(project.id)}
+                        disabled={isPending}
+                      >
+                        {isPending ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Plus className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {searchQuery && searchResults.length === 0 && !isSearching && (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  該当する業務が見つかりません
+                </p>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2 text-sm flex-wrap">
+      <span className="text-muted-foreground">関連業務:</span>
+      {/* 本業務（●マーカー付き） */}
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-primary/10 text-primary font-medium">
+        <span className="text-xs">●</span>
+        {projectCode}
+      </span>
+      {/* 関連業務 */}
+      {relatedProjects.map((relation) => (
+        <span
+          key={relation.id}
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-muted hover:bg-muted/80 group"
+        >
+          <Link
+            href={`/projects/${relation.project.id}`}
+            className="hover:underline"
+          >
+            {relation.project.code}
+          </Link>
+          <button
+            onClick={() => handleRemove(relation.id)}
+            disabled={removingId === relation.id}
+            className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive ml-0.5"
+          >
+            {removingId === relation.id ? (
+              <Loader2 className="h-3 w-3 animate-spin" />
+            ) : (
+              <X className="h-3 w-3" />
+            )}
+          </button>
+        </span>
+      ))}
+      {/* 追加ボタン */}
+      <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+        <DialogTrigger asChild>
+          <Button variant="ghost" size="sm" className="h-6 px-2">
+            <Plus className="h-3 w-3" />
+          </Button>
+        </DialogTrigger>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>関連業務を追加</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="flex gap-2">
+              <Input
+                placeholder="業務コードまたは業務名で検索..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleSearch();
+                  }
+                }}
+              />
+              <Button onClick={handleSearch} disabled={isSearching}>
+                {isSearching ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Search className="h-4 w-4" />
+                )}
+              </Button>
+            </div>
+
+            {searchResults.length > 0 && (
+              <div className="border rounded-md max-h-64 overflow-y-auto">
+                {searchResults.map((project) => (
+                  <div
+                    key={project.id}
+                    className="flex items-center justify-between p-2 hover:bg-muted border-b last:border-b-0"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium truncate">
+                        {project.code}
+                      </div>
+                      <div className="text-xs text-muted-foreground truncate">
+                        {project.name}
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleAdd(project.id)}
+                      disabled={isPending}
+                    >
+                      {isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Plus className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {searchQuery && searchResults.length === 0 && !isSearching && (
+              <p className="text-sm text-muted-foreground text-center py-4">
+                該当する業務が見つかりません
+              </p>
+            )}
           </div>
-        )}
-      </CardContent>
-    </Card>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }

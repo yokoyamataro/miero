@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -25,9 +27,9 @@ import {
   type Industry,
 } from "@/types/database";
 import {
-  createProject,
+  createProjects,
   getNextProjectCode,
-  type CreateProjectData,
+  type CreateProjectsData,
   type CustomerData,
   type AccountWithContacts,
   type IndividualContact,
@@ -54,11 +56,15 @@ interface ProjectFormProps {
 }
 
 export function ProjectForm({ customerData, employees, industries }: ProjectFormProps) {
+  const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [category, setCategory] = useState<ProjectCategory | "">("");
-  const [projectCode, setProjectCode] = useState<string>("");
-  const [isLoadingCode, setIsLoadingCode] = useState(false);
+
+  // 複数カテゴリ選択（最大3つ）
+  const [categories, setCategories] = useState<ProjectCategory[]>([]);
+  const [projectCodes, setProjectCodes] = useState<Record<ProjectCategory, string>>({} as Record<ProjectCategory, string>);
+  const [loadingCodes, setLoadingCodes] = useState<Record<ProjectCategory, boolean>>({} as Record<ProjectCategory, boolean>);
+
   const [status, setStatus] = useState<ProjectStatus>("進行中");
   const [selectedAccountId, setSelectedAccountId] = useState<string>("");
   const [contactId, setContactId] = useState<string>("");
@@ -67,18 +73,31 @@ export function ProjectForm({ customerData, employees, industries }: ProjectForm
   const [locationDetail, setLocationDetail] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
 
-  // カテゴリ変更時に業務コードを自動生成
-  const handleCategoryChange = async (val: ProjectCategory) => {
-    setCategory(val);
-    // 業務コードを取得
-    setIsLoadingCode(true);
-    try {
-      const nextCode = await getNextProjectCode(val);
-      setProjectCode(nextCode);
-    } catch (err) {
-      console.error("Error fetching next code:", err);
-    } finally {
-      setIsLoadingCode(false);
+  // カテゴリ選択/解除時に業務コードを自動生成
+  const handleCategoryToggle = async (category: ProjectCategory, checked: boolean) => {
+    if (checked) {
+      // 最大3つまで
+      if (categories.length >= 3) {
+        return;
+      }
+      setCategories((prev) => [...prev, category]);
+      // 業務コードを取得
+      setLoadingCodes((prev) => ({ ...prev, [category]: true }));
+      try {
+        const nextCode = await getNextProjectCode(category);
+        setProjectCodes((prev) => ({ ...prev, [category]: nextCode }));
+      } catch (err) {
+        console.error("Error fetching next code:", err);
+      } finally {
+        setLoadingCodes((prev) => ({ ...prev, [category]: false }));
+      }
+    } else {
+      setCategories((prev) => prev.filter((c) => c !== category));
+      setProjectCodes((prev) => {
+        const newCodes = { ...prev };
+        delete newCodes[category];
+        return newCodes;
+      });
     }
   };
 
@@ -156,19 +175,13 @@ export function ProjectForm({ customerData, employees, industries }: ProjectForm
 
     const formData = new FormData(e.currentTarget);
 
-    if (!category) {
-      setError("カテゴリを選択してください");
+    if (categories.length === 0) {
+      setError("カテゴリを1つ以上選択してください");
       return;
     }
 
-    if (!projectCode.trim()) {
-      setError("業務コードを入力してください");
-      return;
-    }
-
-    const data: CreateProjectData = {
-      code: projectCode.trim(),
-      category: category as ProjectCategory,
+    const data: CreateProjectsData = {
+      categories: categories,
       name: formData.get("name") as string,
       status: status,
       contact_id: contactId && contactId !== "none" ? contactId : null,
@@ -184,12 +197,18 @@ export function ProjectForm({ customerData, employees, industries }: ProjectForm
     };
 
     startTransition(async () => {
-      const result = await createProject(data);
+      const result = await createProjects(data);
       if (result?.error) {
         setError(result.error);
+      } else if (result?.primaryProjectId) {
+        // 登録した業務の詳細画面に遷移
+        router.push(`/projects/${result.primaryProjectId}`);
       }
     });
   };
+
+  // ローディング中かどうか
+  const isAnyCodeLoading = Object.values(loadingCodes).some((v) => v);
 
   return (
     <>
@@ -219,45 +238,64 @@ export function ProjectForm({ customerData, employees, industries }: ProjectForm
             <CardTitle>基本情報</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="category">カテゴリ *</Label>
-                <Select
-                  value={category}
-                  onValueChange={(val) => handleCategoryChange(val as ProjectCategory)}
-                >
-                  <SelectTrigger id="category">
-                    <SelectValue placeholder="カテゴリを選択" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(
-                      Object.keys(PROJECT_CATEGORY_LABELS) as ProjectCategory[]
-                    ).map((key) => (
-                      <SelectItem key={key} value={key}>
+            {/* カテゴリ選択（チェックボックスグループ） */}
+            <div>
+              <Label>カテゴリ * (最大3つ選択可能)</Label>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-2">
+                {(Object.keys(PROJECT_CATEGORY_LABELS) as ProjectCategory[]).map((key) => {
+                  const isSelected = categories.includes(key);
+                  const isDisabled = !isSelected && categories.length >= 3;
+                  return (
+                    <div
+                      key={key}
+                      className={`flex items-center space-x-2 p-2 rounded border ${
+                        isSelected ? "bg-primary/10 border-primary" : "border-border"
+                      } ${isDisabled ? "opacity-50" : ""}`}
+                    >
+                      <Checkbox
+                        id={`category-${key}`}
+                        checked={isSelected}
+                        disabled={isDisabled}
+                        onCheckedChange={(checked) => handleCategoryToggle(key, !!checked)}
+                      />
+                      <label
+                        htmlFor={`category-${key}`}
+                        className={`text-sm cursor-pointer ${isDisabled ? "cursor-not-allowed" : ""}`}
+                      >
                         {PROJECT_CATEGORY_LABELS[key]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="code">業務コード *</Label>
-                <div className="relative">
-                  <Input
-                    id="code"
-                    name="code"
-                    placeholder={category ? "自動生成中..." : "カテゴリを先に選択"}
-                    value={projectCode}
-                    onChange={(e) => setProjectCode(e.target.value)}
-                    required
-                    disabled={isLoadingCode}
-                  />
-                  {isLoadingCode && (
-                    <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
-                  )}
-                </div>
+                      </label>
+                    </div>
+                  );
+                })}
               </div>
             </div>
+
+            {/* 業務コード表示 */}
+            {categories.length > 0 && (
+              <div>
+                <Label>業務コード</Label>
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {categories.map((cat) => (
+                    <div
+                      key={cat}
+                      className="flex items-center gap-2 px-3 py-1.5 rounded bg-muted text-sm"
+                    >
+                      <span className="font-medium">{PROJECT_CATEGORY_LABELS[cat]}:</span>
+                      {loadingCodes[cat] ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <span className="font-mono">{projectCodes[cat] || "..."}</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                {categories.length > 1 && (
+                  <p className="text-xs text-muted-foreground mt-2">
+                    {categories.length}つの業務が作成され、相互に関連業務として登録されます
+                  </p>
+                )}
+              </div>
+            )}
 
             <div>
               <Label htmlFor="name">業務名 *</Label>
@@ -470,9 +508,9 @@ export function ProjectForm({ customerData, employees, industries }: ProjectForm
               キャンセル
             </Button>
           </Link>
-          <Button type="submit" disabled={isPending}>
+          <Button type="submit" disabled={isPending || isAnyCodeLoading || categories.length === 0}>
             {isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            登録する
+            {categories.length > 1 ? `${categories.length}件登録する` : "登録する"}
           </Button>
         </div>
       </form>
@@ -496,5 +534,3 @@ export function ProjectForm({ customerData, employees, industries }: ProjectForm
     </>
   );
 }
-
-

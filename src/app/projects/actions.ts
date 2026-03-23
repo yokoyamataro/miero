@@ -69,7 +69,10 @@ export interface CreateProjectData {
   notes: string | null;
 }
 
-export async function createProject(data: CreateProjectData) {
+export async function createProject(data: CreateProjectData): Promise<{
+  error?: string;
+  projectId?: string;
+}> {
   const supabase = await createClient();
 
   // Dropboxフォルダを自動作成
@@ -82,7 +85,7 @@ export async function createProject(data: CreateProjectData) {
     // フォルダ作成に失敗しても業務登録は続行
   }
 
-  const { error } = await supabase.from("projects").insert({
+  const { data: project, error } = await supabase.from("projects").insert({
     code: data.code,
     category: data.category,
     name: data.name,
@@ -96,7 +99,7 @@ export async function createProject(data: CreateProjectData) {
     location_detail: data.location_detail || null,
     notes: data.notes || null,
     main_folder_path: mainFolderPath,
-  });
+  }).select("id").single();
 
   if (error) {
     console.error("Error creating project:", error);
@@ -104,7 +107,98 @@ export async function createProject(data: CreateProjectData) {
   }
 
   revalidatePath("/projects");
-  redirect("/projects");
+  return { projectId: (project as { id: string }).id };
+}
+
+// 複数カテゴリの業務を一括作成
+export interface CreateProjectsData {
+  categories: ProjectCategory[];
+  name: string;
+  status: ProjectStatus;
+  contact_id: string | null;
+  manager_id: string | null;
+  start_date: string | null;
+  end_date: string | null;
+  fee_tax_excluded: number | null;
+  location: string | null;
+  location_detail: string | null;
+  notes: string | null;
+}
+
+export async function createProjects(data: CreateProjectsData): Promise<{
+  error?: string;
+  projectIds?: string[];
+  primaryProjectId?: string;
+}> {
+  const supabase = await createClient();
+  const projectIds: string[] = [];
+
+  // 各カテゴリの業務コードを取得
+  const projectCodes: Record<ProjectCategory, string> = {} as Record<ProjectCategory, string>;
+  for (const category of data.categories) {
+    projectCodes[category] = await getNextProjectCode(category);
+  }
+
+  // 各業務を作成
+  for (const category of data.categories) {
+    const code = projectCodes[category];
+
+    // Dropboxフォルダを自動作成
+    let mainFolderPath: string | null = null;
+    const dropboxResult = await createProjectFolder(category, code, data.name);
+    if (dropboxResult.success && dropboxResult.path) {
+      mainFolderPath = dropboxResult.path;
+    } else if (dropboxResult.error) {
+      console.warn("Dropbox folder creation failed:", dropboxResult.error);
+    }
+
+    const { data: project, error } = await supabase.from("projects").insert({
+      code,
+      category,
+      name: data.name,
+      status: data.status,
+      contact_id: data.contact_id || null,
+      manager_id: data.manager_id || null,
+      start_date: data.start_date || null,
+      end_date: data.end_date || null,
+      fee_tax_excluded: data.fee_tax_excluded || 0,
+      location: data.location || null,
+      location_detail: data.location_detail || null,
+      notes: data.notes || null,
+      main_folder_path: mainFolderPath,
+    }).select("id").single();
+
+    if (error) {
+      console.error("Error creating project:", error);
+      return { error: error.message };
+    }
+
+    projectIds.push((project as { id: string }).id);
+  }
+
+  // 複数業務の場合は関連業務として相互リンク
+  if (projectIds.length > 1) {
+    for (let i = 0; i < projectIds.length; i++) {
+      for (let j = i + 1; j < projectIds.length; j++) {
+        const { error: relatedError } = await supabase
+          .from("related_projects" as never)
+          .insert({
+            project_id: projectIds[i],
+            related_project_id: projectIds[j],
+          } as never);
+
+        if (relatedError) {
+          console.warn("Error creating related project link:", relatedError);
+        }
+      }
+    }
+  }
+
+  revalidatePath("/projects");
+  return {
+    projectIds,
+    primaryProjectId: projectIds[0],
+  };
 }
 
 // 個人顧客

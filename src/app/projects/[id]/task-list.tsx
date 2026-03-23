@@ -17,7 +17,6 @@ import {
 import {
   Plus,
   Trash2,
-  Calendar,
   GripVertical,
   BookTemplate,
   Save,
@@ -125,13 +124,6 @@ function SortableTaskItem({
     }
   };
 
-  const handleDueDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    startTransition(async () => {
-      await updateTask(task.id, { due_date: e.target.value || null });
-      router.refresh();
-    });
-  };
-
   const handleAssigneeChange = (value: string) => {
     startTransition(async () => {
       await updateTask(task.id, { assigned_to: value === "none" ? null : value });
@@ -140,8 +132,6 @@ function SortableTaskItem({
   };
 
   const assignee = employees.find((e) => e.id === task.assigned_to);
-  const isOverdue =
-    task.due_date && !isCompleted && new Date(task.due_date) < new Date();
 
   return (
     <div
@@ -187,17 +177,6 @@ function SortableTaskItem({
             {task.title}
           </span>
         )}
-      </div>
-
-      {/* 期限 */}
-      <div className="flex items-center gap-1 flex-shrink-0">
-        <Calendar className={`h-4 w-4 ${isOverdue ? "text-red-500" : "text-muted-foreground"}`} />
-        <Input
-          type="date"
-          value={task.due_date || ""}
-          onChange={handleDueDateChange}
-          className={`w-32 h-7 text-sm ${isOverdue ? "text-red-500" : ""}`}
-        />
       </div>
 
       {/* 担当者 */}

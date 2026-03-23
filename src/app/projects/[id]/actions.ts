@@ -99,24 +99,15 @@ export async function updateTask(
     title?: string;
     description?: string | null;
     is_completed?: boolean;
-    due_date?: string | null;
     assigned_to?: string | null;
     sort_order?: number;
   }
 ) {
   const supabase = await createClient();
 
-  // is_completedが設定されている場合はcompleted_atも設定
-  const updatesWithCompletedAt = {
-    ...updates,
-    ...(updates.is_completed !== undefined && {
-      completed_at: updates.is_completed ? new Date().toISOString() : null,
-    }),
-  };
-
   const { data, error } = await supabase
     .from("tasks" as never)
-    .update(updatesWithCompletedAt as never)
+    .update(updates as never)
     .eq("id", taskId)
     .select("project_id")
     .single();

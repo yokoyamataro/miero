@@ -28,10 +28,7 @@ export async function toggleTaskComplete(
 
   const { error } = await supabase
     .from("tasks" as never)
-    .update({
-      is_completed: isCompleted,
-      completed_at: isCompleted ? new Date().toISOString() : null,
-    } as never)
+    .update({ is_completed: isCompleted } as never)
     .eq("id", taskId);
 
   if (error) {

@@ -173,6 +173,12 @@ export default async function ProjectDetailPage({
             </Button>
           </Link>
         </div>
+        {/* 関連業務セクション（タイトル直下） */}
+        <RelatedProjectsSection
+          projectId={id}
+          projectCode={typedProject.code}
+          relatedProjects={relatedProjects}
+        />
       </header>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -218,12 +224,6 @@ export default async function ProjectDetailPage({
             employees={typedEmployees}
             customerData={customerData}
             defaultRecipientContactId={typedProject.contact_id}
-          />
-
-          {/* 関連業務セクション */}
-          <RelatedProjectsSection
-            projectId={id}
-            relatedProjects={relatedProjects}
           />
         </div>
 
