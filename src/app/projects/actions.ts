@@ -113,6 +113,7 @@ export async function createProject(data: CreateProjectData): Promise<{
 // 複数カテゴリの業務を一括作成
 export interface CreateProjectsData {
   categories: ProjectCategory[];
+  customCodes?: Record<ProjectCategory, string>; // カスタム業務コード（指定時はこちらを使用）
   name: string;
   status: ProjectStatus;
   contact_id: string | null;
@@ -133,10 +134,10 @@ export async function createProjects(data: CreateProjectsData): Promise<{
   const supabase = await createClient();
   const projectIds: string[] = [];
 
-  // 各カテゴリの業務コードを取得
+  // 各カテゴリの業務コードを取得（カスタムコードがあればそちらを使用）
   const projectCodes: Record<ProjectCategory, string> = {} as Record<ProjectCategory, string>;
   for (const category of data.categories) {
-    projectCodes[category] = await getNextProjectCode(category);
+    projectCodes[category] = data.customCodes?.[category] || await getNextProjectCode(category);
   }
 
   // 各業務を作成

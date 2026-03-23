@@ -23,11 +23,11 @@ import { ProjectFilters, type FilterState, NULL_MARKER, ALL_MARKER } from "./pro
 // ソート用の型
 type SortKey = "code" | "status" | "customer" | "name" | "location" | "manager" | "start_date" | "end_date";
 
-// 日付フォーマット（MM/DD形式）
+// 日付フォーマット（YYYY/MM/DD形式）
 function formatDate(dateStr: string | null): string {
   if (!dateStr) return "-";
   const date = new Date(dateStr);
-  return `${date.getMonth() + 1}/${date.getDate()}`;
+  return `${date.getFullYear()}/${date.getMonth() + 1}/${date.getDate()}`;
 }
 
 interface SortState {
@@ -277,10 +277,10 @@ export function ProjectList({ projects, employees, contactDisplayMap, employeeMa
                 <TableHead className="w-[100px] py-1 text-xs cursor-pointer hover:bg-muted/50" onClick={() => handleSort("manager")}>
                   担当<SortIcon columnKey="manager" />
                 </TableHead>
-                <TableHead className="w-[60px] py-1 text-xs cursor-pointer hover:bg-muted/50" onClick={() => handleSort("start_date")}>
+                <TableHead className="w-[90px] py-1 text-xs cursor-pointer hover:bg-muted/50" onClick={() => handleSort("start_date")}>
                   開始<SortIcon columnKey="start_date" />
                 </TableHead>
-                <TableHead className="w-[60px] py-1 text-xs cursor-pointer hover:bg-muted/50" onClick={() => handleSort("end_date")}>
+                <TableHead className="w-[90px] py-1 text-xs cursor-pointer hover:bg-muted/50" onClick={() => handleSort("end_date")}>
                   完了<SortIcon columnKey="end_date" />
                 </TableHead>
               </TableRow>

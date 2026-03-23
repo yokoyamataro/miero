@@ -27,6 +27,7 @@ import {
 export async function updateProject(
   projectId: string,
   updates: {
+    code?: string;
     name?: string;
     status?: ProjectStatus;
     is_urgent?: boolean;
@@ -46,9 +47,15 @@ export async function updateProject(
 ) {
   const supabase = await createClient();
 
+  // ステータスが「完了」に変更された場合、end_dateを自動設定
+  const finalUpdates = { ...updates };
+  if (updates.status === "完了" && !updates.end_date) {
+    finalUpdates.end_date = new Date().toISOString().split("T")[0];
+  }
+
   const { error } = await supabase
     .from("projects")
-    .update(updates as never)
+    .update(finalUpdates as never)
     .eq("id", projectId);
 
   if (error) {

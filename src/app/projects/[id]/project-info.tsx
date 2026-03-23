@@ -1213,6 +1213,60 @@ function DocumentGenerateDialogForContact({
   );
 }
 
+// 編集可能な業務コードコンポーネント
+function EditableCode({
+  value,
+  onSave,
+}: {
+  value: string;
+  onSave: (value: string) => void;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [inputValue, setInputValue] = useState(value);
+
+  const handleSave = () => {
+    if (inputValue !== value && inputValue.trim()) {
+      onSave(inputValue.trim());
+    }
+    setIsEditing(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      handleSave();
+    } else if (e.key === "Escape") {
+      setInputValue(value);
+      setIsEditing(false);
+    }
+  };
+
+  if (isEditing) {
+    return (
+      <Input
+        value={inputValue}
+        onChange={(e) => setInputValue(e.target.value)}
+        onBlur={handleSave}
+        onKeyDown={handleKeyDown}
+        autoFocus
+        className="font-mono text-muted-foreground h-7 w-24 px-2"
+      />
+    );
+  }
+
+  return (
+    <span
+      onClick={() => {
+        setInputValue(value);
+        setIsEditing(true);
+      }}
+      className="font-mono text-muted-foreground cursor-pointer hover:bg-muted/50 rounded px-1 -mx-1 py-0.5"
+      title="クリックで編集"
+    >
+      {value}
+    </span>
+  );
+}
+
 // 編集可能なタイトルコンポーネント
 function EditableTitle({
   value,
@@ -1485,7 +1539,10 @@ export function ProjectInfo({
       {/* ヘッダー情報 */}
       <div>
         <div className="flex items-center gap-3 mb-2 flex-wrap">
-          <span className="font-mono text-muted-foreground">{project.code}</span>
+          <EditableCode
+            value={project.code}
+            onSave={(val) => handleUpdate("code", val)}
+          />
           <Badge className="bg-blue-100 text-blue-800">
             {PROJECT_CATEGORY_LABELS[project.category]}
           </Badge>

@@ -18,7 +18,7 @@ import {
   SelectGroup,
   SelectLabel,
 } from "@/components/ui/select";
-import { ArrowLeft, Loader2, FileText } from "lucide-react";
+import { ArrowLeft, Loader2, FileText, Pencil, Check, X } from "lucide-react";
 import {
   PROJECT_CATEGORY_LABELS,
   PROJECT_AREA_GROUPS,
@@ -55,6 +55,10 @@ export function ProjectForm({ employees }: ProjectFormProps) {
   const [location, setLocation] = useState<string>("");
   const [locationDetail, setLocationDetail] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
+
+  // 業務コード編集用
+  const [editingCodeCategory, setEditingCodeCategory] = useState<ProjectCategory | null>(null);
+  const [editingCodeValue, setEditingCodeValue] = useState<string>("");
 
   // カテゴリ選択/解除時に業務コードを自動生成
   const handleCategoryToggle = async (category: ProjectCategory, checked: boolean) => {
@@ -97,6 +101,7 @@ export function ProjectForm({ employees }: ProjectFormProps) {
 
     const data: CreateProjectsData = {
       categories: categories,
+      customCodes: projectCodes, // カスタム業務コードを渡す
       name: formData.get("name") as string,
       status: status,
       contact_id: null,
@@ -183,10 +188,10 @@ export function ProjectForm({ employees }: ProjectFormProps) {
               </div>
             </div>
 
-            {/* 業務コード表示 */}
+            {/* 業務コード表示・編集 */}
             {categories.length > 0 && (
               <div>
-                <Label>業務コード</Label>
+                <Label>業務コード（クリックで編集可能）</Label>
                 <div className="flex flex-wrap gap-2 mt-2">
                   {categories.map((cat) => (
                     <div
@@ -196,8 +201,52 @@ export function ProjectForm({ employees }: ProjectFormProps) {
                       <span className="font-medium">{PROJECT_CATEGORY_LABELS[cat]}:</span>
                       {loadingCodes[cat] ? (
                         <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : editingCodeCategory === cat ? (
+                        <div className="flex items-center gap-1">
+                          <Input
+                            value={editingCodeValue}
+                            onChange={(e) => setEditingCodeValue(e.target.value)}
+                            className="h-6 w-24 font-mono text-sm px-1"
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                setProjectCodes((prev) => ({ ...prev, [cat]: editingCodeValue }));
+                                setEditingCodeCategory(null);
+                              } else if (e.key === "Escape") {
+                                setEditingCodeCategory(null);
+                              }
+                            }}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setProjectCodes((prev) => ({ ...prev, [cat]: editingCodeValue }));
+                              setEditingCodeCategory(null);
+                            }}
+                            className="text-green-600 hover:text-green-700"
+                          >
+                            <Check className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingCodeCategory(null)}
+                            className="text-muted-foreground hover:text-foreground"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
                       ) : (
-                        <span className="font-mono">{projectCodes[cat] || "..."}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingCodeCategory(cat);
+                            setEditingCodeValue(projectCodes[cat] || "");
+                          }}
+                          className="flex items-center gap-1 font-mono hover:bg-background/50 rounded px-1 -mx-1"
+                        >
+                          {projectCodes[cat] || "..."}
+                          <Pencil className="h-3 w-3 text-muted-foreground" />
+                        </button>
                       )}
                     </div>
                   ))}
