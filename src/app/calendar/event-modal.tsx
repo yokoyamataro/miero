@@ -192,15 +192,8 @@ export function EventModal({
     }
   };
 
-  // 業務名を先頭10文字に切り詰める
-  const truncateName = (name: string, maxLength: number = 10): string => {
-    if (name.length <= maxLength) return name;
-    return name.slice(0, maxLength);
-  };
-
   // 業務を選択
   const selectProject = (project: ProjectForLink) => {
-    setTitle(truncateName(project.name));
     if (project.location) {
       setLocation(project.location);
     }
