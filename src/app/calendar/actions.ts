@@ -648,7 +648,7 @@ export async function getActiveProjects(): Promise<ProjectForLink[]> {
   const { data: projects, error: projectsError } = await supabase
     .from("projects")
     .select("id, code, name, location")
-    .in("status", ["受注", "着手", "進行中"])
+    .eq("status", "進行中")
     .order("code", { ascending: false });
 
   if (projectsError) {
@@ -656,7 +656,42 @@ export async function getActiveProjects(): Promise<ProjectForLink[]> {
     return [];
   }
 
-  return (projects as ProjectForLink[]) || [];
+  if (!projects || projects.length === 0) {
+    return [];
+  }
+
+  // 閲覧履歴を取得（全ユーザーの履歴を考慮）
+  const projectIds = projects.map((p) => p.id);
+  const { data: views } = await supabase
+    .from("project_views" as never)
+    .select("project_id, viewed_at")
+    .in("project_id", projectIds)
+    .order("viewed_at", { ascending: false });
+
+  // 最新の閲覧日時でプロジェクトをソート
+  const viewedAtMap = new Map<string, string>();
+  if (views) {
+    for (const view of views as { project_id: string; viewed_at: string }[]) {
+      // 各プロジェクトの最新閲覧日時を記録
+      if (!viewedAtMap.has(view.project_id)) {
+        viewedAtMap.set(view.project_id, view.viewed_at);
+      }
+    }
+  }
+
+  // 閲覧履歴順にソート（履歴がないものは最後）
+  const sortedProjects = [...(projects as ProjectForLink[])].sort((a, b) => {
+    const aViewed = viewedAtMap.get(a.id);
+    const bViewed = viewedAtMap.get(b.id);
+    if (aViewed && bViewed) {
+      return bViewed.localeCompare(aViewed); // 新しい順
+    }
+    if (aViewed) return -1;
+    if (bViewed) return 1;
+    return b.code.localeCompare(a.code); // 履歴がなければコード順
+  });
+
+  return sortedProjects;
 }
 
 // ============================================
