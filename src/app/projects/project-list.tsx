@@ -21,7 +21,14 @@ import {
 import { ProjectFilters, type FilterState, NULL_MARKER, ALL_MARKER } from "./project-filters";
 
 // ソート用の型
-type SortKey = "code" | "status" | "customer" | "name" | "location" | "manager";
+type SortKey = "code" | "status" | "customer" | "name" | "location" | "manager" | "start_date" | "end_date";
+
+// 日付フォーマット（MM/DD形式）
+function formatDate(dateStr: string | null): string {
+  if (!dateStr) return "-";
+  const date = new Date(dateStr);
+  return `${date.getMonth() + 1}/${date.getDate()}`;
+}
 
 interface SortState {
   key: SortKey | null;
@@ -30,7 +37,7 @@ interface SortState {
 
 // LocalStorage キー
 const FILTER_STORAGE_KEY = "projectListFilters";
-const SORT_STORAGE_KEY = "projectListSort";
+// ソート状態はセッション限定（ページリロードでリセット）
 
 interface ProjectData {
   id: string;
@@ -92,25 +99,11 @@ function loadFiltersFromStorage(): FilterState {
   return DEFAULT_FILTERS;
 }
 
-// ソート状態をlocalStorageから読み込む
-function loadSortFromStorage(): SortState {
-  if (typeof window === "undefined") {
-    return { key: null, order: "asc" };
-  }
-  try {
-    const saved = localStorage.getItem(SORT_STORAGE_KEY);
-    if (saved) {
-      return JSON.parse(saved);
-    }
-  } catch {
-    // ignore
-  }
-  return { key: null, order: "asc" };
-}
 
 export function ProjectList({ projects, employees, contactDisplayMap, employeeMap, recentProjectIds }: ProjectListProps) {
   const [filters, setFilters] = useState<FilterState>(loadFiltersFromStorage);
-  const [sort, setSort] = useState<SortState>(loadSortFromStorage);
+  // ソートは常に閲覧履歴順をデフォルトに（セッション中のみ維持）
+  const [sort, setSort] = useState<SortState>({ key: null, order: "asc" });
 
   // フィルター変更時にlocalStorageに保存
   useEffect(() => {
@@ -122,11 +115,6 @@ export function ProjectList({ projects, employees, contactDisplayMap, employeeMa
     };
     localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(toSave));
   }, [filters]);
-
-  // ソート変更時にlocalStorageに保存
-  useEffect(() => {
-    localStorage.setItem(SORT_STORAGE_KEY, JSON.stringify(sort));
-  }, [sort]);
 
   // ヘッダークリック時のソート切り替え
   const handleSort = (key: SortKey) => {
@@ -235,6 +223,12 @@ export function ProjectList({ projects, employees, contactDisplayMap, employeeMa
         case "manager":
           cmp = getManagerName(a).localeCompare(getManagerName(b));
           break;
+        case "start_date":
+          cmp = (a.start_date || "").localeCompare(b.start_date || "");
+          break;
+        case "end_date":
+          cmp = (a.end_date || "").localeCompare(b.end_date || "");
+          break;
       }
       return sort.order === "asc" ? cmp : -cmp;
     });
@@ -283,6 +277,12 @@ export function ProjectList({ projects, employees, contactDisplayMap, employeeMa
                 <TableHead className="w-[100px] py-1 text-xs cursor-pointer hover:bg-muted/50" onClick={() => handleSort("manager")}>
                   担当<SortIcon columnKey="manager" />
                 </TableHead>
+                <TableHead className="w-[60px] py-1 text-xs cursor-pointer hover:bg-muted/50" onClick={() => handleSort("start_date")}>
+                  開始<SortIcon columnKey="start_date" />
+                </TableHead>
+                <TableHead className="w-[60px] py-1 text-xs cursor-pointer hover:bg-muted/50" onClick={() => handleSort("end_date")}>
+                  完了<SortIcon columnKey="end_date" />
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -318,6 +318,12 @@ export function ProjectList({ projects, employees, contactDisplayMap, employeeMa
                   </TableCell>
                   <TableCell className="text-xs py-1">
                     {project.manager_id ? employeeMap[project.manager_id] || "-" : "-"}
+                  </TableCell>
+                  <TableCell className="text-xs py-1 text-muted-foreground">
+                    {formatDate(project.start_date)}
+                  </TableCell>
+                  <TableCell className="text-xs py-1 text-muted-foreground">
+                    {formatDate(project.end_date)}
                   </TableCell>
                 </TableRow>
               );
