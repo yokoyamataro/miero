@@ -18,31 +18,18 @@ import {
   SelectGroup,
   SelectLabel,
 } from "@/components/ui/select";
-import { ArrowLeft, Loader2, Plus, FileText } from "lucide-react";
+import { ArrowLeft, Loader2, FileText } from "lucide-react";
 import {
   PROJECT_CATEGORY_LABELS,
   PROJECT_AREA_GROUPS,
   type ProjectCategory,
   type ProjectStatus,
-  type Industry,
 } from "@/types/database";
 import {
   createProjects,
   getNextProjectCode,
   type CreateProjectsData,
-  type CustomerData,
-  type AccountWithContacts,
-  type IndividualContact,
 } from "../actions";
-import {
-  AddAccountModal,
-  AddIndividualModal,
-  type AccountFormData,
-  type ContactFormData,
-  type BranchFormData,
-} from "@/components/customer-modal";
-import { createAccount } from "@/app/accounts/actions";
-import { createIndividualContact, type IndividualContactFormData } from "@/app/contacts/actions";
 
 interface Employee {
   id: string;
@@ -50,12 +37,10 @@ interface Employee {
 }
 
 interface ProjectFormProps {
-  customerData: CustomerData;
   employees: Employee[];
-  industries: Industry[];
 }
 
-export function ProjectForm({ customerData, employees, industries }: ProjectFormProps) {
+export function ProjectForm({ employees }: ProjectFormProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
@@ -66,8 +51,6 @@ export function ProjectForm({ customerData, employees, industries }: ProjectForm
   const [loadingCodes, setLoadingCodes] = useState<Record<ProjectCategory, boolean>>({} as Record<ProjectCategory, boolean>);
 
   const [status, setStatus] = useState<ProjectStatus>("進行中");
-  const [selectedAccountId, setSelectedAccountId] = useState<string>("");
-  const [contactId, setContactId] = useState<string>("");
   const [managerId, setManagerId] = useState<string>("");
   const [location, setLocation] = useState<string>("");
   const [locationDetail, setLocationDetail] = useState<string>("");
@@ -101,74 +84,6 @@ export function ProjectForm({ customerData, employees, industries }: ProjectForm
     }
   };
 
-  // 顧客データを状態で管理（新規追加時に更新するため）
-  const [accounts, setAccounts] = useState(customerData.accounts);
-  const [individuals, setIndividuals] = useState(customerData.individuals);
-
-  // 新規顧客追加モーダル
-  const [showAccountModal, setShowAccountModal] = useState(false);
-  const [showIndividualModal, setShowIndividualModal] = useState(false);
-
-  // 選択した法人の担当者リスト
-  const selectedAccount = accounts.find((a) => a.id === selectedAccountId);
-
-  // 新規法人追加（モーダルから呼ばれる）
-  const handleCreateAccount = async (
-    data: AccountFormData,
-    contacts: ContactFormData[],
-    branches: BranchFormData[]
-  ): Promise<{ error?: string; accountId?: string; primaryContactId?: string }> => {
-    const result = await createAccount(data, contacts, branches);
-    if (result.error) {
-      return { error: result.error };
-    }
-    return {
-      accountId: result.accountId || undefined,
-      primaryContactId: result.primaryContactId || undefined,
-    };
-  };
-
-  // 法人保存後のコールバック
-  const handleAccountSaved = (contactId: string, accountId: string, companyName: string, contactName: string) => {
-    // 新しい法人をリストに追加
-    const newAccount: AccountWithContacts = {
-      id: accountId,
-      companyName: companyName,
-      contacts: contactId ? [{ id: contactId, name: contactName || "(担当者)" }] : [],
-    };
-    setAccounts((prev) => [newAccount, ...prev]);
-    // 新しい法人を選択
-    setSelectedAccountId(accountId);
-    // 担当者を選択
-    if (contactId) {
-      setContactId(contactId);
-    }
-  };
-
-  // 新規個人追加（モーダルから呼ばれる）
-  const handleCreateIndividualContact = async (
-    data: IndividualContactFormData
-  ): Promise<{ error?: string; contactId?: string }> => {
-    const result = await createIndividualContact(data);
-    if (result.error) {
-      return { error: result.error };
-    }
-    return { contactId: result.contactId };
-  };
-
-  // 個人保存後のコールバック
-  const handleIndividualSaved = (contactId: string, name: string) => {
-    // 新しい個人をリストに追加
-    const newIndividual: IndividualContact = {
-      id: contactId,
-      name: name,
-    };
-    setIndividuals((prev) => [newIndividual, ...prev]);
-    // 法人選択を解除して個人を選択
-    setSelectedAccountId("none");
-    setContactId(contactId);
-  };
-
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError(null);
@@ -184,13 +99,11 @@ export function ProjectForm({ customerData, employees, industries }: ProjectForm
       categories: categories,
       name: formData.get("name") as string,
       status: status,
-      contact_id: contactId && contactId !== "none" ? contactId : null,
+      contact_id: null,
       manager_id: managerId || null,
-      start_date: (formData.get("start_date") as string) || null,
-      end_date: (formData.get("end_date") as string) || null,
-      fee_tax_excluded: formData.get("fee_tax_excluded")
-        ? parseInt(formData.get("fee_tax_excluded") as string, 10)
-        : null,
+      start_date: new Date().toISOString().split("T")[0], // 登録日を着手日として設定
+      end_date: null,
+      fee_tax_excluded: null,
       location: location || null,
       location_detail: locationDetail || null,
       notes: notes.trim() || null,
@@ -307,143 +220,20 @@ export function ProjectForm({ customerData, employees, industries }: ProjectForm
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="status">ステータス</Label>
-                <Select value={status} onValueChange={(val) => setStatus(val as ProjectStatus)}>
-                  <SelectTrigger id="status">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="進行中">進行中</SelectItem>
-                    <SelectItem value="完了">完了</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="fee_tax_excluded">税抜報酬額</Label>
-                <Input
-                  id="fee_tax_excluded"
-                  name="fee_tax_excluded"
-                  type="number"
-                  placeholder="0"
-                />
-              </div>
-            </div>
-
-            {/* 顧客選択（2段階選択） */}
-            <div className="space-y-4">
-              <Label>顧客</Label>
-              <div className="grid grid-cols-2 gap-4">
-                {/* 法人 or 個人 選択 */}
-                <div>
-                  <Label className="text-xs text-muted-foreground">法人</Label>
-                  <Select
-                    value={selectedAccountId}
-                    onValueChange={(val) => {
-                      setSelectedAccountId(val);
-                      setContactId(""); // 法人を変えたら担当者をリセット
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="法人を選択" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <div
-                        className="flex items-center gap-2 px-2 py-1.5 text-sm text-primary cursor-pointer hover:bg-muted rounded-sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setShowAccountModal(true);
-                        }}
-                      >
-                        <Plus className="h-4 w-4" />
-                        新規法人を追加
-                      </div>
-                      <div className="h-px bg-border my-1" />
-                      <SelectItem value="none">選択しない</SelectItem>
-                      {accounts.map((account) => (
-                        <SelectItem key={account.id} value={account.id}>
-                          {account.companyName}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* 法人の担当者 or 個人 選択 */}
-                <div>
-                  <Label className="text-xs text-muted-foreground">
-                    {selectedAccountId && selectedAccountId !== "none" ? "担当者" : "個人"}
-                  </Label>
-                  <Select value={contactId} onValueChange={setContactId}>
-                    <SelectTrigger>
-                      <SelectValue placeholder={selectedAccountId && selectedAccountId !== "none" ? "担当者を選択" : "個人を選択"} />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {!(selectedAccountId && selectedAccountId !== "none") && (
-                        <>
-                          <div
-                            className="flex items-center gap-2 px-2 py-1.5 text-sm text-primary cursor-pointer hover:bg-muted rounded-sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setShowIndividualModal(true);
-                            }}
-                          >
-                            <Plus className="h-4 w-4" />
-                            新規個人を追加
-                          </div>
-                          <div className="h-px bg-border my-1" />
-                        </>
-                      )}
-                      <SelectItem value="none">未選択</SelectItem>
-                      {selectedAccountId && selectedAccountId !== "none" ? (
-                        // 法人の担当者リスト
-                        selectedAccount?.contacts.map((contact) => (
-                          <SelectItem key={contact.id} value={contact.id}>
-                            {contact.name}
-                          </SelectItem>
-                        ))
-                      ) : (
-                        // 個人リスト
-                        individuals.map((contact) => (
-                          <SelectItem key={contact.id} value={contact.id}>
-                            {contact.name}
-                          </SelectItem>
-                        ))
-                      )}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="manager_id">担当者（社員）</Label>
-                <Select value={managerId} onValueChange={setManagerId}>
-                  <SelectTrigger id="manager_id">
-                    <SelectValue placeholder="担当者を選択" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {employees.map((employee) => (
-                      <SelectItem key={employee.id} value={employee.id}>
-                        {employee.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="start_date">着手日</Label>
-                <Input id="start_date" name="start_date" type="date" />
-              </div>
-              <div>
-                <Label htmlFor="end_date">完了予定日</Label>
-                <Input id="end_date" name="end_date" type="date" />
-              </div>
+            <div>
+              <Label htmlFor="manager_id">担当者（社員）</Label>
+              <Select value={managerId} onValueChange={setManagerId}>
+                <SelectTrigger id="manager_id">
+                  <SelectValue placeholder="担当者を選択" />
+                </SelectTrigger>
+                <SelectContent>
+                  {employees.map((employee) => (
+                    <SelectItem key={employee.id} value={employee.id}>
+                      {employee.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -514,23 +304,6 @@ export function ProjectForm({ customerData, employees, industries }: ProjectForm
           </Button>
         </div>
       </form>
-
-      {/* 新規法人追加モーダル */}
-      <AddAccountModal
-        open={showAccountModal}
-        onOpenChange={setShowAccountModal}
-        onSaved={handleAccountSaved}
-        industries={industries}
-        createAccount={handleCreateAccount}
-      />
-
-      {/* 新規個人追加モーダル */}
-      <AddIndividualModal
-        open={showIndividualModal}
-        onOpenChange={setShowIndividualModal}
-        onSaved={handleIndividualSaved}
-        createIndividualContact={handleCreateIndividualContact}
-      />
     </>
   );
 }
