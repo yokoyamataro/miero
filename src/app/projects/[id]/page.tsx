@@ -11,9 +11,6 @@ import {
   type Task,
   type Comment,
   type CommentAcknowledgement,
-  type StakeholderTag,
-  type ProjectStakeholderWithDetails,
-  type BusinessEntity,
   type RelatedProjectWithDetails,
 } from "@/types/database";
 import { TaskList } from "./task-list";
@@ -21,11 +18,9 @@ import { CommentSection } from "./comment-section";
 import { ProjectInfo, type CustomerData, type CorporateContact } from "./project-info";
 import { StakeholderSection } from "./stakeholder-section";
 import { ProjectNotes } from "./project-notes";
-import { InvoiceSection } from "./invoice-section";
 import { getCurrentEmployee, getStakeholderTags, getProjectStakeholders, getIndustries, getRelatedProjects } from "./actions";
 import { DropboxLinks } from "./dropbox-links";
 import { RelatedProjectsSection } from "./related-projects-section";
-import { getBusinessEntities, getProjectInvoices } from "@/app/invoices/actions";
 import { getDocumentTemplates } from "@/app/customers/document-actions";
 
 
@@ -64,8 +59,6 @@ export default async function ProjectDetailPage({
     stakeholderTags,
     projectStakeholders,
     industries,
-    businessEntities,
-    projectInvoices,
     relatedProjects,
     documentTemplates,
   ] = await Promise.all([
@@ -110,8 +103,6 @@ export default async function ProjectDetailPage({
     getStakeholderTags(),
     getProjectStakeholders(id),
     getIndustries(),
-    getBusinessEntities(),
-    getProjectInvoices(id),
     getRelatedProjects(id),
     getDocumentTemplates(),
   ]);
@@ -213,17 +204,6 @@ export default async function ProjectDetailPage({
             mainFolderPath={typedProject.main_folder_path}
             cadFolderPath={typedProject.cad_folder_path}
             dropboxBasePath={currentEmployee?.dropbox_base_path || null}
-          />
-
-          {/* 請求管理セクション */}
-          <InvoiceSection
-            projectId={id}
-            projectCode={typedProject.code}
-            invoices={projectInvoices}
-            businessEntities={businessEntities}
-            employees={typedEmployees}
-            customerData={customerData}
-            defaultRecipientContactId={typedProject.contact_id}
           />
         </div>
 

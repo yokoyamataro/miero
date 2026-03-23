@@ -1432,6 +1432,129 @@ function EditableField({
   );
 }
 
+// 所在地フィールド（1行表示、クリックで編集）
+function LocationField({
+  location,
+  locationDetail,
+  onLocationChange,
+  onLocationDetailChange,
+}: {
+  location: string | null;
+  locationDetail: string | null;
+  onLocationChange: (value: string) => void;
+  onLocationDetailChange: (value: string) => void;
+}) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editLocation, setEditLocation] = useState(location || "");
+  const [editLocationDetail, setEditLocationDetail] = useState(locationDetail || "");
+
+  const displayValue = [location, locationDetail].filter(Boolean).join(" ") || "-";
+
+  const handleSave = () => {
+    if (editLocation !== (location || "")) {
+      onLocationChange(editLocation);
+    }
+    if (editLocationDetail !== (locationDetail || "")) {
+      onLocationDetailChange(editLocationDetail);
+    }
+    setIsEditing(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      handleSave();
+    } else if (e.key === "Escape") {
+      setEditLocation(location || "");
+      setEditLocationDetail(locationDetail || "");
+      setIsEditing(false);
+    }
+  };
+
+  if (isEditing) {
+    return (
+      <div className="flex items-start gap-3">
+        <MapPin className="h-5 w-5 text-muted-foreground mt-0.5" />
+        <div className="flex-1">
+          <div className="text-sm text-muted-foreground">所在地</div>
+          <div className="flex items-center gap-2 mt-1">
+            <Select
+              value={editLocation || "none"}
+              onValueChange={(val) => setEditLocation(val === "none" ? "" : val)}
+            >
+              <SelectTrigger className="h-8 w-32">
+                <SelectValue placeholder="エリア" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">未選択</SelectItem>
+                {PROJECT_AREA_GROUPS.map((group) => (
+                  <SelectGroup key={group.name}>
+                    <SelectLabel className="font-bold text-muted-foreground">
+                      {group.name}
+                    </SelectLabel>
+                    {group.areas.map((area) => (
+                      <SelectItem key={area} value={area}>
+                        {area}
+                      </SelectItem>
+                    ))}
+                  </SelectGroup>
+                ))}
+              </SelectContent>
+            </Select>
+            <Input
+              value={editLocationDetail}
+              onChange={(e) => setEditLocationDetail(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="字・町名以下"
+              className="h-8 flex-1"
+            />
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={handleSave}
+              className="h-8 px-2"
+            >
+              保存
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setEditLocation(location || "");
+                setEditLocationDetail(locationDetail || "");
+                setIsEditing(false);
+              }}
+              className="h-8 px-2"
+            >
+              取消
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-start gap-3">
+      <MapPin className="h-5 w-5 text-muted-foreground mt-0.5" />
+      <div className="flex-1">
+        <div className="text-sm text-muted-foreground">所在地</div>
+        <div
+          onClick={() => {
+            setEditLocation(location || "");
+            setEditLocationDetail(locationDetail || "");
+            setIsEditing(true);
+          }}
+          className="cursor-pointer hover:bg-muted/50 rounded px-1 -mx-1 py-0.5"
+        >
+          {displayValue}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ProjectInfo({
   project,
   contact,
@@ -1668,34 +1791,11 @@ export function ProjectInfo({
             </div>
           </div>
 
-          <EditableField
-            label="報酬（税抜）"
-            value={project.fee_tax_excluded?.toString() || ""}
-            displayValue={formatCurrency(project.fee_tax_excluded)}
-            icon={CircleDollarSign}
-            type="number"
-            onSave={(val) => handleUpdate("fee_tax_excluded", val)}
-            placeholder="金額を入力"
-          />
-
-          <EditableField
-            label="所在地"
-            value={project.location || ""}
-            icon={MapPin}
-            type="select"
-            onSave={(val) => handleUpdate("location", val)}
-            optionGroups={PROJECT_AREA_GROUPS.map((group) => ({
-              name: group.name,
-              items: group.areas.map((area) => ({ value: area, label: area })),
-            }))}
-          />
-
-          <EditableField
-            label="字・町名以下"
-            value={project.location_detail || ""}
-            icon={MapPin}
-            onSave={(val) => handleUpdate("location_detail", val)}
-            placeholder="字・町名以下を入力"
+          <LocationField
+            location={project.location}
+            locationDetail={project.location_detail}
+            onLocationChange={(val) => handleUpdate("location", val)}
+            onLocationDetailChange={(val) => handleUpdate("location_detail", val)}
           />
         </CardContent>
       </Card>
