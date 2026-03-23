@@ -271,10 +271,10 @@ export function ProjectList({ projects, employees, contactDisplayMap, employeeMa
                 <TableHead className="w-[200px] py-1 text-xs cursor-pointer hover:bg-muted/50" onClick={() => handleSort("name")}>
                   業務名<SortIcon columnKey="name" />
                 </TableHead>
-                <TableHead className="py-1 text-xs cursor-pointer hover:bg-muted/50" onClick={() => handleSort("location")}>
+                <TableHead className="w-[100px] py-1 text-xs cursor-pointer hover:bg-muted/50" onClick={() => handleSort("location")}>
                   所在地<SortIcon columnKey="location" />
                 </TableHead>
-                <TableHead className="w-[100px] py-1 text-xs cursor-pointer hover:bg-muted/50" onClick={() => handleSort("manager")}>
+                <TableHead className="w-[120px] py-1 text-xs cursor-pointer hover:bg-muted/50" onClick={() => handleSort("manager")}>
                   担当<SortIcon columnKey="manager" />
                 </TableHead>
                 <TableHead className="w-[90px] py-1 text-xs cursor-pointer hover:bg-muted/50" onClick={() => handleSort("start_date")}>
@@ -313,10 +313,10 @@ export function ProjectList({ projects, employees, contactDisplayMap, employeeMa
                       {project.name.slice(0, 16)}
                     </Link>
                   </TableCell>
-                  <TableCell className="text-xs py-1 truncate">
+                  <TableCell className="text-xs py-1 truncate max-w-[100px]">
                     {[project.location, project.location_detail].filter(Boolean).join(" ") || "-"}
                   </TableCell>
-                  <TableCell className="text-xs py-1">
+                  <TableCell className="text-xs py-1 max-w-[120px]">
                     {project.manager_id ? employeeMap[project.manager_id] || "-" : "-"}
                   </TableCell>
                   <TableCell className="text-xs py-1 text-muted-foreground">
