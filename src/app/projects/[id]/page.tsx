@@ -18,10 +18,13 @@ import { CommentSection } from "./comment-section";
 import { ProjectInfo, type CustomerData, type CorporateContact } from "./project-info";
 import { StakeholderSection } from "./stakeholder-section";
 import { ProjectNotes } from "./project-notes";
+import { ProjectSchedule } from "./project-schedule";
 import { getCurrentEmployee, getStakeholderTags, getProjectStakeholders, getIndustries, getRelatedProjects } from "./actions";
+import { getProjectEvents } from "./schedule-actions";
 import { DropboxLinks } from "./dropbox-links";
 import { RelatedProjectsSection } from "./related-projects-section";
 import { getDocumentTemplates } from "@/app/customers/document-actions";
+import { ProjectHeader } from "./project-header";
 
 
 
@@ -61,6 +64,7 @@ export default async function ProjectDetailPage({
     industries,
     relatedProjects,
     documentTemplates,
+    projectEvents,
   ] = await Promise.all([
     project.contact_id
       ? supabase.from("contacts" as never).select("*").eq("id", project.contact_id).single()
@@ -105,6 +109,7 @@ export default async function ProjectDetailPage({
     getIndustries(),
     getRelatedProjects(id),
     getDocumentTemplates(),
+    getProjectEvents(id),
   ]);
 
   const typedProject = project as Project;
@@ -164,6 +169,10 @@ export default async function ProjectDetailPage({
             </Button>
           </Link>
         </div>
+        {/* 業務タイトル（ヘッダーに移動） */}
+        <ProjectHeader
+          project={typedProject}
+        />
         {/* 関連業務セクション（タイトル直下） */}
         <RelatedProjectsSection
           projectId={id}
@@ -207,11 +216,19 @@ export default async function ProjectDetailPage({
           />
         </div>
 
-        {/* 右カラム: ノート & タスク & コメント */}
+        {/* 右カラム: ノート & スケジュール & タスク & コメント */}
         <div className="lg:col-span-2 space-y-6">
           <ProjectNotes
             projectId={id}
             notes={typedProject.notes}
+          />
+
+          <ProjectSchedule
+            projectId={id}
+            events={projectEvents}
+            employees={typedEmployees}
+            currentEmployeeId={currentEmployee?.id || null}
+            defaultAssigneeId={typedProject.manager_id}
           />
 
           <TaskList

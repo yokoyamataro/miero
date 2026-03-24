@@ -1659,82 +1659,69 @@ export function ProjectInfo({
 
   return (
     <div className={`space-y-6 ${isPending ? "opacity-50" : ""}`}>
-      {/* ヘッダー情報 */}
-      <div>
-        <div className="flex items-center gap-3 mb-2 flex-wrap">
-          <EditableCode
-            value={project.code}
-            onSave={(val) => handleUpdate("code", val)}
-          />
-          <Badge className="bg-blue-100 text-blue-800">
-            {PROJECT_CATEGORY_LABELS[project.category]}
-          </Badge>
-          <Select
-            value={project.status}
-            onValueChange={(val) => handleUpdate("status", val)}
-          >
-            <SelectTrigger className="w-auto h-7 px-2 border-none shadow-none">
-              <Badge className={PROJECT_STATUS_COLORS[project.status]}>
-                {project.status}
-              </Badge>
-            </SelectTrigger>
-            <SelectContent>
-              {PROJECT_STATUSES.map((status) => (
-                <SelectItem key={status} value={status}>
-                  <Badge className={PROJECT_STATUS_COLORS[status]}>{status}</Badge>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-          <Button
-            variant={project.is_urgent ? "destructive" : "outline"}
-            size="sm"
-            className="gap-1"
-            onClick={() => handleUpdate("is_urgent", project.is_urgent ? "false" : "true")}
-          >
-            <AlertTriangle className="h-4 w-4" />
-            緊急
-          </Button>
-          <Button
-            variant={project.is_on_hold ? "secondary" : "outline"}
-            size="sm"
-            className="gap-1"
-            onClick={handleOnHoldClick}
-          >
-            <PauseCircle className="h-4 w-4" />
-            待機
-          </Button>
-          <div className="flex-1" />
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10">
-                <Trash2 className="h-4 w-4 mr-1" />
-                削除
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>業務を削除しますか？</AlertDialogTitle>
-                <AlertDialogDescription>
-                  「{project.name}」を削除します。この操作は取り消せません。
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>キャンセル</AlertDialogCancel>
-                <AlertDialogAction
-                  onClick={handleDelete}
-                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                >
-                  削除する
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
-        <EditableTitle
-          value={project.name}
-          onSave={(val) => handleUpdate("name", val)}
-        />
+      {/* ステータス・フラグ・削除ボタン */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <Select
+          value={project.status}
+          onValueChange={(val) => handleUpdate("status", val)}
+        >
+          <SelectTrigger className="w-auto h-7 px-2 border-none shadow-none">
+            <Badge className={PROJECT_STATUS_COLORS[project.status]}>
+              {project.status}
+            </Badge>
+          </SelectTrigger>
+          <SelectContent>
+            {PROJECT_STATUSES.map((status) => (
+              <SelectItem key={status} value={status}>
+                <Badge className={PROJECT_STATUS_COLORS[status]}>{status}</Badge>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button
+          variant={project.is_urgent ? "destructive" : "outline"}
+          size="sm"
+          className="gap-1"
+          onClick={() => handleUpdate("is_urgent", project.is_urgent ? "false" : "true")}
+        >
+          <AlertTriangle className="h-4 w-4" />
+          緊急
+        </Button>
+        <Button
+          variant={project.is_on_hold ? "secondary" : "outline"}
+          size="sm"
+          className="gap-1"
+          onClick={handleOnHoldClick}
+        >
+          <PauseCircle className="h-4 w-4" />
+          待機
+        </Button>
+        <div className="flex-1" />
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive hover:bg-destructive/10">
+              <Trash2 className="h-4 w-4 mr-1" />
+              削除
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>業務を削除しますか？</AlertDialogTitle>
+              <AlertDialogDescription>
+                「{project.name}」を削除します。この操作は取り消せません。
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>キャンセル</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDelete}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                削除する
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
 
       <Card>

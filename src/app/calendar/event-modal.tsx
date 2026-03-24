@@ -338,10 +338,9 @@ export function EventModal({
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* タイトル */}
+          {/* 業務リンク */}
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="title">タイトル *</Label>
+            <div className="flex items-center gap-2">
               <Button
                 type="button"
                 variant="outline"
@@ -350,30 +349,24 @@ export function EventModal({
                 disabled={loadingProjects}
               >
                 <Briefcase className="h-4 w-4 mr-1" />
-                {loadingProjects ? "読込中..." : "業務から選択"}
+                {loadingProjects ? "読込中..." : "業務をリンク"}
               </Button>
-            </div>
-            <Input
-              id="title"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-              placeholder="予定のタイトル"
-            />
 
-            {/* リンク中の業務表示 */}
-            {linkedProjectId && (
-              <div className="flex items-center gap-2 text-sm bg-blue-50 text-blue-700 px-3 py-2 rounded-md">
-                <LinkIcon className="h-4 w-4" />
-                <span>業務 {linkedProjectCode} にリンク中</span>
-                <button
-                  type="button"
-                  onClick={clearProjectLink}
-                  className="ml-auto p-0.5 hover:bg-blue-100 rounded"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-            )}
+              {/* リンク中の業務表示 */}
+              {linkedProjectId && (
+                <div className="flex items-center gap-2 text-sm bg-blue-50 text-blue-700 px-3 py-1.5 rounded-md">
+                  <LinkIcon className="h-4 w-4" />
+                  <span>業務 {linkedProjectCode} にリンク中</span>
+                  <button
+                    type="button"
+                    onClick={clearProjectLink}
+                    className="p-0.5 hover:bg-blue-100 rounded"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              )}
+            </div>
 
             {/* 業務選択パネル */}
             {showProjectSelector && (
@@ -400,6 +393,17 @@ export function EventModal({
                 )}
               </div>
             )}
+          </div>
+
+          {/* タイトル */}
+          <div className="space-y-2">
+            <Label htmlFor="title">タイトル *</Label>
+            <Input
+              id="title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="予定のタイトル"
+            />
           </div>
 
           {/* 区分 */}
