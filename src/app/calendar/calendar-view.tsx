@@ -924,6 +924,11 @@ export function CalendarView({
           </Button>
           <h2 className="text-xl font-semibold ml-2">{getTitle()}</h2>
 
+          {/* デバッグ: 完了イベント数表示 */}
+          <span className="text-xs text-red-500 ml-2">
+            [DEBUG: 全{events.length}件, 完了{events.filter(e => e.is_completed).length}件]
+          </span>
+
           {/* 社員フィルター（週表示以外で表示） */}
           {viewMode !== "week" && (
             <Select value={employeeFilter} onValueChange={setEmployeeFilter}>
