@@ -346,8 +346,7 @@ export function ProjectSchedule({
                           </span>
                           {category && (
                             <span
-                              className="text-xs px-1.5 py-0.5 rounded text-white"
-                              style={{ backgroundColor: category.color || "#6b7280" }}
+                              className={`text-xs px-1.5 py-0.5 rounded text-white ${category.color || "bg-gray-500"}`}
                             >
                               {category.name}
                             </span>
@@ -500,16 +499,13 @@ export function ProjectSchedule({
                       key={cat.id}
                       type="button"
                       onClick={() => setCategoryId(cat.id === categoryId ? "" : cat.id)}
-                      className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                      className={`flex items-center gap-2 px-3 py-1.5 rounded-md border text-sm transition-colors ${
                         cat.id === categoryId
-                          ? "ring-2 ring-offset-1 ring-blue-500"
-                          : "opacity-70 hover:opacity-100"
+                          ? "border-primary bg-primary/10"
+                          : "border-input hover:bg-muted"
                       }`}
-                      style={{
-                        backgroundColor: cat.color || "#6b7280",
-                        color: "white",
-                      }}
                     >
+                      <div className={`w-3 h-3 rounded ${cat.color}`} />
                       {cat.name}
                     </button>
                   ))}
