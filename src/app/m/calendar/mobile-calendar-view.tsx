@@ -17,7 +17,7 @@ import {
   parseISO,
 } from "date-fns";
 import { ja } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, Calendar, CalendarDays, CalendarRange } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar, CalendarDays, CalendarRange, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { type CalendarEventWithParticipants, type EventCategory } from "@/types/database";
 import { MobileEventSheet } from "./mobile-event-sheet";
@@ -382,8 +382,11 @@ export function MobileCalendarView({
                         return (
                           <div
                             key={i}
-                            className={`text-[10px] leading-tight truncate font-medium ${textColor}`}
+                            className={`text-[10px] leading-tight truncate font-medium ${textColor} flex items-center gap-0.5`}
                           >
+                            {event.is_completed && (
+                              <CheckCircle className="h-2.5 w-2.5 text-green-600 flex-shrink-0" />
+                            )}
                             {event.title}
                           </div>
                         );
@@ -460,7 +463,10 @@ export function MobileCalendarView({
                   {allDayEvents.slice(0, 2).map((event, i) => {
                     const color = getCategoryColor(event);
                     return (
-                      <div key={i} className={`text-[9px] truncate px-0.5 rounded ${color} text-white`}>
+                      <div key={i} className={`text-[9px] truncate px-0.5 rounded ${color} text-white flex items-center gap-0.5`}>
+                        {event.is_completed && (
+                          <CheckCircle className="h-2 w-2 flex-shrink-0" />
+                        )}
                         {event.title}
                       </div>
                     );
@@ -503,7 +509,10 @@ export function MobileCalendarView({
                         className={`absolute left-0 right-0 mx-0.5 rounded px-0.5 overflow-hidden border text-[9px] ${lightBgColor}`}
                         style={{ top: pos.top, height: pos.height }}
                       >
-                        <div className="truncate text-black font-medium">
+                        <div className="truncate text-black font-medium flex items-center gap-0.5">
+                          {event.is_completed && (
+                            <CheckCircle className="h-2 w-2 text-green-600 flex-shrink-0" />
+                          )}
                           {event.start_time?.slice(0, 5)}
                         </div>
                         <div className="truncate text-black">
@@ -552,7 +561,10 @@ export function MobileCalendarView({
               {allDayEvents.map((event) => {
                 const color = getCategoryColor(event);
                 return (
-                  <div key={event.id} className={`text-[10px] px-2 py-0.5 rounded ${color} text-white`}>
+                  <div key={event.id} className={`text-[10px] px-2 py-0.5 rounded ${color} text-white flex items-center gap-1`}>
+                    {event.is_completed && (
+                      <CheckCircle className="h-2.5 w-2.5 flex-shrink-0" />
+                    )}
                     {event.title}
                   </div>
                 );
@@ -592,7 +604,10 @@ export function MobileCalendarView({
                       setShowEventSheet(true);
                     }}
                   >
-                    <div className="text-[10px] font-medium truncate text-black">
+                    <div className="text-[10px] font-medium truncate text-black flex items-center gap-0.5">
+                      {event.is_completed && (
+                        <CheckCircle className="h-2.5 w-2.5 text-green-600 flex-shrink-0" />
+                      )}
                       {event.start_time?.slice(0, 5)} {event.title}
                     </div>
                     {event.location && pos.height >= 32 && (
