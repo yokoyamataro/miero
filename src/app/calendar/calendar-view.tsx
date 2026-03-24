@@ -17,6 +17,7 @@ import {
   User,
   UsersRound,
   Settings,
+  Check,
 } from "lucide-react";
 import {
   Select,
@@ -432,6 +433,7 @@ export function CalendarView({
     const categoryColor = getCategoryColor(event);
     const categoryName = getCategoryName(event);
     const timeStr = event.start_time ? event.start_time.slice(0, 5) : "";
+    const isCompleted = event.is_completed;
 
     if (compact) {
       return (
@@ -443,6 +445,9 @@ export function CalendarView({
         >
           {categoryName && (
             <span className={`${categoryColor} text-white px-1 rounded text-[10px] flex-shrink-0 whitespace-nowrap`}>{categoryName}</span>
+          )}
+          {isCompleted && (
+            <Check className="h-3 w-3 text-green-600 flex-shrink-0" />
           )}
           <span className="text-black truncate min-w-0 flex-1">{timeStr && `${timeStr} `}{event.title}</span>
         </div>
@@ -456,10 +461,16 @@ export function CalendarView({
         onClick={(e) => handleEventClick(event, e)}
       >
         {categoryName && (
-          <div className={`${categoryColor} text-white text-xs px-2 py-0.5`}>{categoryName}</div>
+          <div className={`${categoryColor} text-white text-xs px-2 py-0.5 flex items-center gap-1`}>
+            {categoryName}
+            {isCompleted && <Check className="h-3 w-3" />}
+          </div>
         )}
         <div className="p-1.5 bg-white overflow-hidden">
-          <div className="text-xs text-black truncate">{event.title}</div>
+          <div className="text-xs text-black truncate flex items-center gap-1">
+            {!categoryName && isCompleted && <Check className="h-3 w-3 text-green-600 flex-shrink-0" />}
+            {event.title}
+          </div>
           {event.start_time && (
             <div className="text-xs flex items-center gap-1 mt-0.5 text-black">
               <Clock className="h-3 w-3 flex-shrink-0" />
@@ -834,6 +845,7 @@ export function CalendarView({
                   const categoryColor = getCategoryColor(event);
                   const lightBgColor = getLightBgColor(categoryColor);
                   const categoryName = getCategoryName(event);
+                  const isCompleted = event.is_completed;
                   const isResizing = resizingEvent?.eventId === event.id;
                   // リサイズ中はプレビュー位置を使用
                   const displayTop = isResizing ? resizingEvent.previewTop : pos.top;
@@ -852,12 +864,15 @@ export function CalendarView({
                         className="absolute top-0 left-0 right-0 h-2 cursor-ns-resize hover:bg-primary/20 z-10"
                         onMouseDown={(e) => handleResizeStart(event, "top", e, date, pos.top, pos.height)}
                       />
-                      <div className="text-xs font-medium truncate text-black">
-                        {event.start_time?.slice(0, 5)} {event.title}
+                      <div className="text-xs font-medium truncate text-black flex items-center gap-1">
+                        {categoryName && (
+                          <span className={`${categoryColor} text-white px-1 rounded text-[10px] flex-shrink-0`}>{categoryName}</span>
+                        )}
+                        {isCompleted && (
+                          <Check className="h-3 w-3 text-green-600 flex-shrink-0" />
+                        )}
+                        <span className="truncate">{event.start_time?.slice(0, 5)} {event.title}</span>
                       </div>
-                      {categoryName && displayHeight >= 36 && (
-                        <span className={`${categoryColor} text-white px-1 rounded text-[10px]`}>{categoryName}</span>
-                      )}
                       {event.location && displayHeight >= 48 && (
                         <div className="text-[10px] text-black truncate flex items-center gap-0.5">
                           <MapPin className="h-2.5 w-2.5" />
@@ -1014,6 +1029,7 @@ export function CalendarView({
         event={selectedEvent}
         onEdit={handleEditEvent}
         onDeleted={handleEventDeleted}
+        onUpdated={(updatedEvent) => handleEventSaved(updatedEvent, false)}
       />
     </div>
   );

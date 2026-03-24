@@ -75,10 +75,10 @@ export function EventDetailModal({
 
   const isRecurring = event.recurrence_group_id && event.recurrence_type && event.recurrence_type !== "none";
 
-  // 完了チェックを押した時の処理
+  // 完了チェックを押した時の処理（常に時刻入力フォームを表示）
   const handleCompletionCheck = () => {
     if (event.all_day) {
-      // 終日イベントの場合は時刻入力フォームを表示
+      // 終日イベントの場合は現在時刻をデフォルトに
       const now = new Date();
       const hour = String(now.getHours()).padStart(2, "0");
       const minute = now.getMinutes() < 30 ? "00" : "30";
@@ -88,11 +88,16 @@ export function EventDetailModal({
       const endHourNum = (now.getHours() + 1) % 24;
       setCompletionEndHour(String(endHourNum).padStart(2, "0"));
       setCompletionEndMinute(minute);
-      setShowCompletionForm(true);
     } else {
-      // 時刻指定済みの場合はそのまま完了保存
-      saveCompletion(event.start_time, event.end_time, false);
+      // 時刻指定済みの場合は既存の時刻をデフォルトに
+      const startTimeParts = event.start_time?.slice(0, 5).split(":") || [];
+      const endTimeParts = event.end_time?.slice(0, 5).split(":") || [];
+      setCompletionStartHour(startTimeParts[0] || "");
+      setCompletionStartMinute(startTimeParts[1] || "00");
+      setCompletionEndHour(endTimeParts[0] || "");
+      setCompletionEndMinute(endTimeParts[1] || "00");
     }
+    setShowCompletionForm(true);
   };
 
   // 完了を保存
@@ -138,7 +143,8 @@ export function EventDetailModal({
     }
     const startTime = `${completionStartHour}:${completionStartMinute || "00"}:00`;
     const endTime = `${completionEndHour}:${completionEndMinute || "00"}:00`;
-    saveCompletion(startTime, endTime, true);
+    // 終日イベントの場合のみフラグを変更
+    saveCompletion(startTime, endTime, event.all_day);
   };
 
   const handleDelete = async () => {
