@@ -102,12 +102,12 @@ export function CalendarView({
   // デバッグ: イベントのis_completed確認
   useEffect(() => {
     const completedEvents = events.filter(e => e.is_completed);
-    console.log("DEBUG: Total events:", events.length, "Completed events:", completedEvents.length);
+    console.warn("DEBUG: Total events:", events.length, "Completed events:", completedEvents.length);
     if (completedEvents.length > 0) {
-      console.log("DEBUG: Completed event sample:", completedEvents[0]);
+      console.warn("DEBUG: Completed event sample:", completedEvents[0]);
     }
     // 最初の3件のis_completed状態を確認
-    console.log("DEBUG: First 3 events is_completed:", events.slice(0, 3).map(e => ({ title: e.title, is_completed: e.is_completed })));
+    console.warn("DEBUG: First 3 events is_completed:", events.slice(0, 3).map(e => ({ title: e.title, is_completed: e.is_completed })));
   }, [events]);
 
   // 社員リストをソート（ログインユーザーを先頭に）
