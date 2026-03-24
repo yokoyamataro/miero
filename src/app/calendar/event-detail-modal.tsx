@@ -129,7 +129,11 @@ export function EventDetailModal({
       return;
     }
 
+    // デバッグ: 更新されたイベントを確認
+    console.log("Completion saved, result.event:", result.event);
+
     if (result.event && onUpdated) {
+      console.log("Calling onUpdated with is_completed:", result.event.is_completed);
       onUpdated(result.event);
     }
     onOpenChange(false);
@@ -137,6 +141,7 @@ export function EventDetailModal({
 
   // 時刻入力フォームから完了を保存
   const handleSaveCompletionWithTime = () => {
+    console.log("handleSaveCompletionWithTime called", { completionStartHour, completionEndHour, completionStartMinute, completionEndMinute });
     if (!completionStartHour || !completionEndHour) {
       alert("開始時刻と終了時刻を入力してください");
       return;

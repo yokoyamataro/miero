@@ -99,6 +99,17 @@ export function CalendarView({
   } | null>(null);
   const [justFinishedResizing, setJustFinishedResizing] = useState(false);
 
+  // デバッグ: イベントのis_completed確認
+  useEffect(() => {
+    const completedEvents = events.filter(e => e.is_completed);
+    console.log("DEBUG: Total events:", events.length, "Completed events:", completedEvents.length);
+    if (completedEvents.length > 0) {
+      console.log("DEBUG: Completed event sample:", completedEvents[0]);
+    }
+    // 最初の3件のis_completed状態を確認
+    console.log("DEBUG: First 3 events is_completed:", events.slice(0, 3).map(e => ({ title: e.title, is_completed: e.is_completed })));
+  }, [events]);
+
   // 社員リストをソート（ログインユーザーを先頭に）
   const sortedEmployees = useMemo(() => {
     if (!currentEmployeeId) return employees;
@@ -220,6 +231,7 @@ export function CalendarView({
 
   // イベント更新後（楽観的UI更新）
   const handleEventSaved = useCallback((savedEvent: CalendarEventWithParticipants | CalendarEventWithParticipants[], isNew: boolean) => {
+    console.log("handleEventSaved called, isNew:", isNew, "savedEvent:", savedEvent);
     setShowEventModal(false);
     setShowDetailModal(false);
     if (isNew) {
@@ -232,6 +244,7 @@ export function CalendarView({
     } else {
       // 既存イベントを更新（配列は想定しない）
       if (!Array.isArray(savedEvent)) {
+        console.log("Updating event with is_completed:", savedEvent.is_completed);
         setEvents((prev) =>
           prev.map((e) => (e.id === savedEvent.id ? savedEvent : e))
         );
