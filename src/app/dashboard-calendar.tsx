@@ -16,7 +16,7 @@ import {
   UsersRound,
   Settings,
   GripVertical,
-  Check,
+  CheckCircle,
 } from "lucide-react";
 import {
   Dialog,
@@ -841,7 +841,7 @@ export function DashboardCalendar({
             <span className={`${categoryColor} text-white px-1 rounded text-[10px] flex-shrink-0`}>{categoryName}</span>
           )}
           {isCompleted && (
-            <Check className="h-3 w-3 text-green-600 flex-shrink-0" />
+            <CheckCircle className="h-3.5 w-3.5 text-green-600 flex-shrink-0" />
           )}
           <span className="text-black truncate">{timeStr && `${timeStr} `}{event.title}</span>
         </div>
@@ -1203,7 +1203,7 @@ export function DashboardCalendar({
                           <span className={`${categoryColor} text-white px-1 rounded text-[10px] flex-shrink-0`}>{categoryName}</span>
                         )}
                         {event.is_completed && (
-                          <Check className="h-3 w-3 text-green-600 flex-shrink-0" />
+                          <CheckCircle className="h-3.5 w-3.5 text-green-600 flex-shrink-0" />
                         )}
                         <span className="truncate">{event.start_time?.slice(0, 5)} {event.title}</span>
                       </div>
@@ -1359,7 +1359,7 @@ export function DashboardCalendar({
                           <span className={`${categoryColor} text-white px-1 rounded text-[10px] flex-shrink-0`}>{categoryName}</span>
                         )}
                         {event.is_completed && (
-                          <Check className="h-3 w-3 text-green-600 flex-shrink-0" />
+                          <CheckCircle className="h-3.5 w-3.5 text-green-600 flex-shrink-0" />
                         )}
                         <span className="truncate">{event.start_time?.slice(0, 5)} {event.title}</span>
                       </div>
@@ -1497,7 +1497,7 @@ export function DashboardCalendar({
                       <span className={`${categoryColor} text-white px-1 rounded text-[10px] flex-shrink-0`}>{categoryName}</span>
                     )}
                     {event.is_completed && (
-                      <Check className="h-3 w-3 text-green-600 flex-shrink-0" />
+                      <CheckCircle className="h-3.5 w-3.5 text-green-600 flex-shrink-0" />
                     )}
                     <span className="truncate">{event.start_time?.slice(0, 5)} {event.title}</span>
                   </div>

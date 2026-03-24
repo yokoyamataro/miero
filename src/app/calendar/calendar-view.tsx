@@ -17,7 +17,7 @@ import {
   User,
   UsersRound,
   Settings,
-  Check,
+  CheckCircle,
 } from "lucide-react";
 import {
   Select,
@@ -449,7 +449,7 @@ export function CalendarView({
             <span className={`${categoryColor} text-white px-1 rounded text-[10px] flex-shrink-0 whitespace-nowrap`}>{categoryName}</span>
           )}
           {isCompleted && (
-            <Check className="h-3 w-3 text-green-600 flex-shrink-0" />
+            <CheckCircle className="h-3.5 w-3.5 text-green-600 flex-shrink-0" />
           )}
           <span className="text-black truncate min-w-0 flex-1">{timeStr && `${timeStr} `}{event.title}</span>
         </div>
@@ -465,12 +465,12 @@ export function CalendarView({
         {categoryName && (
           <div className={`${categoryColor} text-white text-xs px-2 py-0.5 flex items-center gap-1`}>
             {categoryName}
-            {isCompleted && <Check className="h-3 w-3" />}
+            {isCompleted && <CheckCircle className="h-3.5 w-3.5" />}
           </div>
         )}
         <div className="p-1.5 bg-white overflow-hidden">
           <div className="text-xs text-black truncate flex items-center gap-1">
-            {!categoryName && isCompleted && <Check className="h-3 w-3 text-green-600 flex-shrink-0" />}
+            {!categoryName && isCompleted && <CheckCircle className="h-3.5 w-3.5 text-green-600 flex-shrink-0" />}
             {event.title}
           </div>
           {event.start_time && (
@@ -871,7 +871,7 @@ export function CalendarView({
                           <span className={`${categoryColor} text-white px-1 rounded text-[10px] flex-shrink-0`}>{categoryName}</span>
                         )}
                         {isCompleted && (
-                          <Check className="h-3 w-3 text-green-600 flex-shrink-0" />
+                          <CheckCircle className="h-3.5 w-3.5 text-green-600 flex-shrink-0" />
                         )}
                         <span className="truncate">{event.start_time?.slice(0, 5)} {event.title}</span>
                       </div>
