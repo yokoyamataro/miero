@@ -493,6 +493,7 @@ export interface CalendarEvent {
   end_date: string | null;
   end_time: string | null;
   all_day: boolean;
+  is_completed: boolean; // 完了フラグ
   location: string | null;
   map_url: string | null;
   project_id: string | null;
@@ -520,6 +521,7 @@ export interface CalendarEventInsert {
   end_date?: string | null;
   end_time?: string | null;
   all_day?: boolean;
+  is_completed?: boolean; // 完了フラグ
   location?: string | null;
   map_url?: string | null;
   project_id?: string | null;

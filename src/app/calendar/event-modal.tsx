@@ -119,6 +119,9 @@ export function EventModal({
   const [selectedDates, setSelectedDates] = useState<string[]>([]);
   const [multiCalendarBaseMonth, setMultiCalendarBaseMonth] = useState(new Date());
 
+  // 完了フラグ（編集時のみ）
+  const [isCompleted, setIsCompleted] = useState(false);
+
   // 編集時のデータ読み込み
   useEffect(() => {
     if (event) {
@@ -134,6 +137,7 @@ export function EventModal({
       setEndHour(endTimeParts.hour);
       setEndMinute(endTimeParts.minute);
       setAllDay(event.all_day);
+      setIsCompleted(event.is_completed || false);
       setLocation(event.location || "");
       setMapUrl(event.map_url || "");
       setParticipantIds(event.participants.map((p) => p.id));
@@ -153,6 +157,7 @@ export function EventModal({
       setEndHour(initialEndTime?.hour || "");
       setEndMinute(initialEndTime?.minute || "");
       setAllDay(false);
+      setIsCompleted(false);
       setLocation("");
       setMapUrl("");
       // デフォルトで自分を参加者に設定
@@ -237,6 +242,7 @@ export function EventModal({
         end_date: endDate || null,
         end_time: endTime || null,
         all_day: allDay,
+        is_completed: isCompleted,
         location: location.trim() || null,
         map_url: mapUrl.trim() || null,
         project_id: linkedProjectId,
@@ -692,17 +698,61 @@ export function EventModal({
             </div>
           )}
 
-          {/* 終日チェック */}
-          <div className="flex items-center gap-2">
-            <Checkbox
-              id="allDay"
-              checked={allDay}
-              onCheckedChange={(checked) => setAllDay(!!checked)}
-            />
-            <Label htmlFor="allDay" className="cursor-pointer">
-              終日
-            </Label>
+          {/* 終日チェック & 完了チェック */}
+          <div className="flex items-center gap-6">
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="allDay"
+                checked={allDay}
+                onCheckedChange={(checked) => setAllDay(!!checked)}
+              />
+              <Label htmlFor="allDay" className="cursor-pointer">
+                終日
+              </Label>
+            </div>
+
+            {/* 完了チェック（編集時のみ表示） */}
+            {event && (
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="isCompleted"
+                  checked={isCompleted}
+                  onCheckedChange={(checked) => {
+                    const newCompleted = !!checked;
+                    setIsCompleted(newCompleted);
+                    // 完了にチェックを入れた際、終日の場合は時刻入力に切り替え
+                    if (newCompleted && allDay) {
+                      setAllDay(false);
+                      // 現在時刻をデフォルトとして設定
+                      const now = new Date();
+                      const hour = String(now.getHours()).padStart(2, "0");
+                      const minute = now.getMinutes() < 30 ? "00" : "30";
+                      if (!startHour) {
+                        setStartHour(hour);
+                        setStartMinute(minute);
+                      }
+                      if (!endHour) {
+                        // 終了時刻を1時間後に設定
+                        const endHourNum = (now.getHours() + 1) % 24;
+                        setEndHour(String(endHourNum).padStart(2, "0"));
+                        setEndMinute(minute);
+                      }
+                    }
+                  }}
+                />
+                <Label htmlFor="isCompleted" className="cursor-pointer text-green-700">
+                  完了
+                </Label>
+              </div>
+            )}
           </div>
+
+          {/* 完了時に時刻入力を促すメッセージ */}
+          {event && isCompleted && !startHour && (
+            <p className="text-sm text-amber-600">
+              完了にするには実際の開始・終了時刻を入力してください
+            </p>
+          )}
 
           {/* 日時 */}
           <div className="grid grid-cols-2 gap-4">

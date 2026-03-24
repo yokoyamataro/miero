@@ -97,6 +97,7 @@ export function DashboardView({
         end_date: format(droppedDate!, "yyyy-MM-dd"),
         end_time: droppedEndTime ? `${droppedEndTime.hour}:${droppedEndTime.minute}:00` : null,
         all_day: false,
+        is_completed: false,
         location: null,
         map_url: null,
         created_by: currentEmployeeId,
