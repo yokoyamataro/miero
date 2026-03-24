@@ -2,7 +2,24 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import type { CalendarEventWithParticipants } from "@/types/database";
+import type { CalendarEventWithParticipants, EventCategory } from "@/types/database";
+
+// イベントカテゴリを取得
+export async function getEventCategories(): Promise<EventCategory[]> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("event_categories")
+    .select("*")
+    .order("sort_order", { ascending: true });
+
+  if (error) {
+    console.error("Error fetching event categories:", error);
+    return [];
+  }
+
+  return (data || []) as EventCategory[];
+}
 
 // プロジェクトに紐づくイベントを取得
 export async function getProjectEvents(projectId: string): Promise<CalendarEventWithParticipants[]> {
@@ -131,7 +148,7 @@ export async function createProjectEvent(data: {
   };
 }
 
-// イベントを更新
+// イベントを更新（完了処理用）
 export async function updateProjectEvent(
   eventId: string,
   updates: {
@@ -151,6 +168,96 @@ export async function updateProjectEvent(
   if (error) {
     console.error("Error updating event:", error);
     return { error: "スケジュールの更新に失敗しました" };
+  }
+
+  revalidatePath("/projects");
+  revalidatePath("/"); // カレンダーも更新
+
+  return {};
+}
+
+// イベントをフル更新（編集モーダル用）
+export async function updateProjectEventFull(
+  eventId: string,
+  data: {
+    title: string;
+    description?: string;
+    date: string;
+    startTime: string | null;
+    endTime: string | null;
+    allDay: boolean;
+    location?: string;
+    mapUrl?: string;
+    participantIds: string[];
+    eventCategoryId?: string | null;
+    isCompleted?: boolean;
+  }
+): Promise<{ error?: string }> {
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("calendar_events")
+    .update({
+      title: data.title,
+      description: data.description || null,
+      start_date: data.date,
+      end_date: data.date,
+      start_time: data.startTime,
+      end_time: data.endTime,
+      all_day: data.allDay,
+      location: data.location || null,
+      map_url: data.mapUrl || null,
+      event_category_id: data.eventCategoryId || null,
+      is_completed: data.isCompleted ?? false,
+    })
+    .eq("id", eventId);
+
+  if (error) {
+    console.error("Error updating event:", error);
+    return { error: "スケジュールの更新に失敗しました" };
+  }
+
+  // 参加者を更新（既存を削除して再登録）
+  await supabase
+    .from("calendar_event_participants")
+    .delete()
+    .eq("event_id", eventId);
+
+  if (data.participantIds.length > 0) {
+    const participantInserts = data.participantIds.map((employeeId) => ({
+      event_id: eventId,
+      employee_id: employeeId,
+    }));
+
+    await supabase
+      .from("calendar_event_participants")
+      .insert(participantInserts);
+  }
+
+  revalidatePath("/projects");
+  revalidatePath("/"); // カレンダーも更新
+
+  return {};
+}
+
+// イベントを削除
+export async function deleteProjectEvent(eventId: string): Promise<{ error?: string }> {
+  const supabase = await createClient();
+
+  // 参加者を先に削除
+  await supabase
+    .from("calendar_event_participants")
+    .delete()
+    .eq("event_id", eventId);
+
+  const { error } = await supabase
+    .from("calendar_events")
+    .delete()
+    .eq("id", eventId);
+
+  if (error) {
+    console.error("Error deleting event:", error);
+    return { error: "スケジュールの削除に失敗しました" };
   }
 
   revalidatePath("/projects");

@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -14,14 +15,32 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { CalendarDays, Plus, CheckCircle, Loader2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { CalendarDays, Plus, CheckCircle, Loader2, Pencil, Trash2, MapPin, Briefcase } from "lucide-react";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
-import type { CalendarEventWithParticipants, Employee } from "@/types/database";
-import { createProjectEvent, updateProjectEvent, getProjectEvents } from "./schedule-actions";
+import type { CalendarEventWithParticipants, Employee, EventCategory } from "@/types/database";
+import {
+  createProjectEvent,
+  updateProjectEvent,
+  updateProjectEventFull,
+  deleteProjectEvent,
+  getProjectEvents,
+  getEventCategories,
+} from "./schedule-actions";
 
 interface ProjectScheduleProps {
   projectId: string;
+  projectCode: string;
   events: CalendarEventWithParticipants[];
   employees: Employee[];
   currentEmployeeId: string | null;
@@ -35,6 +54,7 @@ const MINUTE_OPTIONS = ["00", "15", "30", "45"];
 
 export function ProjectSchedule({
   projectId,
+  projectCode,
   events: initialEvents,
   employees,
   currentEmployeeId,
@@ -43,17 +63,27 @@ export function ProjectSchedule({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [events, setEvents] = useState<CalendarEventWithParticipants[]>(initialEvents);
-  const [showAddModal, setShowAddModal] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<CalendarEventWithParticipants | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  // 新規追加フォーム
-  const [newTitle, setNewTitle] = useState("");
-  const [newDate, setNewDate] = useState("");
-  const [newStartHour, setNewStartHour] = useState("");
-  const [newStartMinute, setNewStartMinute] = useState("");
-  const [newEndHour, setNewEndHour] = useState("");
-  const [newEndMinute, setNewEndMinute] = useState("");
-  const [newAllDay, setNewAllDay] = useState(true);
-  const [newParticipantIds, setNewParticipantIds] = useState<string[]>([]);
+  // イベントカテゴリ
+  const [eventCategories, setEventCategories] = useState<EventCategory[]>([]);
+
+  // フォーム
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const [eventDate, setEventDate] = useState("");
+  const [startHour, setStartHour] = useState("");
+  const [startMinute, setStartMinute] = useState("");
+  const [endHour, setEndHour] = useState("");
+  const [endMinute, setEndMinute] = useState("");
+  const [allDay, setAllDay] = useState(true);
+  const [location, setLocation] = useState("");
+  const [mapUrl, setMapUrl] = useState("");
+  const [participantIds, setParticipantIds] = useState<string[]>([]);
+  const [isCompleted, setIsCompleted] = useState(false);
 
   // 完了処理中の状態
   const [completingEventId, setCompletingEventId] = useState<string | null>(null);
@@ -62,16 +92,40 @@ export function ProjectSchedule({
   const [completionEndHour, setCompletionEndHour] = useState("");
   const [completionEndMinute, setCompletionEndMinute] = useState("");
 
+  // 社員リストをソート（ログインユーザーを先頭に）
+  const sortedEmployees = useMemo(() => {
+    if (!currentEmployeeId) return employees;
+    return [...employees].sort((a, b) => {
+      if (a.id === currentEmployeeId) return -1;
+      if (b.id === currentEmployeeId) return 1;
+      return 0;
+    });
+  }, [employees, currentEmployeeId]);
+
+  // イベントカテゴリを取得
+  useEffect(() => {
+    const loadCategories = async () => {
+      const categories = await getEventCategories();
+      setEventCategories(categories);
+    };
+    loadCategories();
+  }, []);
+
   const resetForm = () => {
-    setNewTitle("");
-    setNewDate("");
-    setNewStartHour("");
-    setNewStartMinute("");
-    setNewEndHour("");
-    setNewEndMinute("");
-    setNewAllDay(true);
-    // デフォルトで担当者を選択
-    setNewParticipantIds(defaultAssigneeId ? [defaultAssigneeId] : []);
+    setTitle("");
+    setDescription("");
+    setCategoryId(eventCategories[0]?.id || "");
+    setEventDate("");
+    setStartHour("");
+    setStartMinute("");
+    setEndHour("");
+    setEndMinute("");
+    setAllDay(true);
+    setLocation("");
+    setMapUrl("");
+    setParticipantIds(defaultAssigneeId ? [defaultAssigneeId] : []);
+    setIsCompleted(false);
+    setEditingEvent(null);
   };
 
   const handleOpenAddModal = () => {
@@ -79,34 +133,96 @@ export function ProjectSchedule({
     // デフォルトで明日の日付を設定
     const tomorrow = new Date();
     tomorrow.setDate(tomorrow.getDate() + 1);
-    setNewDate(format(tomorrow, "yyyy-MM-dd"));
-    setShowAddModal(true);
+    setEventDate(format(tomorrow, "yyyy-MM-dd"));
+    setShowModal(true);
   };
 
-  const handleAddSubmit = async () => {
-    if (!newTitle.trim() || !newDate) return;
+  const handleOpenEditModal = (event: CalendarEventWithParticipants) => {
+    setEditingEvent(event);
+    setTitle(event.title);
+    setDescription(event.description || "");
+    setCategoryId(event.event_category_id || "");
+    setEventDate(event.start_date);
+    const startTimeParts = event.start_time?.slice(0, 5).split(":") || ["", ""];
+    setStartHour(startTimeParts[0] || "");
+    setStartMinute(startTimeParts[1] || "");
+    const endTimeParts = event.end_time?.slice(0, 5).split(":") || ["", ""];
+    setEndHour(endTimeParts[0] || "");
+    setEndMinute(endTimeParts[1] || "");
+    setAllDay(event.all_day);
+    setLocation(event.location || "");
+    setMapUrl(event.map_url || "");
+    setParticipantIds(event.participants.map((p) => p.id));
+    setIsCompleted(event.is_completed || false);
+    setShowModal(true);
+  };
+
+  const handleSubmit = async () => {
+    if (!title.trim() || !eventDate) return;
 
     startTransition(async () => {
-      const startTime = newAllDay ? null : `${newStartHour || "09"}:${newStartMinute || "00"}:00`;
-      const endTime = newAllDay ? null : `${newEndHour || "10"}:${newEndMinute || "00"}:00`;
+      const startTime = allDay ? null : `${startHour || "09"}:${startMinute || "00"}:00`;
+      const endTime = allDay ? null : `${endHour || "10"}:${endMinute || "00"}:00`;
 
-      const result = await createProjectEvent({
-        projectId,
-        title: newTitle.trim(),
-        date: newDate,
-        startTime,
-        endTime,
-        allDay: newAllDay,
-        participantIds: newParticipantIds,
-      });
+      if (editingEvent) {
+        // 更新
+        const result = await updateProjectEventFull(editingEvent.id, {
+          title: title.trim(),
+          description: description.trim(),
+          date: eventDate,
+          startTime,
+          endTime,
+          allDay,
+          location: location.trim(),
+          mapUrl: mapUrl.trim(),
+          participantIds,
+          eventCategoryId: categoryId || null,
+          isCompleted,
+        });
+
+        if (result.error) {
+          alert(result.error);
+          return;
+        }
+      } else {
+        // 新規作成
+        const result = await createProjectEvent({
+          projectId,
+          title: title.trim(),
+          date: eventDate,
+          startTime,
+          endTime,
+          allDay,
+          participantIds,
+        });
+
+        if (result.error) {
+          alert(result.error);
+          return;
+        }
+      }
+
+      setShowModal(false);
+      // イベント一覧を再取得
+      const updatedEvents = await getProjectEvents(projectId);
+      setEvents(updatedEvents);
+      router.refresh();
+    });
+  };
+
+  const handleDelete = async () => {
+    if (!editingEvent) return;
+
+    startTransition(async () => {
+      const result = await deleteProjectEvent(editingEvent.id);
 
       if (result.error) {
         alert(result.error);
         return;
       }
 
-      setShowAddModal(false);
-      // イベント一覧を再取得
+      setShowDeleteConfirm(false);
+      setShowModal(false);
       const updatedEvents = await getProjectEvents(projectId);
       setEvents(updatedEvents);
       router.refresh();
@@ -116,7 +232,6 @@ export function ProjectSchedule({
   // 完了処理開始
   const handleCompletionClick = (event: CalendarEventWithParticipants) => {
     if (event.all_day || !event.start_time) {
-      // 終日または時刻未設定の場合は現在時刻をデフォルトに
       const now = new Date();
       const hour = String(now.getHours()).padStart(2, "0");
       const minute = now.getMinutes() < 30 ? "00" : "30";
@@ -126,7 +241,6 @@ export function ProjectSchedule({
       setCompletionEndHour(String(endHourNum).padStart(2, "0"));
       setCompletionEndMinute(minute);
     } else {
-      // 既存の時刻をデフォルトに
       const startParts = event.start_time?.slice(0, 5).split(":") || [];
       const endParts = event.end_time?.slice(0, 5).split(":") || [];
       setCompletionStartHour(startParts[0] || "");
@@ -202,6 +316,7 @@ export function ProjectSchedule({
           <div className="space-y-2">
             {sortedEvents.map((event) => {
               const isCompleting = completingEventId === event.id;
+              const category = eventCategories.find((c) => c.id === event.event_category_id);
 
               return (
                 <div
@@ -222,20 +337,47 @@ export function ProjectSchedule({
                   )}
 
                   <div className="flex-1 min-w-0">
-                    {/* タイトル & 日付 */}
+                    {/* タイトル & 日付 & 編集ボタン */}
                     <div className="flex items-start justify-between gap-2">
-                      <span className={`text-sm font-medium ${event.is_completed ? "text-green-800" : ""}`}>
-                        {event.title}
-                      </span>
-                      <span className="text-xs text-muted-foreground whitespace-nowrap">
-                        {format(new Date(event.start_date), "M/d(E)", { locale: ja })}
-                        {event.start_time && !event.all_day && (
-                          <span className="ml-1">
-                            {event.start_time.slice(0, 5)}
-                            {event.end_time && `〜${event.end_time.slice(0, 5)}`}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className={`text-sm font-medium ${event.is_completed ? "text-green-800" : ""}`}>
+                            {event.title}
                           </span>
+                          {category && (
+                            <span
+                              className="text-xs px-1.5 py-0.5 rounded text-white"
+                              style={{ backgroundColor: category.color || "#6b7280" }}
+                            >
+                              {category.name}
+                            </span>
+                          )}
+                        </div>
+                        {event.location && (
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
+                            <MapPin className="h-3 w-3" />
+                            {event.location}
+                          </div>
                         )}
-                      </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-muted-foreground whitespace-nowrap">
+                          {format(new Date(event.start_date), "M/d(E)", { locale: ja })}
+                          {event.start_time && !event.all_day && (
+                            <span className="ml-1">
+                              {event.start_time.slice(0, 5)}
+                              {event.end_time && `〜${event.end_time.slice(0, 5)}`}
+                            </span>
+                          )}
+                        </span>
+                        <button
+                          onClick={() => handleOpenEditModal(event)}
+                          className="p-1 rounded hover:bg-muted transition-colors"
+                          title="編集"
+                        >
+                          <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+                        </button>
+                      </div>
                     </div>
 
                     {/* 完了時刻入力フォーム */}
@@ -321,60 +463,99 @@ export function ProjectSchedule({
         )}
       </CardContent>
 
-      {/* 新規スケジュール追加モーダル */}
-      <Dialog open={showAddModal} onOpenChange={setShowAddModal}>
-        <DialogContent className="max-w-md">
+      {/* スケジュール追加・編集モーダル */}
+      <Dialog open={showModal} onOpenChange={setShowModal}>
+        <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>スケジュールを追加</DialogTitle>
+            <DialogTitle>
+              {editingEvent ? "スケジュールを編集" : "スケジュールを追加"}
+            </DialogTitle>
           </DialogHeader>
+
           <div className="space-y-4">
+            {/* 業務リンク表示（編集不可） */}
+            <div className="flex items-center gap-2 text-sm bg-blue-50 text-blue-700 px-3 py-2 rounded-md">
+              <Briefcase className="h-4 w-4" />
+              <span>業務 {projectCode} にリンク中</span>
+            </div>
+
+            {/* タイトル */}
             <div className="space-y-2">
-              <Label htmlFor="title">タイトル *</Label>
+              <Label htmlFor="schedule-title">タイトル *</Label>
               <Input
-                id="title"
-                value={newTitle}
-                onChange={(e) => setNewTitle(e.target.value)}
+                id="schedule-title"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
                 placeholder="スケジュールのタイトル"
               />
             </div>
 
+            {/* 区分 */}
+            {eventCategories.length > 0 && (
+              <div className="space-y-2">
+                <Label>区分</Label>
+                <div className="flex flex-wrap gap-2">
+                  {eventCategories.map((cat) => (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setCategoryId(cat.id === categoryId ? "" : cat.id)}
+                      className={`px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
+                        cat.id === categoryId
+                          ? "ring-2 ring-offset-1 ring-blue-500"
+                          : "opacity-70 hover:opacity-100"
+                      }`}
+                      style={{
+                        backgroundColor: cat.color || "#6b7280",
+                        color: "white",
+                      }}
+                    >
+                      {cat.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* 日付 */}
             <div className="space-y-2">
-              <Label htmlFor="date">日付 *</Label>
+              <Label htmlFor="schedule-date">日付 *</Label>
               <Input
-                id="date"
+                id="schedule-date"
                 type="date"
-                value={newDate}
-                onChange={(e) => setNewDate(e.target.value)}
+                value={eventDate}
+                onChange={(e) => setEventDate(e.target.value)}
               />
             </div>
 
+            {/* 終日 */}
             <div className="flex items-center gap-2">
               <Checkbox
-                id="allDay"
-                checked={newAllDay}
-                onCheckedChange={(checked) => setNewAllDay(!!checked)}
+                id="schedule-allDay"
+                checked={allDay}
+                onCheckedChange={(checked) => setAllDay(!!checked)}
               />
-              <Label htmlFor="allDay" className="cursor-pointer">
+              <Label htmlFor="schedule-allDay" className="cursor-pointer">
                 終日
               </Label>
             </div>
 
-            {!newAllDay && (
+            {/* 時刻 */}
+            {!allDay && (
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>開始時刻</Label>
                   <div className="flex items-center gap-1">
                     <select
                       className="w-16 h-9 px-2 rounded-md border text-sm"
-                      value={newStartHour}
+                      value={startHour}
                       onChange={(e) => {
-                        setNewStartHour(e.target.value);
-                        if (!newStartMinute) setNewStartMinute("00");
-                        // 終了時刻を1時間後に
+                        setStartHour(e.target.value);
+                        if (!startMinute) setStartMinute("00");
                         if (e.target.value) {
-                          const endHour = (parseInt(e.target.value) + 1) % 24;
-                          setNewEndHour(String(endHour).padStart(2, "0"));
-                          if (!newEndMinute) setNewEndMinute("00");
+                          const endHourNum = (parseInt(e.target.value) + 1) % 24;
+                          setEndHour(String(endHourNum).padStart(2, "0"));
+                          if (!endMinute) setEndMinute("00");
                         }
                       }}
                     >
@@ -386,8 +567,8 @@ export function ProjectSchedule({
                     <span>:</span>
                     <select
                       className="w-16 h-9 px-2 rounded-md border text-sm"
-                      value={newStartMinute}
-                      onChange={(e) => setNewStartMinute(e.target.value)}
+                      value={startMinute}
+                      onChange={(e) => setStartMinute(e.target.value)}
                     >
                       {MINUTE_OPTIONS.map((m) => (
                         <option key={m} value={m}>{m}</option>
@@ -400,8 +581,8 @@ export function ProjectSchedule({
                   <div className="flex items-center gap-1">
                     <select
                       className="w-16 h-9 px-2 rounded-md border text-sm"
-                      value={newEndHour}
-                      onChange={(e) => setNewEndHour(e.target.value)}
+                      value={endHour}
+                      onChange={(e) => setEndHour(e.target.value)}
                     >
                       <option value="">--</option>
                       {HOUR_OPTIONS.map((h) => (
@@ -411,8 +592,8 @@ export function ProjectSchedule({
                     <span>:</span>
                     <select
                       className="w-16 h-9 px-2 rounded-md border text-sm"
-                      value={newEndMinute}
-                      onChange={(e) => setNewEndMinute(e.target.value)}
+                      value={endMinute}
+                      onChange={(e) => setEndMinute(e.target.value)}
                     >
                       {MINUTE_OPTIONS.map((m) => (
                         <option key={m} value={m}>{m}</option>
@@ -423,17 +604,51 @@ export function ProjectSchedule({
               </div>
             )}
 
+            {/* 場所 */}
+            <div className="space-y-2">
+              <Label htmlFor="schedule-location">場所</Label>
+              <Input
+                id="schedule-location"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="場所"
+              />
+            </div>
+
+            {/* 地図URL */}
+            <div className="space-y-2">
+              <Label htmlFor="schedule-mapUrl">地図URL</Label>
+              <Input
+                id="schedule-mapUrl"
+                value={mapUrl}
+                onChange={(e) => setMapUrl(e.target.value)}
+                placeholder="https://..."
+              />
+            </div>
+
+            {/* 説明 */}
+            <div className="space-y-2">
+              <Label htmlFor="schedule-description">説明</Label>
+              <Textarea
+                id="schedule-description"
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="詳細な説明"
+                rows={3}
+              />
+            </div>
+
             {/* 参加者選択 */}
             <div className="space-y-2">
               <Label>参加者</Label>
               <div className="border rounded-md p-3 max-h-32 overflow-y-auto space-y-2">
-                {employees.map((emp) => (
+                {sortedEmployees.map((emp) => (
                   <div key={emp.id} className="flex items-center gap-2">
                     <Checkbox
                       id={`participant-${emp.id}`}
-                      checked={newParticipantIds.includes(emp.id)}
+                      checked={participantIds.includes(emp.id)}
                       onCheckedChange={(checked) => {
-                        setNewParticipantIds((prev) =>
+                        setParticipantIds((prev) =>
                           checked
                             ? [...prev, emp.id]
                             : prev.filter((id) => id !== emp.id)
@@ -453,18 +668,64 @@ export function ProjectSchedule({
                 ))}
               </div>
             </div>
+
+            {/* 完了フラグ（編集時のみ） */}
+            {editingEvent && (
+              <div className="flex items-center gap-2 pt-2 border-t">
+                <Checkbox
+                  id="schedule-completed"
+                  checked={isCompleted}
+                  onCheckedChange={(checked) => setIsCompleted(!!checked)}
+                />
+                <Label htmlFor="schedule-completed" className="cursor-pointer">
+                  完了済み
+                </Label>
+              </div>
+            )}
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddModal(false)}>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            {editingEvent && (
+              <Button
+                variant="destructive"
+                onClick={() => setShowDeleteConfirm(true)}
+                className="sm:mr-auto"
+              >
+                <Trash2 className="h-4 w-4 mr-1" />
+                削除
+              </Button>
+            )}
+            <Button variant="outline" onClick={() => setShowModal(false)}>
               キャンセル
             </Button>
-            <Button onClick={handleAddSubmit} disabled={isPending || !newTitle.trim() || !newDate}>
-              {isPending ? "追加中..." : "追加"}
+            <Button onClick={handleSubmit} disabled={isPending || !title.trim() || !eventDate}>
+              {isPending ? "保存中..." : "保存"}
             </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* 削除確認ダイアログ */}
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>スケジュールを削除しますか？</AlertDialogTitle>
+            <AlertDialogDescription>
+              「{editingEvent?.title}」を削除します。この操作は取り消せません。
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>キャンセル</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              削除する
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Card>
   );
 }

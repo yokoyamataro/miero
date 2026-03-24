@@ -225,6 +225,7 @@ export default async function ProjectDetailPage({
 
           <ProjectSchedule
             projectId={id}
+            projectCode={typedProject.code}
             events={projectEvents}
             employees={typedEmployees}
             currentEmployeeId={currentEmployee?.id || null}
