@@ -99,17 +99,6 @@ export function CalendarView({
   } | null>(null);
   const [justFinishedResizing, setJustFinishedResizing] = useState(false);
 
-  // デバッグ: イベントのis_completed確認
-  useEffect(() => {
-    const completedEvents = events.filter(e => e.is_completed);
-    console.warn("DEBUG: Total events:", events.length, "Completed events:", completedEvents.length);
-    if (completedEvents.length > 0) {
-      console.warn("DEBUG: Completed event sample:", completedEvents[0]);
-    }
-    // 最初の3件のis_completed状態を確認
-    console.warn("DEBUG: First 3 events is_completed:", events.slice(0, 3).map(e => ({ title: e.title, is_completed: e.is_completed })));
-  }, [events]);
-
   // 社員リストをソート（ログインユーザーを先頭に）
   const sortedEmployees = useMemo(() => {
     if (!currentEmployeeId) return employees;
@@ -923,11 +912,6 @@ export function CalendarView({
             <ChevronRight className="h-4 w-4" />
           </Button>
           <h2 className="text-xl font-semibold ml-2">{getTitle()}</h2>
-
-          {/* デバッグ: 完了イベント数表示 */}
-          <span className="text-xs text-red-500 ml-2">
-            [DEBUG: 全{events.length}件, 完了{events.filter(e => e.is_completed).length}件]
-          </span>
 
           {/* 社員フィルター（週表示以外で表示） */}
           {viewMode !== "week" && (

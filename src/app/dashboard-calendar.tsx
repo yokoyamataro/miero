@@ -16,6 +16,7 @@ import {
   UsersRound,
   Settings,
   GripVertical,
+  Check,
 } from "lucide-react";
 import {
   Dialog,
@@ -826,6 +827,7 @@ export function DashboardCalendar({
     const lightBgColor = getLightBgColor(categoryColor);
     const categoryName = getCategoryName(event);
     const timeStr = event.start_time ? event.start_time.slice(0, 5) : "";
+    const isCompleted = event.is_completed;
 
     if (compact) {
       return (
@@ -837,6 +839,9 @@ export function DashboardCalendar({
         >
           {categoryName && (
             <span className={`${categoryColor} text-white px-1 rounded text-[10px] flex-shrink-0`}>{categoryName}</span>
+          )}
+          {isCompleted && (
+            <Check className="h-3 w-3 text-green-600 flex-shrink-0" />
           )}
           <span className="text-black truncate">{timeStr && `${timeStr} `}{event.title}</span>
         </div>
@@ -1193,12 +1198,15 @@ export function DashboardCalendar({
                         className="absolute top-0 left-0 right-0 h-2 cursor-ns-resize hover:bg-primary/20 z-10"
                         onMouseDown={(e) => handleResizeStart(event, "top", e, currentDate, pos.top, pos.height)}
                       />
-                      <div className="text-xs font-medium truncate text-black">
-                        {event.start_time?.slice(0, 5)} {event.title}
+                      <div className="text-xs font-medium truncate text-black flex items-center gap-1">
+                        {categoryName && (
+                          <span className={`${categoryColor} text-white px-1 rounded text-[10px] flex-shrink-0`}>{categoryName}</span>
+                        )}
+                        {event.is_completed && (
+                          <Check className="h-3 w-3 text-green-600 flex-shrink-0" />
+                        )}
+                        <span className="truncate">{event.start_time?.slice(0, 5)} {event.title}</span>
                       </div>
-                      {categoryName && displayHeight >= 36 && (
-                        <span className={`${categoryColor} text-white px-1 rounded text-[10px]`}>{categoryName}</span>
-                      )}
                       {event.location && displayHeight >= 48 && (
                         <div className="text-[10px] text-black truncate flex items-center gap-0.5">
                           <MapPin className="h-2.5 w-2.5" />
@@ -1346,12 +1354,15 @@ export function DashboardCalendar({
                         className="absolute top-0 left-0 right-0 h-2 cursor-ns-resize hover:bg-primary/20 z-10"
                         onMouseDown={(e) => handleResizeStart(event, "top", e, date, pos.top, pos.height)}
                       />
-                      <div className="text-xs font-medium truncate text-black">
-                        {event.start_time?.slice(0, 5)} {event.title}
+                      <div className="text-xs font-medium truncate text-black flex items-center gap-1">
+                        {categoryName && (
+                          <span className={`${categoryColor} text-white px-1 rounded text-[10px] flex-shrink-0`}>{categoryName}</span>
+                        )}
+                        {event.is_completed && (
+                          <Check className="h-3 w-3 text-green-600 flex-shrink-0" />
+                        )}
+                        <span className="truncate">{event.start_time?.slice(0, 5)} {event.title}</span>
                       </div>
-                      {categoryName && displayHeight >= 36 && (
-                        <span className={`${categoryColor} text-white px-1 rounded text-[10px]`}>{categoryName}</span>
-                      )}
                       {event.location && displayHeight >= 48 && (
                         <div className="text-[10px] text-black truncate flex items-center gap-0.5">
                           <MapPin className="h-2.5 w-2.5" />
@@ -1481,12 +1492,15 @@ export function DashboardCalendar({
                     className="absolute top-0 left-0 right-0 h-2 cursor-ns-resize hover:bg-primary/20 z-10"
                     onMouseDown={(e) => handleResizeStart(event, "top", e, currentDate, pos.top, pos.height)}
                   />
-                  <div className="text-xs font-medium truncate text-black">
-                    {event.start_time?.slice(0, 5)} {event.title}
+                  <div className="text-xs font-medium truncate text-black flex items-center gap-1">
+                    {categoryName && (
+                      <span className={`${categoryColor} text-white px-1 rounded text-[10px] flex-shrink-0`}>{categoryName}</span>
+                    )}
+                    {event.is_completed && (
+                      <Check className="h-3 w-3 text-green-600 flex-shrink-0" />
+                    )}
+                    <span className="truncate">{event.start_time?.slice(0, 5)} {event.title}</span>
                   </div>
-                  {categoryName && displayHeight >= 36 && (
-                    <span className={`${categoryColor} text-white px-1 rounded text-[10px]`}>{categoryName}</span>
-                  )}
                   {event.location && displayHeight >= 48 && (
                     <div className="text-[10px] text-black truncate flex items-center gap-0.5">
                       <MapPin className="h-2.5 w-2.5" />
@@ -1698,6 +1712,7 @@ export function DashboardCalendar({
         event={selectedEvent}
         onEdit={handleEditEvent}
         onDeleted={handleEventDeleted}
+        onUpdated={(updatedEvent) => handleEventSaved(updatedEvent, false)}
       />
 
       {/* 社員順序設定モーダル */}
