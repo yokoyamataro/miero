@@ -3,6 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import {
   Dialog,
   DialogContent,
@@ -22,6 +24,8 @@ import {
   FileText,
   Briefcase,
   Repeat,
+  CheckCircle,
+  Loader2,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ja } from "date-fns/locale";
@@ -32,7 +36,12 @@ import {
   RECURRENCE_TYPE_LABELS,
   DAY_OF_WEEK_LABELS,
 } from "@/types/database";
-import { deleteEvent, deleteRecurringEventsAll, deleteRecurringEventsFromDate } from "./actions";
+import { deleteEvent, deleteRecurringEventsAll, deleteRecurringEventsFromDate, updateEvent } from "./actions";
+
+// 時間オプション (0-23)
+const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
+// 分オプション (15分単位)
+const MINUTE_OPTIONS = ["00", "15", "30", "45"];
 
 interface EventDetailModalProps {
   open: boolean;
@@ -40,6 +49,7 @@ interface EventDetailModalProps {
   event: CalendarEventWithParticipants | null;
   onEdit: (event: CalendarEventWithParticipants) => void;
   onDeleted: (eventId: string) => void;
+  onUpdated?: (event: CalendarEventWithParticipants) => void;
 }
 
 export function EventDetailModal({
@@ -48,13 +58,88 @@ export function EventDetailModal({
   event,
   onEdit,
   onDeleted,
+  onUpdated,
 }: EventDetailModalProps) {
   const [loading, setLoading] = useState(false);
   const [showDeleteOptions, setShowDeleteOptions] = useState(false);
 
+  // 完了チェック用の状態
+  const [showCompletionForm, setShowCompletionForm] = useState(false);
+  const [completionStartHour, setCompletionStartHour] = useState("");
+  const [completionStartMinute, setCompletionStartMinute] = useState("");
+  const [completionEndHour, setCompletionEndHour] = useState("");
+  const [completionEndMinute, setCompletionEndMinute] = useState("");
+  const [savingCompletion, setSavingCompletion] = useState(false);
+
   if (!event) return null;
 
   const isRecurring = event.recurrence_group_id && event.recurrence_type && event.recurrence_type !== "none";
+
+  // 完了チェックを押した時の処理
+  const handleCompletionCheck = () => {
+    if (event.all_day) {
+      // 終日イベントの場合は時刻入力フォームを表示
+      const now = new Date();
+      const hour = String(now.getHours()).padStart(2, "0");
+      const minute = now.getMinutes() < 30 ? "00" : "30";
+      setCompletionStartHour(hour);
+      setCompletionStartMinute(minute);
+      // 終了時刻を1時間後に
+      const endHourNum = (now.getHours() + 1) % 24;
+      setCompletionEndHour(String(endHourNum).padStart(2, "0"));
+      setCompletionEndMinute(minute);
+      setShowCompletionForm(true);
+    } else {
+      // 時刻指定済みの場合はそのまま完了保存
+      saveCompletion(event.start_time, event.end_time, false);
+    }
+  };
+
+  // 完了を保存
+  const saveCompletion = async (
+    startTime: string | null,
+    endTime: string | null,
+    convertFromAllDay: boolean
+  ) => {
+    setSavingCompletion(true);
+
+    const updateData = {
+      is_completed: true,
+      all_day: convertFromAllDay ? false : event.all_day,
+      start_time: startTime,
+      end_time: endTime,
+    };
+
+    const result = await updateEvent(
+      event.id,
+      updateData,
+      event.participants.map((p) => p.id)
+    );
+
+    setSavingCompletion(false);
+    setShowCompletionForm(false);
+
+    if (result.error) {
+      alert(result.error);
+      return;
+    }
+
+    if (result.event && onUpdated) {
+      onUpdated(result.event);
+    }
+    onOpenChange(false);
+  };
+
+  // 時刻入力フォームから完了を保存
+  const handleSaveCompletionWithTime = () => {
+    if (!completionStartHour || !completionEndHour) {
+      alert("開始時刻と終了時刻を入力してください");
+      return;
+    }
+    const startTime = `${completionStartHour}:${completionStartMinute || "00"}:00`;
+    const endTime = `${completionEndHour}:${completionEndMinute || "00"}:00`;
+    saveCompletion(startTime, endTime, true);
+  };
 
   const handleDelete = async () => {
     if (isRecurring) {
@@ -297,6 +382,116 @@ export function EventDetailModal({
             </div>
           )}
         </div>
+
+        {/* 完了チェック（未完了の場合のみ表示） */}
+        {!event.is_completed && !showCompletionForm && (
+          <div className="border-t pt-3">
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full text-green-700 border-green-300 hover:bg-green-50"
+              onClick={handleCompletionCheck}
+              disabled={savingCompletion}
+            >
+              {savingCompletion ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <CheckCircle className="h-4 w-4 mr-2" />
+              )}
+              完了にする
+            </Button>
+          </div>
+        )}
+
+        {/* 完了済み表示 */}
+        {event.is_completed && (
+          <div className="border-t pt-3">
+            <div className="flex items-center gap-2 text-green-700">
+              <CheckCircle className="h-5 w-5" />
+              <span className="font-medium">完了済み</span>
+            </div>
+          </div>
+        )}
+
+        {/* 終日イベントの完了時刻入力フォーム */}
+        {showCompletionForm && (
+          <div className="border rounded-md p-3 bg-green-50 space-y-3">
+            <p className="text-sm font-medium text-green-800">
+              実際の作業時間を入力してください
+            </p>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <Label className="text-xs">開始時刻</Label>
+                <div className="flex items-center gap-1">
+                  <select
+                    className="w-16 h-8 px-2 rounded-md border border-input bg-background text-sm"
+                    value={completionStartHour}
+                    onChange={(e) => setCompletionStartHour(e.target.value)}
+                  >
+                    <option value="">--</option>
+                    {HOUR_OPTIONS.map((h) => (
+                      <option key={h} value={h}>{h}</option>
+                    ))}
+                  </select>
+                  <span>:</span>
+                  <select
+                    className="w-16 h-8 px-2 rounded-md border border-input bg-background text-sm"
+                    value={completionStartMinute}
+                    onChange={(e) => setCompletionStartMinute(e.target.value)}
+                  >
+                    {MINUTE_OPTIONS.map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">終了時刻</Label>
+                <div className="flex items-center gap-1">
+                  <select
+                    className="w-16 h-8 px-2 rounded-md border border-input bg-background text-sm"
+                    value={completionEndHour}
+                    onChange={(e) => setCompletionEndHour(e.target.value)}
+                  >
+                    <option value="">--</option>
+                    {HOUR_OPTIONS.map((h) => (
+                      <option key={h} value={h}>{h}</option>
+                    ))}
+                  </select>
+                  <span>:</span>
+                  <select
+                    className="w-16 h-8 px-2 rounded-md border border-input bg-background text-sm"
+                    value={completionEndMinute}
+                    onChange={(e) => setCompletionEndMinute(e.target.value)}
+                  >
+                    {MINUTE_OPTIONS.map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowCompletionForm(false)}
+                disabled={savingCompletion}
+              >
+                キャンセル
+              </Button>
+              <Button
+                size="sm"
+                className="bg-green-600 hover:bg-green-700"
+                onClick={handleSaveCompletionWithTime}
+                disabled={savingCompletion}
+              >
+                {savingCompletion && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                完了を保存
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* 繰り返し予定の削除オプション */}
         {showDeleteOptions && isRecurring && (
