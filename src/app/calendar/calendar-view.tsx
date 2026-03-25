@@ -1024,14 +1024,12 @@ export function CalendarView({
         currentEmployeeId={currentEmployeeId}
       />
 
-      {/* イベント詳細・編集モーダル */}
+      {/* イベント詳細モーダル */}
       <EventDetailModal
         open={showDetailModal}
         onOpenChange={setShowDetailModal}
         event={selectedEvent}
-        employees={employees}
-        eventCategories={eventCategories}
-        currentEmployeeId={currentEmployeeId}
+        onEdit={handleEditEvent}
         onDeleted={handleEventDeleted}
         onUpdated={(updatedEvent) => handleEventSaved(updatedEvent, false)}
       />
