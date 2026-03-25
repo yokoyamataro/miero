@@ -18,7 +18,12 @@ CREATE TYPE project_category AS ENUM (
   'D_Inheritance', -- 遺言・相続
   'E_Corporate',   -- 法人関係
   'F_Drone',       -- ドローン
-  'N_Farmland'     -- 農地関係
+  'M_Marketing',   -- マーケティング
+  'N_Farmland',    -- 農地関係
+  'O_Miscellaneous', -- 雑務
+  'P_RnD',         -- 研究開発
+  'S_General',     -- 総務
+  'Z_Other'        -- その他
 );
 
 -- 業務ステータス
