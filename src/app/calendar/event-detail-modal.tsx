@@ -333,29 +333,6 @@ export function EventDetailModal({
             </div>
           )}
 
-          {/* 場所 */}
-          {event.location && (
-            <div className="flex items-start gap-3">
-              <MapPin className="h-5 w-5 text-muted-foreground mt-0.5" />
-              <div>{event.location}</div>
-            </div>
-          )}
-
-          {/* Google Map リンク */}
-          {event.map_url && (
-            <div className="flex items-start gap-3">
-              <ExternalLink className="h-5 w-5 text-muted-foreground mt-0.5" />
-              <a
-                href={event.map_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-blue-600 hover:underline"
-              >
-                Google Map で開く
-              </a>
-            </div>
-          )}
-
           {/* 業務リンク */}
           {event.project && (
             <div className="flex items-start gap-3">
@@ -421,6 +398,31 @@ export function EventDetailModal({
               <CheckCircle className="h-5 w-5" />
               <span className="font-medium">完了済み</span>
             </div>
+          </div>
+        )}
+
+        {/* 場所・Google Map リンク（完了ボタンの下に表示） */}
+        {(event.location || event.map_url) && (
+          <div className="border-t pt-3 space-y-2">
+            {event.location && (
+              <div className="flex items-start gap-3">
+                <MapPin className="h-5 w-5 text-muted-foreground mt-0.5" />
+                <div>{event.location}</div>
+              </div>
+            )}
+            {event.map_url && (
+              <div className="flex items-start gap-3">
+                <ExternalLink className="h-5 w-5 text-muted-foreground mt-0.5" />
+                <a
+                  href={event.map_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-600 hover:underline"
+                >
+                  Google Map で開く
+                </a>
+              </div>
+            )}
           </div>
         )}
 

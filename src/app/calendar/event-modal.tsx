@@ -106,6 +106,7 @@ export function EventModal({
   // 業務リンク
   const [linkedProjectId, setLinkedProjectId] = useState<string | null>(null);
   const [linkedProjectCode, setLinkedProjectCode] = useState<string | null>(null);
+  const [linkedProjectName, setLinkedProjectName] = useState<string | null>(null);
 
   // 繰り返し設定
   const [recurrenceType, setRecurrenceType] = useState<RecurrenceType>("none");
@@ -144,6 +145,7 @@ export function EventModal({
       setShowProjectSelector(false);
       setLinkedProjectId(event.project_id);
       setLinkedProjectCode(event.project?.code || null);
+      setLinkedProjectName(event.project?.name || null);
     } else if (selectedDate) {
       const dateStr = format(selectedDate, "yyyy-MM-dd");
       setTitle("");
@@ -165,6 +167,7 @@ export function EventModal({
       setShowProjectSelector(false);
       setLinkedProjectId(null);
       setLinkedProjectCode(null);
+      setLinkedProjectName(null);
       // 繰り返し設定をリセット
       setRecurrenceType("none");
       setRecurrenceDayOfWeek(getDay(selectedDate));
@@ -204,6 +207,7 @@ export function EventModal({
     }
     setLinkedProjectId(project.id);
     setLinkedProjectCode(project.code);
+    setLinkedProjectName(project.name);
     setShowProjectSelector(false);
   };
 
@@ -211,6 +215,7 @@ export function EventModal({
   const clearProjectLink = () => {
     setLinkedProjectId(null);
     setLinkedProjectCode(null);
+    setLinkedProjectName(null);
   };
 
   const handleSubmit = async () => {
@@ -352,15 +357,15 @@ export function EventModal({
                 {loadingProjects ? "読込中..." : "業務をリンク"}
               </Button>
 
-              {/* リンク中の業務表示 */}
+              {/* リンク済みの業務表示 */}
               {linkedProjectId && (
                 <div className="flex items-center gap-2 text-sm bg-blue-50 text-blue-700 px-3 py-1.5 rounded-md">
-                  <LinkIcon className="h-4 w-4" />
-                  <span>業務 {linkedProjectCode} にリンク中</span>
+                  <Briefcase className="h-4 w-4 flex-shrink-0" />
+                  <span className="truncate">【{linkedProjectCode}】{linkedProjectName}</span>
                   <button
                     type="button"
                     onClick={clearProjectLink}
-                    className="p-0.5 hover:bg-blue-100 rounded"
+                    className="p-0.5 hover:bg-blue-100 rounded flex-shrink-0"
                   >
                     <X className="h-4 w-4" />
                   </button>
