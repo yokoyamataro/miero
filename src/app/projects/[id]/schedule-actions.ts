@@ -76,11 +76,15 @@ export async function getProjectEvents(projectId: string): Promise<CalendarEvent
 export async function createProjectEvent(data: {
   projectId: string;
   title: string;
+  description?: string;
   date: string;
   startTime: string | null;
   endTime: string | null;
   allDay: boolean;
+  location?: string;
+  mapUrl?: string;
   participantIds: string[];
+  eventCategoryId?: string | null;
 }): Promise<{ error?: string; event?: CalendarEventWithParticipants }> {
   const supabase = await createClient();
 
@@ -102,14 +106,18 @@ export async function createProjectEvent(data: {
     .from("calendar_events")
     .insert({
       title: data.title,
+      description: data.description || null,
       start_date: data.date,
       end_date: data.date,
       start_time: data.startTime,
       end_time: data.endTime,
       all_day: data.allDay,
+      location: data.location || null,
+      map_url: data.mapUrl || null,
       project_id: data.projectId,
       created_by: createdBy,
       category: "その他", // 後方互換性のため
+      event_category_id: data.eventCategoryId || null,
       is_completed: false,
       recurrence_type: "none",
     })

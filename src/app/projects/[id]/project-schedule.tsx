@@ -189,11 +189,15 @@ export function ProjectSchedule({
         const result = await createProjectEvent({
           projectId,
           title: title.trim(),
+          description: description.trim(),
           date: eventDate,
           startTime,
           endTime,
           allDay,
+          location: location.trim(),
+          mapUrl: mapUrl.trim(),
           participantIds,
+          eventCategoryId: categoryId || null,
         });
 
         if (result.error) {
