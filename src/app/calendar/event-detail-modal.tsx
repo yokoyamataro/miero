@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -15,10 +17,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import {
   Calendar,
-  Clock,
   MapPin,
   Users,
-  Edit,
   Trash2,
   ExternalLink,
   FileText,
@@ -26,11 +26,15 @@ import {
   Repeat,
   CheckCircle,
   Loader2,
+  Circle,
+  Save,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ja } from "date-fns/locale";
 import {
   type CalendarEventWithParticipants,
+  type Employee,
+  type EventCategory,
   EVENT_CATEGORY_COLORS,
   type EventCategoryLegacy,
   RECURRENCE_TYPE_LABELS,
@@ -47,7 +51,9 @@ interface EventDetailModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   event: CalendarEventWithParticipants | null;
-  onEdit: (event: CalendarEventWithParticipants) => void;
+  employees: Employee[];
+  eventCategories: EventCategory[];
+  currentEmployeeId: string | null;
   onDeleted: (eventId: string) => void;
   onUpdated?: (event: CalendarEventWithParticipants) => void;
 }
@@ -56,100 +62,187 @@ export function EventDetailModal({
   open,
   onOpenChange,
   event,
-  onEdit,
+  employees,
+  eventCategories,
+  currentEmployeeId,
   onDeleted,
   onUpdated,
 }: EventDetailModalProps) {
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [showDeleteOptions, setShowDeleteOptions] = useState(false);
 
-  // 完了チェック用の状態
-  const [showCompletionForm, setShowCompletionForm] = useState(false);
-  const [completionStartHour, setCompletionStartHour] = useState("");
-  const [completionStartMinute, setCompletionStartMinute] = useState("");
-  const [completionEndHour, setCompletionEndHour] = useState("");
-  const [completionEndMinute, setCompletionEndMinute] = useState("");
-  const [savingCompletion, setSavingCompletion] = useState(false);
+  // 編集フォーム状態
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [startHour, setStartHour] = useState("");
+  const [startMinute, setStartMinute] = useState("");
+  const [endHour, setEndHour] = useState("");
+  const [endMinute, setEndMinute] = useState("");
+  const [allDay, setAllDay] = useState(false);
+  const [location, setLocation] = useState("");
+  const [mapUrl, setMapUrl] = useState("");
+  const [participantIds, setParticipantIds] = useState<string[]>([]);
+  const [isCompleted, setIsCompleted] = useState(false);
+
+  // 変更検知用
+  const [hasChanges, setHasChanges] = useState(false);
+
+  // 社員リストをソート
+  const sortedEmployees = useMemo(() => {
+    if (!currentEmployeeId) return employees;
+    return [...employees].sort((a, b) => {
+      if (a.id === currentEmployeeId) return -1;
+      if (b.id === currentEmployeeId) return 1;
+      return 0;
+    });
+  }, [employees, currentEmployeeId]);
+
+  // イベントデータをフォームにロード
+  useEffect(() => {
+    if (event && open) {
+      setTitle(event.title);
+      setDescription(event.description || "");
+      setCategoryId(event.event_category_id || "");
+      setStartDate(event.start_date);
+      const startParts = event.start_time?.slice(0, 5).split(":") || ["", ""];
+      setStartHour(startParts[0] || "");
+      setStartMinute(startParts[1] || "");
+      const endParts = event.end_time?.slice(0, 5).split(":") || ["", ""];
+      setEndHour(endParts[0] || "");
+      setEndMinute(endParts[1] || "");
+      setAllDay(event.all_day);
+      setLocation(event.location || "");
+      setMapUrl(event.map_url || "");
+      setParticipantIds(event.participants.map((p) => p.id));
+      setIsCompleted(event.is_completed || false);
+      setHasChanges(false);
+    }
+  }, [event, open]);
+
+  // 変更検知
+  useEffect(() => {
+    if (!event) return;
+    const startTime = event.start_time?.slice(0, 5) || "";
+    const endTime = event.end_time?.slice(0, 5) || "";
+    const [origStartHour, origStartMin] = startTime.split(":");
+    const [origEndHour, origEndMin] = endTime.split(":");
+
+    const changed =
+      title !== event.title ||
+      description !== (event.description || "") ||
+      categoryId !== (event.event_category_id || "") ||
+      startDate !== event.start_date ||
+      startHour !== (origStartHour || "") ||
+      startMinute !== (origStartMin || "") ||
+      endHour !== (origEndHour || "") ||
+      endMinute !== (origEndMin || "") ||
+      allDay !== event.all_day ||
+      location !== (event.location || "") ||
+      mapUrl !== (event.map_url || "") ||
+      isCompleted !== (event.is_completed || false) ||
+      JSON.stringify(participantIds.sort()) !== JSON.stringify(event.participants.map(p => p.id).sort());
+
+    setHasChanges(changed);
+  }, [event, title, description, categoryId, startDate, startHour, startMinute, endHour, endMinute, allDay, location, mapUrl, participantIds, isCompleted]);
 
   if (!event) return null;
 
   const isRecurring = event.recurrence_group_id && event.recurrence_type && event.recurrence_type !== "none";
 
-  // 完了チェックを押した時の処理（常に時刻入力フォームを表示）
-  const handleCompletionCheck = () => {
-    if (event.all_day) {
-      // 終日イベントの場合は現在時刻をデフォルトに
-      const now = new Date();
-      const hour = String(now.getHours()).padStart(2, "0");
-      const minute = now.getMinutes() < 30 ? "00" : "30";
-      setCompletionStartHour(hour);
-      setCompletionStartMinute(minute);
-      // 終了時刻を1時間後に
-      const endHourNum = (now.getHours() + 1) % 24;
-      setCompletionEndHour(String(endHourNum).padStart(2, "0"));
-      setCompletionEndMinute(minute);
-    } else {
-      // 時刻指定済みの場合は既存の時刻をデフォルトに
-      const startTimeParts = event.start_time?.slice(0, 5).split(":") || [];
-      const endTimeParts = event.end_time?.slice(0, 5).split(":") || [];
-      setCompletionStartHour(startTimeParts[0] || "");
-      setCompletionStartMinute(startTimeParts[1] || "00");
-      setCompletionEndHour(endTimeParts[0] || "");
-      setCompletionEndMinute(endTimeParts[1] || "00");
+  // 保存処理
+  const handleSave = async () => {
+    if (!title.trim()) {
+      alert("タイトルを入力してください");
+      return;
     }
-    setShowCompletionForm(true);
-  };
 
-  // 完了を保存
-  const saveCompletion = async (
-    startTime: string | null,
-    endTime: string | null,
-    convertFromAllDay: boolean
-  ) => {
-    setSavingCompletion(true);
+    setSaving(true);
 
-    const updateData = {
-      is_completed: true,
-      all_day: convertFromAllDay ? false : event.all_day,
-      start_time: startTime,
-      end_time: endTime,
-    };
+    const startTime = allDay ? null : (startHour && startMinute ? `${startHour}:${startMinute}:00` : null);
+    const endTime = allDay ? null : (endHour && endMinute ? `${endHour}:${endMinute}:00` : null);
 
     const result = await updateEvent(
       event.id,
-      updateData,
-      event.participants.map((p) => p.id)
+      {
+        title: title.trim(),
+        description: description.trim() || null,
+        event_category_id: categoryId || null,
+        start_date: startDate,
+        start_time: startTime,
+        end_date: startDate,
+        end_time: endTime,
+        all_day: allDay,
+        is_completed: isCompleted,
+        location: location.trim() || null,
+        map_url: mapUrl.trim() || null,
+      },
+      participantIds
     );
 
-    setSavingCompletion(false);
-    setShowCompletionForm(false);
+    setSaving(false);
 
     if (result.error) {
       alert(result.error);
       return;
     }
 
-    // デバッグ: 更新されたイベントを確認
-    console.log("Completion saved, result.event:", result.event);
-
     if (result.event && onUpdated) {
-      console.log("Calling onUpdated with is_completed:", result.event.is_completed);
       onUpdated(result.event);
     }
     onOpenChange(false);
   };
 
-  // 時刻入力フォームから完了を保存
-  const handleSaveCompletionWithTime = () => {
-    console.log("handleSaveCompletionWithTime called", { completionStartHour, completionEndHour, completionStartMinute, completionEndMinute });
-    if (!completionStartHour || !completionEndHour) {
-      alert("開始時刻と終了時刻を入力してください");
+  // 完了トグル処理（即座に保存）
+  const handleCompletionToggle = async () => {
+    const newCompleted = !isCompleted;
+    setIsCompleted(newCompleted);
+
+    // 終日イベントで完了にする場合は時刻を設定
+    let startTime = event.start_time;
+    let endTime = event.end_time;
+    let newAllDay = event.all_day;
+
+    if (newCompleted && event.all_day) {
+      const now = new Date();
+      const hour = String(now.getHours()).padStart(2, "0");
+      const minute = now.getMinutes() < 30 ? "00" : "30";
+      const endHourNum = (now.getHours() + 1) % 24;
+      startTime = `${hour}:${minute}:00`;
+      endTime = `${String(endHourNum).padStart(2, "0")}:${minute}:00`;
+      newAllDay = false;
+      // フォームの状態も更新
+      setStartHour(hour);
+      setStartMinute(minute);
+      setEndHour(String(endHourNum).padStart(2, "0"));
+      setEndMinute(minute);
+      setAllDay(false);
+    }
+
+    setSaving(true);
+    const result = await updateEvent(
+      event.id,
+      {
+        is_completed: newCompleted,
+        all_day: newAllDay,
+        start_time: startTime,
+        end_time: endTime,
+      },
+      event.participants.map((p) => p.id)
+    );
+    setSaving(false);
+
+    if (result.error) {
+      setIsCompleted(!newCompleted); // 元に戻す
+      alert(result.error);
       return;
     }
-    const startTime = `${completionStartHour}:${completionStartMinute || "00"}:00`;
-    const endTime = `${completionEndHour}:${completionEndMinute || "00"}:00`;
-    // 終日イベントの場合のみフラグを変更
-    saveCompletion(startTime, endTime, event.all_day);
+
+    if (result.event && onUpdated) {
+      onUpdated(result.event);
+    }
   };
 
   const handleDelete = async () => {
@@ -172,7 +265,6 @@ export function EventDetailModal({
     onDeleted(event.id);
   };
 
-  // この予定だけを削除
   const handleDeleteSingle = async () => {
     setLoading(true);
     const result = await deleteEvent(event.id);
@@ -187,10 +279,8 @@ export function EventDetailModal({
     onDeleted(event.id);
   };
 
-  // すべての繰り返し予定を削除
   const handleDeleteAll = async () => {
     if (!event.recurrence_group_id) return;
-
     if (!confirm("この繰り返し予定のすべてを削除しますか？")) return;
 
     setLoading(true);
@@ -207,10 +297,8 @@ export function EventDetailModal({
     onDeleted(event.id);
   };
 
-  // この日以降の繰り返し予定を削除
   const handleDeleteFromDate = async () => {
     if (!event.recurrence_group_id) return;
-
     if (!confirm(`${format(parseISO(event.start_date), "M月d日")}以降の繰り返し予定を削除しますか？`)) return;
 
     setLoading(true);
@@ -227,7 +315,6 @@ export function EventDetailModal({
     onDeleted(event.id);
   };
 
-  // 繰り返し情報の表示
   const getRecurrenceInfo = () => {
     if (!event.recurrence_type || event.recurrence_type === "none") return null;
 
@@ -244,103 +331,248 @@ export function EventDetailModal({
     return type;
   };
 
-  const formatDateRange = () => {
-    const startDate = parseISO(event.start_date);
-    const endDate = event.end_date ? parseISO(event.end_date) : null;
-
-    if (event.all_day) {
-      if (endDate && event.end_date !== event.start_date) {
-        return `${format(startDate, "M月d日(E)", { locale: ja })} - ${format(endDate, "M月d日(E)", { locale: ja })}（終日）`;
-      }
-      return `${format(startDate, "M月d日(E)", { locale: ja })}（終日）`;
-    }
-
-    const startTimeStr = event.start_time ? event.start_time.slice(0, 5) : "";
-    const endTimeStr = event.end_time ? event.end_time.slice(0, 5) : "";
-
-    if (endDate && event.end_date !== event.start_date) {
-      return `${format(startDate, "M月d日(E)", { locale: ja })} ${startTimeStr} - ${format(endDate, "M月d日(E)", { locale: ja })} ${endTimeStr}`;
-    }
-
-    if (startTimeStr && endTimeStr) {
-      return `${format(startDate, "M月d日(E)", { locale: ja })} ${startTimeStr} - ${endTimeStr}`;
-    }
-
-    if (startTimeStr) {
-      return `${format(startDate, "M月d日(E)", { locale: ja })} ${startTimeStr}`;
-    }
-
-    return format(startDate, "M月d日(E)", { locale: ja });
-  };
-
   // 区分の色と名前を取得
   const getCategoryInfo = () => {
-    if (event.eventCategory) {
-      return {
-        color: event.eventCategory.color,
-        name: event.eventCategory.name,
-      };
+    const selectedCategory = eventCategories.find(c => c.id === categoryId);
+    if (selectedCategory) {
+      return { color: selectedCategory.color, name: selectedCategory.name };
     }
-    // 旧カテゴリーから取得（後方互換）
+    if (event.eventCategory) {
+      return { color: event.eventCategory.color, name: event.eventCategory.name };
+    }
     if (event.category && EVENT_CATEGORY_COLORS[event.category as EventCategoryLegacy]) {
-      return {
-        color: EVENT_CATEGORY_COLORS[event.category as EventCategoryLegacy],
-        name: event.category,
-      };
+      return { color: EVENT_CATEGORY_COLORS[event.category as EventCategoryLegacy], name: event.category };
     }
     return { color: "bg-gray-500", name: "未設定" };
   };
 
   const categoryInfo = getCategoryInfo();
 
+  const toggleParticipant = (employeeId: string) => {
+    setParticipantIds((prev) =>
+      prev.includes(employeeId)
+        ? prev.filter((id) => id !== employeeId)
+        : [...prev, employeeId]
+    );
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <div className="flex items-start gap-3">
-            <div className={`w-4 h-4 rounded mt-1 ${categoryInfo.color}`} />
-            <div className="flex-1">
-              <DialogTitle className="text-xl">{event.title}</DialogTitle>
-              <Badge variant="secondary" className="mt-1">
-                {categoryInfo.name}
-              </Badge>
-            </div>
+          <div className="flex items-center gap-3">
+            <div className={`w-4 h-4 rounded ${categoryInfo.color}`} />
+            <DialogTitle className="text-xl flex-1">予定の詳細</DialogTitle>
           </div>
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* 日時 */}
-          <div className="flex items-start gap-3">
-            <Calendar className="h-5 w-5 text-muted-foreground mt-0.5" />
-            <div>{formatDateRange()}</div>
+          {/* 完了ステータス - 大きく目立つボタン */}
+          <div
+            onClick={handleCompletionToggle}
+            className={`flex items-center gap-3 p-4 rounded-lg cursor-pointer transition-all ${
+              isCompleted
+                ? "bg-green-100 border-2 border-green-500"
+                : "bg-gray-50 border-2 border-gray-200 hover:border-green-300 hover:bg-green-50"
+            }`}
+          >
+            {saving ? (
+              <Loader2 className="h-8 w-8 animate-spin text-green-600" />
+            ) : isCompleted ? (
+              <CheckCircle className="h-8 w-8 text-green-600" />
+            ) : (
+              <Circle className="h-8 w-8 text-gray-400" />
+            )}
+            <div className="flex-1">
+              <div className={`font-bold text-lg ${isCompleted ? "text-green-700" : "text-gray-700"}`}>
+                {isCompleted ? "完了済み" : "未完了"}
+              </div>
+              <div className="text-sm text-muted-foreground">
+                {isCompleted ? "クリックで未完了に戻す" : "クリックで完了にする"}
+              </div>
+            </div>
           </div>
 
-          {/* 繰り返し情報 */}
-          {isRecurring && (
-            <div className="flex items-start gap-3">
-              <Repeat className="h-5 w-5 text-muted-foreground mt-0.5" />
-              <div>{getRecurrenceInfo()}</div>
-            </div>
-          )}
+          {/* タイトル */}
+          <div className="space-y-2">
+            <Label>タイトル *</Label>
+            <Input
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="予定のタイトル"
+            />
+          </div>
 
-          {/* 参加者 */}
-          {event.participants.length > 0 && (
-            <div className="flex items-start gap-3">
-              <Users className="h-5 w-5 text-muted-foreground mt-0.5" />
-              <div>
-                {event.participants.map((p) => p.name).join("、")}
+          {/* 区分 */}
+          {eventCategories.length > 0 && (
+            <div className="space-y-2">
+              <Label>区分</Label>
+              <div className="flex flex-wrap gap-2">
+                {eventCategories.map((cat) => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setCategoryId(cat.id === categoryId ? "" : cat.id)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-md border text-sm transition-colors ${
+                      cat.id === categoryId
+                        ? "border-primary bg-primary/10"
+                        : "border-input hover:bg-muted"
+                    }`}
+                  >
+                    <div className={`w-3 h-3 rounded ${cat.color}`} />
+                    {cat.name}
+                  </button>
+                ))}
               </div>
             </div>
           )}
 
-          {/* 業務リンク */}
+          {/* 日付・時刻 */}
+          <div className="space-y-2">
+            <Label>日時</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-40"
+              />
+              <label className="flex items-center gap-2 text-sm">
+                <Checkbox
+                  checked={allDay}
+                  onCheckedChange={(checked) => setAllDay(checked as boolean)}
+                />
+                終日
+              </label>
+            </div>
+            {!allDay && (
+              <div className="flex items-center gap-2 mt-2">
+                <select
+                  className="w-20 h-9 px-2 rounded-md border border-input bg-background text-sm"
+                  value={startHour}
+                  onChange={(e) => setStartHour(e.target.value)}
+                >
+                  <option value="">--</option>
+                  {HOUR_OPTIONS.map((h) => (
+                    <option key={h} value={h}>{h}</option>
+                  ))}
+                </select>
+                <span>:</span>
+                <select
+                  className="w-20 h-9 px-2 rounded-md border border-input bg-background text-sm"
+                  value={startMinute}
+                  onChange={(e) => setStartMinute(e.target.value)}
+                >
+                  {MINUTE_OPTIONS.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+                <span className="mx-2">〜</span>
+                <select
+                  className="w-20 h-9 px-2 rounded-md border border-input bg-background text-sm"
+                  value={endHour}
+                  onChange={(e) => setEndHour(e.target.value)}
+                >
+                  <option value="">--</option>
+                  {HOUR_OPTIONS.map((h) => (
+                    <option key={h} value={h}>{h}</option>
+                  ))}
+                </select>
+                <span>:</span>
+                <select
+                  className="w-20 h-9 px-2 rounded-md border border-input bg-background text-sm"
+                  value={endMinute}
+                  onChange={(e) => setEndMinute(e.target.value)}
+                >
+                  {MINUTE_OPTIONS.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+
+          {/* 繰り返し情報（読み取り専用） */}
+          {isRecurring && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 p-2 rounded">
+              <Repeat className="h-4 w-4" />
+              <span>{getRecurrenceInfo()}</span>
+            </div>
+          )}
+
+          {/* 参加者 */}
+          <div className="space-y-2">
+            <Label>参加者</Label>
+            <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
+              {sortedEmployees.map((emp) => (
+                <label
+                  key={emp.id}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md border text-sm cursor-pointer transition-colors ${
+                    participantIds.includes(emp.id)
+                      ? "border-primary bg-primary/10"
+                      : "border-input hover:bg-muted"
+                  }`}
+                >
+                  <Checkbox
+                    checked={participantIds.includes(emp.id)}
+                    onCheckedChange={() => toggleParticipant(emp.id)}
+                  />
+                  {emp.name}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          {/* 場所 */}
+          <div className="space-y-2">
+            <Label>場所</Label>
+            <Input
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="場所"
+            />
+          </div>
+
+          {/* Google Map URL */}
+          <div className="space-y-2">
+            <Label>Google Map URL</Label>
+            <Input
+              value={mapUrl}
+              onChange={(e) => setMapUrl(e.target.value)}
+              placeholder="https://maps.google.com/..."
+            />
+            {mapUrl && (
+              <a
+                href={mapUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-blue-600 hover:underline flex items-center gap-1"
+              >
+                <ExternalLink className="h-3 w-3" />
+                Google Map で開く
+              </a>
+            )}
+          </div>
+
+          {/* 詳細・メモ */}
+          <div className="space-y-2">
+            <Label>詳細・メモ</Label>
+            <Textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="メモや詳細情報"
+              rows={3}
+            />
+          </div>
+
+          {/* 業務リンク（読み取り専用） */}
           {event.project && (
-            <div className="flex items-start gap-3">
-              <Briefcase className="h-5 w-5 text-muted-foreground mt-0.5" />
+            <div className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg">
+              <Briefcase className="h-5 w-5 text-blue-600 mt-0.5" />
               <div>
                 <Link
                   href={`/projects/${event.project.id}`}
-                  className="text-blue-600 hover:underline flex items-center gap-1"
+                  className="text-blue-600 hover:underline flex items-center gap-1 font-medium"
                   onClick={() => onOpenChange(false)}
                 >
                   【{event.project.code}】{event.project.name}
@@ -355,156 +587,13 @@ export function EventDetailModal({
             </div>
           )}
 
-          {/* 詳細 */}
-          {event.description && (
-            <div className="flex items-start gap-3">
-              <FileText className="h-5 w-5 text-muted-foreground mt-0.5" />
-              <div className="whitespace-pre-wrap">{event.description}</div>
-            </div>
-          )}
-
           {/* 作成者 */}
           {event.creator && (
-            <div className="text-sm text-muted-foreground border-t pt-3">
+            <div className="text-sm text-muted-foreground">
               作成者: {event.creator.name}
             </div>
           )}
         </div>
-
-        {/* 完了チェック（未完了の場合のみ表示） */}
-        {!event.is_completed && !showCompletionForm && (
-          <div className="border-t pt-3">
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full text-green-700 border-green-300 hover:bg-green-50"
-              onClick={handleCompletionCheck}
-              disabled={savingCompletion}
-            >
-              {savingCompletion ? (
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-              ) : (
-                <CheckCircle className="h-4 w-4 mr-2" />
-              )}
-              完了にする
-            </Button>
-          </div>
-        )}
-
-        {/* 完了済み表示 */}
-        {event.is_completed && (
-          <div className="border-t pt-3">
-            <div className="flex items-center gap-2 text-green-700">
-              <CheckCircle className="h-5 w-5" />
-              <span className="font-medium">完了済み</span>
-            </div>
-          </div>
-        )}
-
-        {/* 場所・Google Map リンク（完了ボタンの下に表示） */}
-        {(event.location || event.map_url) && (
-          <div className="border-t pt-3 space-y-2">
-            {event.location && (
-              <div className="flex items-start gap-3">
-                <MapPin className="h-5 w-5 text-muted-foreground mt-0.5" />
-                <div>{event.location}</div>
-              </div>
-            )}
-            {event.map_url && (
-              <div className="flex items-start gap-3">
-                <ExternalLink className="h-5 w-5 text-muted-foreground mt-0.5" />
-                <a
-                  href={event.map_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 hover:underline"
-                >
-                  Google Map で開く
-                </a>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* 終日イベントの完了時刻入力フォーム */}
-        {showCompletionForm && (
-          <div className="border rounded-md p-3 bg-green-50 space-y-3">
-            <p className="text-sm font-medium text-green-800">
-              実際の作業時間を入力してください
-            </p>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <Label className="text-xs">開始時刻</Label>
-                <div className="flex items-center gap-1">
-                  <select
-                    className="w-16 h-8 px-2 rounded-md border border-input bg-background text-sm"
-                    value={completionStartHour}
-                    onChange={(e) => setCompletionStartHour(e.target.value)}
-                  >
-                    <option value="">--</option>
-                    {HOUR_OPTIONS.map((h) => (
-                      <option key={h} value={h}>{h}</option>
-                    ))}
-                  </select>
-                  <span>:</span>
-                  <select
-                    className="w-16 h-8 px-2 rounded-md border border-input bg-background text-sm"
-                    value={completionStartMinute}
-                    onChange={(e) => setCompletionStartMinute(e.target.value)}
-                  >
-                    {MINUTE_OPTIONS.map((m) => (
-                      <option key={m} value={m}>{m}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div className="space-y-1">
-                <Label className="text-xs">終了時刻</Label>
-                <div className="flex items-center gap-1">
-                  <select
-                    className="w-16 h-8 px-2 rounded-md border border-input bg-background text-sm"
-                    value={completionEndHour}
-                    onChange={(e) => setCompletionEndHour(e.target.value)}
-                  >
-                    <option value="">--</option>
-                    {HOUR_OPTIONS.map((h) => (
-                      <option key={h} value={h}>{h}</option>
-                    ))}
-                  </select>
-                  <span>:</span>
-                  <select
-                    className="w-16 h-8 px-2 rounded-md border border-input bg-background text-sm"
-                    value={completionEndMinute}
-                    onChange={(e) => setCompletionEndMinute(e.target.value)}
-                  >
-                    {MINUTE_OPTIONS.map((m) => (
-                      <option key={m} value={m}>{m}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setShowCompletionForm(false)}
-                disabled={savingCompletion}
-              >
-                キャンセル
-              </Button>
-              <Button
-                size="sm"
-                className="bg-green-600 hover:bg-green-700"
-                onClick={handleSaveCompletionWithTime}
-                disabled={savingCompletion}
-              >
-                {savingCompletion && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                完了を保存
-              </Button>
-            </div>
-          </div>
-        )}
 
         {/* 繰り返し予定の削除オプション */}
         {showDeleteOptions && isRecurring && (
@@ -550,12 +639,12 @@ export function EventDetailModal({
           </div>
         )}
 
-        <DialogFooter className="flex justify-between">
+        <DialogFooter className="flex justify-between gap-2">
           <Button
             variant="destructive"
             size="sm"
             onClick={handleDelete}
-            disabled={loading}
+            disabled={loading || saving}
           >
             <Trash2 className="h-4 w-4 mr-1" />
             削除
@@ -564,10 +653,16 @@ export function EventDetailModal({
             <Button variant="outline" onClick={() => onOpenChange(false)}>
               閉じる
             </Button>
-            <Button onClick={() => onEdit(event)}>
-              <Edit className="h-4 w-4 mr-1" />
-              編集
-            </Button>
+            {hasChanges && (
+              <Button onClick={handleSave} disabled={saving}>
+                {saving ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <Save className="h-4 w-4 mr-1" />
+                )}
+                保存
+              </Button>
+            )}
           </div>
         </DialogFooter>
       </DialogContent>
