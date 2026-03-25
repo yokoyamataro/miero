@@ -21,6 +21,7 @@ import { ChevronLeft, ChevronRight, Calendar, CalendarDays, CalendarRange, Check
 import { Button } from "@/components/ui/button";
 import { type CalendarEventWithParticipants, type EventCategory } from "@/types/database";
 import { MobileEventSheet } from "./mobile-event-sheet";
+import { MobileEventDetailSheet } from "./mobile-event-detail-sheet";
 
 interface Employee {
   id: string;
@@ -107,6 +108,10 @@ export function MobileCalendarView({
   const [showEventSheet, setShowEventSheet] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>("month");
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(currentEmployeeId);
+
+  // 個別イベント詳細用
+  const [selectedEvent, setSelectedEvent] = useState<CalendarEventWithParticipants | null>(null);
+  const [showEventDetailSheet, setShowEventDetailSheet] = useState(false);
 
   // 現在の表示モードに応じた日付を返す
   const currentDate = viewMode === "month" ? monthDate : dayDate;
@@ -196,6 +201,25 @@ export function MobileCalendarView({
   const handleDateClick = (date: Date) => {
     setSelectedDate(date);
     setShowEventSheet(true);
+  };
+
+  // 個別イベントをタップしたときの処理
+  const handleEventClick = (event: CalendarEventWithParticipants, e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+    }
+    setSelectedEvent(event);
+    setShowEventDetailSheet(true);
+  };
+
+  // イベント詳細から更新されたとき
+  const handleEventUpdated = (updatedEvent: CalendarEventWithParticipants) => {
+    router.refresh();
+  };
+
+  // イベント詳細から削除されたとき
+  const handleEventDeleted = (eventId: string) => {
+    router.refresh();
   };
 
   // カテゴリー色を取得
@@ -376,13 +400,14 @@ export function MobileCalendarView({
                   {/* イベントタイトル表示 */}
                   {dayEvents.length > 0 && (
                     <div className="w-full flex-1 overflow-hidden mt-0.5 space-y-px">
-                      {dayEvents.slice(0, 3).map((event, i) => {
+                      {dayEvents.slice(0, 3).map((event) => {
                         const color = getCategoryColor(event);
                         const textColor = getTextColor(color);
                         return (
                           <div
-                            key={i}
+                            key={event.id}
                             className={`text-[10px] leading-tight truncate font-medium ${textColor} flex items-center gap-0.5`}
+                            onClick={(e) => handleEventClick(event, e)}
                           >
                             {event.is_completed && (
                               <CheckCircle className="h-2.5 w-2.5 text-green-600 flex-shrink-0" />
@@ -458,12 +483,15 @@ export function MobileCalendarView({
                 <div
                   key={idx}
                   className="p-0.5 border-r min-h-[24px] overflow-hidden"
-                  onClick={() => handleDateClick(date)}
                 >
-                  {allDayEvents.slice(0, 2).map((event, i) => {
+                  {allDayEvents.slice(0, 2).map((event) => {
                     const color = getCategoryColor(event);
                     return (
-                      <div key={i} className={`text-[9px] truncate px-0.5 rounded ${color} text-white flex items-center gap-0.5`}>
+                      <div
+                        key={event.id}
+                        className={`text-[9px] truncate px-0.5 rounded ${color} text-white flex items-center gap-0.5`}
+                        onClick={(e) => handleEventClick(event, e)}
+                      >
                         {event.is_completed && (
                           <CheckCircle className="h-2 w-2 flex-shrink-0" />
                         )}
@@ -492,7 +520,6 @@ export function MobileCalendarView({
                 <div
                   key={dayIdx}
                   className="border-r relative"
-                  onClick={() => handleDateClick(date)}
                 >
                   {hourLabels.map((slot, idx) => (
                     <div key={idx} className={`h-10 border-b ${slot.hour === 12 ? "bg-gray-100" : ""}`} />
@@ -506,8 +533,9 @@ export function MobileCalendarView({
                     return (
                       <div
                         key={event.id}
-                        className={`absolute left-0 right-0 mx-0.5 rounded px-0.5 overflow-hidden border text-[9px] ${lightBgColor}`}
+                        className={`absolute left-0 right-0 mx-0.5 rounded px-0.5 overflow-hidden border text-[9px] ${lightBgColor} cursor-pointer`}
                         style={{ top: pos.top, height: pos.height }}
+                        onClick={(e) => handleEventClick(event, e)}
                       >
                         <div className="truncate text-black font-medium flex items-center gap-0.5">
                           {event.is_completed && (
@@ -561,7 +589,11 @@ export function MobileCalendarView({
               {allDayEvents.map((event) => {
                 const color = getCategoryColor(event);
                 return (
-                  <div key={event.id} className={`text-[10px] px-2 py-0.5 rounded ${color} text-white flex items-center gap-1`}>
+                  <div
+                    key={event.id}
+                    className={`text-[10px] px-2 py-0.5 rounded ${color} text-white flex items-center gap-1 cursor-pointer`}
+                    onClick={() => handleEventClick(event)}
+                  >
                     {event.is_completed && (
                       <CheckCircle className="h-2.5 w-2.5 flex-shrink-0" />
                     )}
@@ -596,13 +628,9 @@ export function MobileCalendarView({
                 return (
                   <div
                     key={event.id}
-                    className={`absolute left-0.5 right-0.5 rounded px-1 py-0.5 overflow-hidden border ${lightBgColor}`}
+                    className={`absolute left-0.5 right-0.5 rounded px-1 py-0.5 overflow-hidden border ${lightBgColor} cursor-pointer`}
                     style={{ top: pos.top, height: pos.height }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedDate(dayDate);
-                      setShowEventSheet(true);
-                    }}
+                    onClick={(e) => handleEventClick(event, e)}
                   >
                     <div className="text-[10px] font-medium truncate text-black flex items-center gap-0.5">
                       {event.is_completed && (
@@ -685,6 +713,18 @@ export function MobileCalendarView({
         categories={categories}
         employees={employees}
         currentEmployeeId={currentEmployeeId}
+      />
+
+      {/* 個別イベント詳細シート */}
+      <MobileEventDetailSheet
+        open={showEventDetailSheet}
+        onOpenChange={setShowEventDetailSheet}
+        event={selectedEvent}
+        categories={categories}
+        employees={employees}
+        currentEmployeeId={currentEmployeeId}
+        onUpdated={handleEventUpdated}
+        onDeleted={handleEventDeleted}
       />
     </div>
   );
