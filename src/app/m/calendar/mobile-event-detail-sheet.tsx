@@ -11,6 +11,7 @@ import {
   Users,
   Pencil,
   CheckCircle,
+  Circle,
   Loader2,
   Trash2,
   ExternalLink,
@@ -79,8 +80,9 @@ export function MobileEventDetailSheet({
   const [completionEndMinute, setCompletionEndMinute] = useState("");
   const [savingCompletion, setSavingCompletion] = useState(false);
 
-  // ローカルでイベントの完了状態を管理
-  const [localCompleted, setLocalCompleted] = useState(false);
+  // ローカルでイベントの完了状態を管理（null=変更なし）
+  const [localCompletedState, setLocalCompletedState] = useState<boolean | null>(null);
+  const [undoingCompletion, setUndoingCompletion] = useState(false);
 
   if (!event) return null;
 
@@ -90,7 +92,8 @@ export function MobileEventDetailSheet({
   const participantNames = event.participants
     ?.map((p) => employeeMap.get(p.id) || p.name)
     .join("、");
-  const isCompleted = event.is_completed || localCompleted;
+  // ローカル状態が設定されていればそれを優先、なければサーバーの値を使用
+  const isCompleted = localCompletedState !== null ? localCompletedState : event.is_completed;
 
   // 繰り返し情報の表示
   const getRecurrenceInfo = () => {
@@ -210,8 +213,33 @@ export function MobileEventDetailSheet({
       return;
     }
 
-    setLocalCompleted(true);
+    setLocalCompletedState(true);
     handleCancelCompletion();
+    if (result.event && onUpdated) {
+      onUpdated(result.event);
+    }
+  };
+
+  // 完了を取り消す
+  const handleUndoCompletion = async () => {
+    setUndoingCompletion(true);
+
+    const result = await updateEvent(
+      event.id,
+      {
+        is_completed: false,
+      },
+      event.participants.map((p) => p.id)
+    );
+
+    setUndoingCompletion(false);
+
+    if (result.error) {
+      alert(result.error);
+      return;
+    }
+
+    setLocalCompletedState(false);
     if (result.event && onUpdated) {
       onUpdated(result.event);
     }
@@ -313,11 +341,25 @@ export function MobileEventDetailSheet({
 
             {/* 完了チェック */}
             {isCompleted ? (
-              <div className="border-t pt-4">
+              <div className="border-t pt-4 space-y-3">
                 <div className="flex items-center gap-2 text-green-700">
                   <CheckCircle className="h-5 w-5" />
                   <span className="font-medium">完了済み</span>
                 </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full text-orange-700 border-orange-300 hover:bg-orange-50"
+                  onClick={handleUndoCompletion}
+                  disabled={undoingCompletion}
+                >
+                  {undoingCompletion ? (
+                    <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                  ) : (
+                    <Circle className="h-4 w-4 mr-1" />
+                  )}
+                  未完了に戻す
+                </Button>
               </div>
             ) : showCompletionForm ? (
               <div className="border rounded-md p-3 bg-green-50 space-y-3">
