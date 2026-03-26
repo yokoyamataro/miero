@@ -14,10 +14,7 @@ const CATEGORY_PREFIX: Record<ProjectCategory, string> = {
   D_Inheritance: "D",
   E_Corporate: "E",
   F_Drone: "F",
-  M_Marketing: "M",
   N_Farmland: "N",
-  O_Miscellaneous: "O",
-  P_RnD: "P",
   S_General: "S",
   Z_Other: "Z",
 };

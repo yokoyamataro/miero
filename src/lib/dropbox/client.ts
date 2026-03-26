@@ -13,10 +13,7 @@ const CATEGORY_FOLDER_MAP: Record<ProjectCategory, string> = {
   D_Inheritance: "D_遺言・相続",
   E_Corporate: "E_法人関係",
   F_Drone: "F_ドローン",
-  M_Marketing: "M_マーケティング",
   N_Farmland: "N_農地関係",
-  O_Miscellaneous: "O_雑務",
-  P_RnD: "P_研究開発",
   S_General: "S_総務",
   Z_Other: "Z_その他",
 };

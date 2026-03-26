@@ -14,10 +14,7 @@ export type ProjectCategory =
   | "D_Inheritance"
   | "E_Corporate"
   | "F_Drone"
-  | "M_Marketing"
   | "N_Farmland"
-  | "O_Miscellaneous"
-  | "P_RnD"
   | "S_General"
   | "Z_Other";
 
@@ -35,10 +32,7 @@ export const PROJECT_CATEGORY_LABELS: Record<ProjectCategory, string> = {
   D_Inheritance: "D:遺言・相続",
   E_Corporate: "E:法人関係",
   F_Drone: "F:ドローン",
-  M_Marketing: "M:マーケティング",
   N_Farmland: "N:農地関係",
-  O_Miscellaneous: "O:雑務",
-  P_RnD: "P:研究開発",
   S_General: "S:総務",
   Z_Other: "Z:その他",
 };
