@@ -18,6 +18,7 @@ import {
   Briefcase,
   FileText,
   Repeat,
+  AlertTriangle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -35,7 +36,8 @@ import {
   DAY_OF_WEEK_LABELS,
 } from "@/types/database";
 import { MobileEventFormSheet } from "./mobile-event-form-sheet";
-import { updateEvent, deleteEvent } from "@/app/calendar/actions";
+import { updateEvent, deleteEvent, type ProjectForLink } from "@/app/calendar/actions";
+import { MobileProjectSearch } from "./mobile-project-search";
 
 interface Employee {
   id: string;
@@ -84,6 +86,12 @@ export function MobileEventDetailSheet({
   const [localCompletedState, setLocalCompletedState] = useState<boolean | null>(null);
   const [undoingCompletion, setUndoingCompletion] = useState(false);
 
+  // 業務リンク確認用の状態
+  const [showNoProjectWarning, setShowNoProjectWarning] = useState(false);
+  const [pendingProjectId, setPendingProjectId] = useState<string | null>(null);
+  const [pendingProjectCode, setPendingProjectCode] = useState<string | null>(null);
+  const [pendingProjectName, setPendingProjectName] = useState<string | null>(null);
+
   if (!event) return null;
 
   const category = categories.find((c) => c.id === event.event_category_id);
@@ -94,6 +102,8 @@ export function MobileEventDetailSheet({
     .join("、");
   // ローカル状態が設定されていればそれを優先、なければサーバーの値を使用
   const isCompleted = localCompletedState !== null ? localCompletedState : event.is_completed;
+  // 業務リンクがあるかどうか（保留中の業務IDも考慮）
+  const hasProjectLink = !!event.project_id || !!pendingProjectId;
 
   // 繰り返し情報の表示
   const getRecurrenceInfo = () => {
@@ -155,6 +165,22 @@ export function MobileEventDetailSheet({
 
   // 完了ボタンを押したとき
   const handleCompletionClick = () => {
+    // 業務リンクがない場合は警告を表示
+    if (!hasProjectLink) {
+      setShowNoProjectWarning(true);
+      return;
+    }
+    showCompletionTimeForm();
+  };
+
+  // 業務リンクなしで続行
+  const handleContinueWithoutProject = () => {
+    setShowNoProjectWarning(false);
+    showCompletionTimeForm();
+  };
+
+  // 完了時刻入力フォームを表示
+  const showCompletionTimeForm = () => {
     if (event.all_day) {
       const now = new Date();
       const hour = String(now.getHours()).padStart(2, "0");
@@ -172,7 +198,22 @@ export function MobileEventDetailSheet({
       setCompletionEndHour(endTimeParts[0] || "");
       setCompletionEndMinute(endTimeParts[1] || "00");
     }
+    setShowNoProjectWarning(false);
     setShowCompletionForm(true);
+  };
+
+  // 業務選択時のハンドラー
+  const handleProjectSelect = (project: ProjectForLink) => {
+    setPendingProjectId(project.id);
+    setPendingProjectCode(project.code);
+    setPendingProjectName(project.name);
+  };
+
+  // 業務リンク解除
+  const handleProjectClear = () => {
+    setPendingProjectId(null);
+    setPendingProjectCode(null);
+    setPendingProjectName(null);
   };
 
   // 完了をキャンセル
@@ -195,14 +236,21 @@ export function MobileEventDetailSheet({
     const startTime = `${completionStartHour}:${completionStartMinute || "00"}:00`;
     const endTime = `${completionEndHour}:${completionEndMinute || "00"}:00`;
 
+    const updateData: Record<string, unknown> = {
+      is_completed: true,
+      all_day: event.all_day ? false : event.all_day,
+      start_time: startTime,
+      end_time: endTime,
+    };
+
+    // 保留中の業務リンクがあれば追加
+    if (pendingProjectId) {
+      updateData.project_id = pendingProjectId;
+    }
+
     const result = await updateEvent(
       event.id,
-      {
-        is_completed: true,
-        all_day: event.all_day ? false : event.all_day,
-        start_time: startTime,
-        end_time: endTime,
-      },
+      updateData,
       event.participants.map((p) => p.id)
     );
 
@@ -339,6 +387,53 @@ export function MobileEventDetailSheet({
               </div>
             )}
 
+            {/* 業務リンク入力（未完了かつ業務リンクがない場合のみ表示） */}
+            {!isCompleted && !event.project && !showCompletionForm && !showNoProjectWarning && (
+              <div className="border-t pt-4">
+                <MobileProjectSearch
+                  linkedProjectId={pendingProjectId}
+                  linkedProjectCode={pendingProjectCode}
+                  linkedProjectName={pendingProjectName}
+                  onSelect={handleProjectSelect}
+                  onClear={handleProjectClear}
+                />
+              </div>
+            )}
+
+            {/* 業務リンクなし警告 */}
+            {showNoProjectWarning && (
+              <div className="border rounded-md p-3 bg-amber-50 space-y-3">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                  <div>
+                    <p className="text-sm font-medium text-amber-800">
+                      業務リンクが設定されていません
+                    </p>
+                    <p className="text-xs text-amber-700 mt-1">
+                      このまま完了にしますか？
+                    </p>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setShowNoProjectWarning(false)}
+                    className="flex-1"
+                  >
+                    キャンセル
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="bg-amber-600 hover:bg-amber-700 flex-1"
+                    onClick={handleContinueWithoutProject}
+                  >
+                    このまま続行
+                  </Button>
+                </div>
+              </div>
+            )}
+
             {/* 完了チェック */}
             {isCompleted ? (
               <div className="border-t pt-4 space-y-3">
@@ -439,7 +534,7 @@ export function MobileEventDetailSheet({
                   </Button>
                 </div>
               </div>
-            ) : (
+            ) : !showNoProjectWarning ? (
               <div className="border-t pt-4">
                 <Button
                   variant="outline"
@@ -451,7 +546,7 @@ export function MobileEventDetailSheet({
                   完了にする
                 </Button>
               </div>
-            )}
+            ) : null}
 
             {/* 場所・Google Map */}
             {(event.location || event.map_url) && (

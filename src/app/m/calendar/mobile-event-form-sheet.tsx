@@ -17,7 +17,8 @@ import {
   SheetFooter,
 } from "@/components/ui/sheet";
 import { type CalendarEventWithParticipants, type EventCategory } from "@/types/database";
-import { createEvent, updateEvent, deleteEvent } from "@/app/calendar/actions";
+import { createEvent, updateEvent, deleteEvent, type ProjectForLink } from "@/app/calendar/actions";
+import { MobileProjectSearch } from "./mobile-project-search";
 
 interface Employee {
   id: string;
@@ -79,6 +80,11 @@ export function MobileEventFormSheet({
   const [location, setLocation] = useState("");
   const [participantIds, setParticipantIds] = useState<string[]>([]);
 
+  // 業務リンク
+  const [linkedProjectId, setLinkedProjectId] = useState<string | null>(null);
+  const [linkedProjectCode, setLinkedProjectCode] = useState<string | null>(null);
+  const [linkedProjectName, setLinkedProjectName] = useState<string | null>(null);
+
   // 社員リストをソート（ログインユーザーを先頭に）
   const sortedEmployees = useMemo(() => {
     if (!currentEmployeeId) return employees;
@@ -104,6 +110,9 @@ export function MobileEventFormSheet({
       setAllDay(event.all_day);
       setLocation(event.location || "");
       setParticipantIds(event.participants.map((p) => p.id));
+      setLinkedProjectId(event.project_id);
+      setLinkedProjectCode(event.project?.code || null);
+      setLinkedProjectName(event.project?.name || null);
     } else if (date) {
       const dateStr = format(date, "yyyy-MM-dd");
       setTitle("");
@@ -116,9 +125,29 @@ export function MobileEventFormSheet({
       setAllDay(false);
       setLocation("");
       setParticipantIds(currentEmployeeId ? [currentEmployeeId] : []);
+      setLinkedProjectId(null);
+      setLinkedProjectCode(null);
+      setLinkedProjectName(null);
     }
     setError(null);
   }, [event, date, open, categories, currentEmployeeId]);
+
+  // 業務を選択
+  const handleProjectSelect = (project: ProjectForLink) => {
+    if (project.location) {
+      setLocation(project.location);
+    }
+    setLinkedProjectId(project.id);
+    setLinkedProjectCode(project.code);
+    setLinkedProjectName(project.name);
+  };
+
+  // 業務リンクを解除
+  const handleProjectClear = () => {
+    setLinkedProjectId(null);
+    setLinkedProjectCode(null);
+    setLinkedProjectName(null);
+  };
 
   const handleSubmit = async () => {
     if (!title.trim() || !startDate) {
@@ -145,7 +174,7 @@ export function MobileEventFormSheet({
         all_day: allDay,
         location: location.trim() || null,
         map_url: null,
-        project_id: event?.project_id || null,
+        project_id: linkedProjectId,
         task_id: event?.task_id || null,
       };
 
@@ -212,6 +241,18 @@ export function MobileEventFormSheet({
         </SheetHeader>
 
         <div className="flex-1 overflow-y-auto py-4 space-y-4">
+          {/* 業務リンク */}
+          <div className="space-y-1">
+            <Label className="text-sm">業務リンク</Label>
+            <MobileProjectSearch
+              linkedProjectId={linkedProjectId}
+              linkedProjectCode={linkedProjectCode}
+              linkedProjectName={linkedProjectName}
+              onSelect={handleProjectSelect}
+              onClear={handleProjectClear}
+            />
+          </div>
+
           {/* タイトル */}
           <div className="space-y-1">
             <Label htmlFor="title" className="text-sm">タイトル *</Label>

@@ -26,6 +26,7 @@ import {
   Repeat,
   CheckCircle,
   Loader2,
+  AlertTriangle,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ja } from "date-fns/locale";
@@ -36,7 +37,8 @@ import {
   RECURRENCE_TYPE_LABELS,
   DAY_OF_WEEK_LABELS,
 } from "@/types/database";
-import { deleteEvent, deleteRecurringEventsAll, deleteRecurringEventsFromDate, updateEvent } from "./actions";
+import { deleteEvent, deleteRecurringEventsAll, deleteRecurringEventsFromDate, updateEvent, type ProjectForLink } from "./actions";
+import { ProjectSearch } from "./project-search";
 
 // 時間オプション (0-23)
 const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
@@ -71,12 +73,37 @@ export function EventDetailModal({
   const [completionEndMinute, setCompletionEndMinute] = useState("");
   const [savingCompletion, setSavingCompletion] = useState(false);
 
+  // 業務リンク確認用の状態
+  const [showNoProjectWarning, setShowNoProjectWarning] = useState(false);
+  const [pendingProjectId, setPendingProjectId] = useState<string | null>(null);
+  const [pendingProjectCode, setPendingProjectCode] = useState<string | null>(null);
+  const [pendingProjectName, setPendingProjectName] = useState<string | null>(null);
+
   if (!event) return null;
 
   const isRecurring = event.recurrence_group_id && event.recurrence_type && event.recurrence_type !== "none";
 
-  // 完了チェックを押した時の処理（常に時刻入力フォームを表示）
+  // 業務リンクがあるかどうか（保留中の業務IDも考慮）
+  const hasProjectLink = !!event.project_id || !!pendingProjectId;
+
+  // 完了チェックを押した時の処理
   const handleCompletionCheck = () => {
+    // 業務リンクがない場合は警告を表示
+    if (!hasProjectLink) {
+      setShowNoProjectWarning(true);
+      return;
+    }
+    showCompletionTimeForm();
+  };
+
+  // 業務リンクなしで続行
+  const handleContinueWithoutProject = () => {
+    setShowNoProjectWarning(false);
+    showCompletionTimeForm();
+  };
+
+  // 完了時刻入力フォームを表示
+  const showCompletionTimeForm = () => {
     if (event.all_day) {
       // 終日イベントの場合は現在時刻をデフォルトに
       const now = new Date();
@@ -97,7 +124,22 @@ export function EventDetailModal({
       setCompletionEndHour(endTimeParts[0] || "");
       setCompletionEndMinute(endTimeParts[1] || "00");
     }
+    setShowNoProjectWarning(false);
     setShowCompletionForm(true);
+  };
+
+  // 業務選択時のハンドラー
+  const handleProjectSelect = (project: ProjectForLink) => {
+    setPendingProjectId(project.id);
+    setPendingProjectCode(project.code);
+    setPendingProjectName(project.name);
+  };
+
+  // 業務リンク解除
+  const handleProjectClear = () => {
+    setPendingProjectId(null);
+    setPendingProjectCode(null);
+    setPendingProjectName(null);
   };
 
   // 完了を保存
@@ -108,12 +150,17 @@ export function EventDetailModal({
   ) => {
     setSavingCompletion(true);
 
-    const updateData = {
+    const updateData: Record<string, unknown> = {
       is_completed: true,
       all_day: convertFromAllDay ? false : event.all_day,
       start_time: startTime,
       end_time: endTime,
     };
+
+    // 保留中の業務リンクがあれば追加
+    if (pendingProjectId) {
+      updateData.project_id = pendingProjectId;
+    }
 
     const result = await updateEvent(
       event.id,
@@ -371,8 +418,55 @@ export function EventDetailModal({
           )}
         </div>
 
+        {/* 業務リンク入力（未完了かつ業務リンクがない場合のみ表示） */}
+        {!event.is_completed && !event.project && !showCompletionForm && (
+          <div className="border-t pt-3 space-y-2">
+            <ProjectSearch
+              linkedProjectId={pendingProjectId}
+              linkedProjectCode={pendingProjectCode}
+              linkedProjectName={pendingProjectName}
+              onSelect={handleProjectSelect}
+              onClear={handleProjectClear}
+            />
+          </div>
+        )}
+
+        {/* 業務リンクなし警告 */}
+        {showNoProjectWarning && (
+          <div className="border rounded-md p-3 bg-amber-50 space-y-3">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium text-amber-800">
+                  業務リンクが設定されていません
+                </p>
+                <p className="text-xs text-amber-700 mt-1">
+                  このまま完了にしますか？
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowNoProjectWarning(false)}
+              >
+                キャンセル
+              </Button>
+              <Button
+                size="sm"
+                variant="default"
+                className="bg-amber-600 hover:bg-amber-700"
+                onClick={handleContinueWithoutProject}
+              >
+                このまま続行
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* 完了チェック（未完了の場合のみ表示） */}
-        {!event.is_completed && !showCompletionForm && (
+        {!event.is_completed && !showCompletionForm && !showNoProjectWarning && (
           <div className="border-t pt-3">
             <Button
               variant="outline"

@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { format, addMonths, startOfMonth, endOfMonth, eachDayOfInterval, getDay, getDate, getMonth } from "date-fns";
 import { ja } from "date-fns/locale";
-import { Briefcase, ChevronRight, ChevronLeft, LinkIcon, X, Calendar, Repeat } from "lucide-react";
+import { ChevronRight, ChevronLeft, Calendar, Repeat, X } from "lucide-react";
 import {
   type CalendarEventWithParticipants,
   type Employee,
@@ -24,7 +24,8 @@ import {
   RECURRENCE_TYPE_LABELS,
   DAY_OF_WEEK_LABELS,
 } from "@/types/database";
-import { createEvent, updateEvent, createRecurringEvents, createMultipleDateEvents, getActiveProjects, type ProjectForLink } from "./actions";
+import { createEvent, updateEvent, createRecurringEvents, createMultipleDateEvents, type ProjectForLink } from "./actions";
+import { ProjectSearch } from "./project-search";
 
 interface EventModalProps {
   open: boolean;
@@ -98,11 +99,6 @@ export function EventModal({
   const [mapUrl, setMapUrl] = useState("");
   const [participantIds, setParticipantIds] = useState<string[]>([]);
 
-  // 業務選択用
-  const [showProjectSelector, setShowProjectSelector] = useState(false);
-  const [projects, setProjects] = useState<ProjectForLink[]>([]);
-  const [loadingProjects, setLoadingProjects] = useState(false);
-
   // 業務リンク
   const [linkedProjectId, setLinkedProjectId] = useState<string | null>(null);
   const [linkedProjectCode, setLinkedProjectCode] = useState<string | null>(null);
@@ -142,7 +138,6 @@ export function EventModal({
       setLocation(event.location || "");
       setMapUrl(event.map_url || "");
       setParticipantIds(event.participants.map((p) => p.id));
-      setShowProjectSelector(false);
       setLinkedProjectId(event.project_id);
       setLinkedProjectCode(event.project?.code || null);
       setLinkedProjectName(event.project?.name || null);
@@ -164,7 +159,6 @@ export function EventModal({
       setMapUrl("");
       // デフォルトで自分を参加者に設定
       setParticipantIds(currentEmployeeId ? [currentEmployeeId] : []);
-      setShowProjectSelector(false);
       setLinkedProjectId(null);
       setLinkedProjectCode(null);
       setLinkedProjectName(null);
@@ -181,38 +175,18 @@ export function EventModal({
     }
   }, [event, selectedDate, open, eventCategories, currentEmployeeId, initialStartTime, initialEndTime]);
 
-  // 業務を読み込む
-  const loadProjects = async () => {
-    if (projects.length > 0) {
-      setShowProjectSelector(!showProjectSelector);
-      return;
-    }
-
-    setLoadingProjects(true);
-    try {
-      const data = await getActiveProjects();
-      setProjects(data);
-      setShowProjectSelector(true);
-    } catch (err) {
-      console.error("Error loading projects:", err);
-    } finally {
-      setLoadingProjects(false);
-    }
-  };
-
   // 業務を選択
-  const selectProject = (project: ProjectForLink) => {
+  const handleProjectSelect = (project: ProjectForLink) => {
     if (project.location) {
       setLocation(project.location);
     }
     setLinkedProjectId(project.id);
     setLinkedProjectCode(project.code);
     setLinkedProjectName(project.name);
-    setShowProjectSelector(false);
   };
 
   // 業務リンクを解除
-  const clearProjectLink = () => {
+  const handleProjectClear = () => {
     setLinkedProjectId(null);
     setLinkedProjectCode(null);
     setLinkedProjectName(null);
@@ -344,61 +318,13 @@ export function EventModal({
 
         <div className="space-y-4">
           {/* 業務リンク */}
-          <div className="space-y-2">
-            <div className="flex items-center gap-2">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={loadProjects}
-                disabled={loadingProjects}
-              >
-                <Briefcase className="h-4 w-4 mr-1" />
-                {loadingProjects ? "読込中..." : "業務をリンク"}
-              </Button>
-
-              {/* リンク済みの業務表示 */}
-              {linkedProjectId && (
-                <div className="flex items-center gap-2 text-sm bg-blue-50 text-blue-700 px-3 py-1.5 rounded-md">
-                  <Briefcase className="h-4 w-4 flex-shrink-0" />
-                  <span className="truncate">【{linkedProjectCode}】{linkedProjectName}</span>
-                  <button
-                    type="button"
-                    onClick={clearProjectLink}
-                    className="p-0.5 hover:bg-blue-100 rounded flex-shrink-0"
-                  >
-                    <X className="h-4 w-4" />
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* 業務選択パネル */}
-            {showProjectSelector && (
-              <div className="border rounded-md p-2 max-h-48 overflow-y-auto bg-muted/30">
-                {projects.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-2">
-                    進行中の業務がありません
-                  </p>
-                ) : (
-                  <div className="space-y-1">
-                    {projects.map((project) => (
-                      <div
-                        key={project.id}
-                        className="flex items-center gap-1 p-1 rounded hover:bg-muted cursor-pointer text-sm"
-                        onClick={() => selectProject(project)}
-                      >
-                        <span className="font-mono text-xs text-muted-foreground">
-                          {project.code}
-                        </span>
-                        <span className="truncate flex-1">{project.name}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+          <ProjectSearch
+            linkedProjectId={linkedProjectId}
+            linkedProjectCode={linkedProjectCode}
+            linkedProjectName={linkedProjectName}
+            onSelect={handleProjectSelect}
+            onClear={handleProjectClear}
+          />
 
           {/* タイトル */}
           <div className="space-y-2">

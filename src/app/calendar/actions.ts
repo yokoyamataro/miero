@@ -641,6 +641,30 @@ export type ProjectForLink = {
   location: string | null;
 };
 
+// 業務をフリーワード検索（全業務対象）
+export async function searchProjects(query: string): Promise<ProjectForLink[]> {
+  const supabase = await createClient();
+
+  if (!query.trim()) {
+    return [];
+  }
+
+  // 業務名またはコードでフリーワード検索（全業務対象）
+  const { data: projects, error } = await supabase
+    .from("projects")
+    .select("id, code, name, location")
+    .or(`name.ilike.%${query}%,code.ilike.%${query}%`)
+    .order("code", { ascending: false })
+    .limit(20);
+
+  if (error) {
+    console.error("Error searching projects:", error);
+    return [];
+  }
+
+  return (projects as ProjectForLink[]) || [];
+}
+
 export async function getActiveProjects(): Promise<ProjectForLink[]> {
   const supabase = await createClient();
 
