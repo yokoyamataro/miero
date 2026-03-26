@@ -223,27 +223,24 @@ export default async function ProjectDetailPage({
             notes={typedProject.notes}
           />
 
-          {/* タスクとスケジュールを左右2列で表示 */}
-          <div className="grid gap-6 lg:grid-cols-2">
-            <TaskList
-              projectId={id}
-              projectCode={typedProject.code}
-              tasks={typedTasks}
-              employees={typedEmployees}
-              currentEmployeeId={currentEmployee?.id || null}
-              defaultAssigneeId={typedProject.manager_id}
-              projectLocation={typedProject.location}
-            />
+          <ProjectSchedule
+            projectId={id}
+            projectCode={typedProject.code}
+            events={projectEvents}
+            employees={typedEmployees}
+            currentEmployeeId={currentEmployee?.id || null}
+            defaultAssigneeId={typedProject.manager_id}
+          />
 
-            <ProjectSchedule
-              projectId={id}
-              projectCode={typedProject.code}
-              events={projectEvents}
-              employees={typedEmployees}
-              currentEmployeeId={currentEmployee?.id || null}
-              defaultAssigneeId={typedProject.manager_id}
-            />
-          </div>
+          <TaskList
+            projectId={id}
+            projectCode={typedProject.code}
+            tasks={typedTasks}
+            employees={typedEmployees}
+            currentEmployeeId={currentEmployee?.id || null}
+            defaultAssigneeId={typedProject.manager_id}
+            projectLocation={typedProject.location}
+          />
 
           <CommentSection
             projectId={id}
