@@ -216,28 +216,34 @@ export default async function ProjectDetailPage({
           />
         </div>
 
-        {/* 右カラム: ノート & スケジュール & タスク & コメント */}
+        {/* 右カラム: ノート & タスク・スケジュール2列 & コメント */}
         <div className="lg:col-span-2 space-y-6">
           <ProjectNotes
             projectId={id}
             notes={typedProject.notes}
           />
 
-          <ProjectSchedule
-            projectId={id}
-            projectCode={typedProject.code}
-            events={projectEvents}
-            employees={typedEmployees}
-            currentEmployeeId={currentEmployee?.id || null}
-            defaultAssigneeId={typedProject.manager_id}
-          />
+          {/* タスクとスケジュールを左右2列で表示 */}
+          <div className="grid gap-6 lg:grid-cols-2">
+            <TaskList
+              projectId={id}
+              projectCode={typedProject.code}
+              tasks={typedTasks}
+              employees={typedEmployees}
+              currentEmployeeId={currentEmployee?.id || null}
+              defaultAssigneeId={typedProject.manager_id}
+              projectLocation={typedProject.location}
+            />
 
-          <TaskList
-            projectId={id}
-            tasks={typedTasks}
-            employees={typedEmployees}
-            defaultAssigneeId={typedProject.manager_id}
-          />
+            <ProjectSchedule
+              projectId={id}
+              projectCode={typedProject.code}
+              events={projectEvents}
+              employees={typedEmployees}
+              currentEmployeeId={currentEmployee?.id || null}
+              defaultAssigneeId={typedProject.manager_id}
+            />
+          </div>
 
           <CommentSection
             projectId={id}

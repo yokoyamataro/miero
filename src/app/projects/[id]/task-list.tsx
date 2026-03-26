@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -20,6 +21,9 @@ import {
   GripVertical,
   BookTemplate,
   Save,
+  ArrowRight,
+  ListTodo,
+  Briefcase,
 } from "lucide-react";
 import {
   Dialog,
@@ -46,10 +50,12 @@ import {
   verticalListSortingStrategy,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { format } from "date-fns";
 import {
   type Task,
   type Employee,
   type TaskTemplateSetWithItems,
+  type EventCategory,
 } from "@/types/database";
 import {
   createTask,
@@ -61,20 +67,34 @@ import {
   deleteTaskTemplateSet,
   createTasksFromTemplateSet,
 } from "./actions";
+import {
+  createProjectEvent,
+  getEventCategories,
+} from "./schedule-actions";
 
 interface TaskListProps {
   projectId: string;
+  projectCode: string;
   tasks: Task[];
   employees: Employee[];
+  currentEmployeeId: string | null;
   defaultAssigneeId?: string | null;
+  projectLocation?: string | null;
 }
+
+// 時間オプション (0-23)
+const HOUR_OPTIONS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
+// 分オプション (15分単位)
+const MINUTE_OPTIONS = ["00", "15", "30", "45"];
 
 function SortableTaskItem({
   task,
   employees,
+  onExecute,
 }: {
   task: Task;
   employees: Employee[];
+  onExecute: (task: Task) => void;
 }) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -94,15 +114,6 @@ function SortableTaskItem({
     transform: CSS.Transform.toString(transform),
     transition,
     opacity: isDragging ? 0.5 : 1,
-  };
-
-  const isCompleted = task.is_completed;
-
-  const handleToggleComplete = () => {
-    startTransition(async () => {
-      await updateTask(task.id, { is_completed: !isCompleted });
-      router.refresh();
-    });
   };
 
   const handleTitleSave = () => {
@@ -137,7 +148,7 @@ function SortableTaskItem({
     <div
       ref={setNodeRef}
       style={style}
-      className={`flex items-center gap-3 p-2 rounded border hover:bg-muted/50 ${
+      className={`flex items-center gap-2 p-2 rounded border hover:bg-muted/50 ${
         isPending ? "opacity-50" : ""
       }`}
     >
@@ -151,12 +162,16 @@ function SortableTaskItem({
         <GripVertical className="h-4 w-4" />
       </button>
 
-      {/* チェックボックス */}
-      <Checkbox
-        checked={isCompleted}
-        onCheckedChange={handleToggleComplete}
-        className="flex-shrink-0"
-      />
+      {/* 実行ボタン (→) */}
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => onExecute(task)}
+        className="h-7 w-7 p-0 flex-shrink-0 text-blue-600 border-blue-300 hover:bg-blue-50 hover:text-blue-700"
+        title="スケジュールに移行"
+      >
+        <ArrowRight className="h-4 w-4" />
+      </Button>
 
       {/* タイトル */}
       <div className="flex-1 min-w-0">
@@ -172,7 +187,7 @@ function SortableTaskItem({
         ) : (
           <span
             onClick={() => setIsEditing(true)}
-            className={`cursor-pointer ${isCompleted ? "line-through text-muted-foreground" : ""}`}
+            className="cursor-pointer text-sm"
           >
             {task.title}
           </span>
@@ -184,7 +199,7 @@ function SortableTaskItem({
         value={task.assigned_to || "none"}
         onValueChange={handleAssigneeChange}
       >
-        <SelectTrigger className="w-44 h-7">
+        <SelectTrigger className="w-24 h-7 text-xs">
           <SelectValue>
             {assignee?.name || <span className="text-muted-foreground">未割当</span>}
           </SelectValue>
@@ -209,6 +224,345 @@ function SortableTaskItem({
         <Trash2 className="h-4 w-4" />
       </Button>
     </div>
+  );
+}
+
+// タスク→スケジュール移行モーダル
+function TaskToScheduleModal({
+  task,
+  projectId,
+  projectCode,
+  employees,
+  currentEmployeeId,
+  projectLocation,
+  open,
+  onOpenChange,
+}: {
+  task: Task | null;
+  projectId: string;
+  projectCode: string;
+  employees: Employee[];
+  currentEmployeeId: string | null;
+  projectLocation?: string | null;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}) {
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
+
+  // フォーム状態
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const [eventDate, setEventDate] = useState("");
+  const [startHour, setStartHour] = useState("");
+  const [startMinute, setStartMinute] = useState("");
+  const [endHour, setEndHour] = useState("");
+  const [endMinute, setEndMinute] = useState("");
+  const [allDay, setAllDay] = useState(true);
+  const [location, setLocation] = useState("");
+  const [mapUrl, setMapUrl] = useState("");
+  const [participantIds, setParticipantIds] = useState<string[]>([]);
+
+  // イベントカテゴリ
+  const [eventCategories, setEventCategories] = useState<EventCategory[]>([]);
+
+  // 社員リストをソート（ログインユーザーを先頭に）
+  const sortedEmployees = useMemo(() => {
+    if (!currentEmployeeId) return employees;
+    return [...employees].sort((a, b) => {
+      if (a.id === currentEmployeeId) return -1;
+      if (b.id === currentEmployeeId) return 1;
+      return 0;
+    });
+  }, [employees, currentEmployeeId]);
+
+  // カテゴリ取得
+  useEffect(() => {
+    const loadCategories = async () => {
+      const categories = await getEventCategories();
+      setEventCategories(categories);
+    };
+    loadCategories();
+  }, []);
+
+  // タスクが変更されたらフォームを初期化
+  useEffect(() => {
+    if (task && open) {
+      setTitle(task.title);
+      setDescription(task.description || "");
+      setCategoryId("");
+      // デフォルトで明日の日付を設定
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      setEventDate(format(tomorrow, "yyyy-MM-dd"));
+      setStartHour("");
+      setStartMinute("");
+      setEndHour("");
+      setEndMinute("");
+      setAllDay(true);
+      setLocation(projectLocation || "");
+      setMapUrl("");
+      // タスクの担当者を参加者に設定
+      if (task.assigned_to) {
+        setParticipantIds([task.assigned_to]);
+      } else if (currentEmployeeId) {
+        setParticipantIds([currentEmployeeId]);
+      } else {
+        setParticipantIds([]);
+      }
+    }
+  }, [task, open, projectLocation, currentEmployeeId]);
+
+  const handleSubmit = async () => {
+    if (!title.trim() || !eventDate || !task) return;
+
+    startTransition(async () => {
+      const startTime = allDay ? null : `${startHour || "09"}:${startMinute || "00"}:00`;
+      const endTime = allDay ? null : `${endHour || "10"}:${endMinute || "00"}:00`;
+
+      // スケジュールを作成
+      const result = await createProjectEvent({
+        projectId,
+        title: title.trim(),
+        description: description.trim(),
+        date: eventDate,
+        startTime,
+        endTime,
+        allDay,
+        location: location.trim(),
+        mapUrl: mapUrl.trim(),
+        participantIds,
+        eventCategoryId: categoryId || null,
+      });
+
+      if (result.error) {
+        alert(result.error);
+        return;
+      }
+
+      // タスクを削除
+      await deleteTask(task.id);
+
+      onOpenChange(false);
+      router.refresh();
+    });
+  };
+
+  if (!task) return null;
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>タスクをスケジュールに移行</DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {/* 業務リンク表示（編集不可） */}
+          <div className="flex items-center gap-2 text-sm bg-blue-50 text-blue-700 px-3 py-2 rounded-md">
+            <Briefcase className="h-4 w-4" />
+            <span>業務 {projectCode} にリンク中</span>
+          </div>
+
+          {/* タイトル */}
+          <div className="space-y-2">
+            <Label htmlFor="schedule-title">タイトル *</Label>
+            <Input
+              id="schedule-title"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="スケジュールのタイトル"
+            />
+          </div>
+
+          {/* 区分 */}
+          {eventCategories.length > 0 && (
+            <div className="space-y-2">
+              <Label>区分</Label>
+              <div className="flex flex-wrap gap-2">
+                {eventCategories.map((cat) => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setCategoryId(cat.id === categoryId ? "" : cat.id)}
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-md border text-sm transition-colors ${
+                      cat.id === categoryId
+                        ? "border-primary bg-primary/10"
+                        : "border-input hover:bg-muted"
+                    }`}
+                  >
+                    <div className={`w-3 h-3 rounded ${cat.color}`} />
+                    {cat.name}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 日付 */}
+          <div className="space-y-2">
+            <Label htmlFor="schedule-date">日付 *</Label>
+            <Input
+              id="schedule-date"
+              type="date"
+              value={eventDate}
+              onChange={(e) => setEventDate(e.target.value)}
+            />
+          </div>
+
+          {/* 終日 */}
+          <div className="flex items-center gap-2">
+            <Checkbox
+              id="schedule-allDay"
+              checked={allDay}
+              onCheckedChange={(checked) => setAllDay(!!checked)}
+            />
+            <Label htmlFor="schedule-allDay" className="cursor-pointer">
+              終日
+            </Label>
+          </div>
+
+          {/* 時刻 */}
+          {!allDay && (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>開始時刻</Label>
+                <div className="flex items-center gap-1">
+                  <select
+                    className="w-16 h-9 px-2 rounded-md border text-sm"
+                    value={startHour}
+                    onChange={(e) => {
+                      setStartHour(e.target.value);
+                      if (!startMinute) setStartMinute("00");
+                      if (e.target.value) {
+                        const endHourNum = (parseInt(e.target.value) + 1) % 24;
+                        setEndHour(String(endHourNum).padStart(2, "0"));
+                        if (!endMinute) setEndMinute("00");
+                      }
+                    }}
+                  >
+                    <option value="">--</option>
+                    {HOUR_OPTIONS.map((h) => (
+                      <option key={h} value={h}>{h}</option>
+                    ))}
+                  </select>
+                  <span>:</span>
+                  <select
+                    className="w-16 h-9 px-2 rounded-md border text-sm"
+                    value={startMinute}
+                    onChange={(e) => setStartMinute(e.target.value)}
+                  >
+                    {MINUTE_OPTIONS.map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>終了時刻</Label>
+                <div className="flex items-center gap-1">
+                  <select
+                    className="w-16 h-9 px-2 rounded-md border text-sm"
+                    value={endHour}
+                    onChange={(e) => setEndHour(e.target.value)}
+                  >
+                    <option value="">--</option>
+                    {HOUR_OPTIONS.map((h) => (
+                      <option key={h} value={h}>{h}</option>
+                    ))}
+                  </select>
+                  <span>:</span>
+                  <select
+                    className="w-16 h-9 px-2 rounded-md border text-sm"
+                    value={endMinute}
+                    onChange={(e) => setEndMinute(e.target.value)}
+                  >
+                    {MINUTE_OPTIONS.map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 場所 */}
+          <div className="space-y-2">
+            <Label htmlFor="schedule-location">場所</Label>
+            <Input
+              id="schedule-location"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="場所"
+            />
+          </div>
+
+          {/* 地図URL */}
+          <div className="space-y-2">
+            <Label htmlFor="schedule-mapUrl">地図URL</Label>
+            <Input
+              id="schedule-mapUrl"
+              value={mapUrl}
+              onChange={(e) => setMapUrl(e.target.value)}
+              placeholder="https://..."
+            />
+          </div>
+
+          {/* 説明 */}
+          <div className="space-y-2">
+            <Label htmlFor="schedule-description">説明</Label>
+            <Textarea
+              id="schedule-description"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="詳細な説明"
+              rows={3}
+            />
+          </div>
+
+          {/* 参加者選択 */}
+          <div className="space-y-2">
+            <Label>参加者</Label>
+            <div className="border rounded-md p-3 max-h-32 overflow-y-auto space-y-2">
+              {sortedEmployees.map((emp) => (
+                <div key={emp.id} className="flex items-center gap-2">
+                  <Checkbox
+                    id={`participant-${emp.id}`}
+                    checked={participantIds.includes(emp.id)}
+                    onCheckedChange={(checked) => {
+                      setParticipantIds((prev) =>
+                        checked
+                          ? [...prev, emp.id]
+                          : prev.filter((id) => id !== emp.id)
+                      );
+                    }}
+                  />
+                  <Label
+                    htmlFor={`participant-${emp.id}`}
+                    className="cursor-pointer font-normal text-sm"
+                  >
+                    {emp.name}
+                    {emp.id === currentEmployeeId && (
+                      <span className="text-xs text-muted-foreground ml-1">(自分)</span>
+                    )}
+                  </Label>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            キャンセル
+          </Button>
+          <Button onClick={handleSubmit} disabled={isPending || !title.trim() || !eventDate}>
+            {isPending ? "移行中..." : "スケジュールに移行"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -475,13 +829,25 @@ function AddTaskModal({
   );
 }
 
-export function TaskList({ projectId, tasks, employees, defaultAssigneeId }: TaskListProps) {
+export function TaskList({
+  projectId,
+  projectCode,
+  tasks,
+  employees,
+  currentEmployeeId,
+  defaultAssigneeId,
+  projectLocation,
+}: TaskListProps) {
   const router = useRouter();
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
   const [localTasks, setLocalTasks] = useState(tasks);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+
+  // タスク→スケジュール移行用
+  const [executingTask, setExecutingTask] = useState<Task | null>(null);
+  const [showScheduleModal, setShowScheduleModal] = useState(false);
 
   // tasksが更新されたらlocalTasksも更新
   useEffect(() => {
@@ -523,56 +889,57 @@ export function TaskList({ projectId, tasks, employees, defaultAssigneeId }: Tas
     }
   };
 
-  // 進捗計算
-  const completedCount = localTasks.filter((t) => t.is_completed).length;
+  // 実行ボタンが押されたらスケジュール移行モーダルを表示
+  const handleExecuteTask = (task: Task) => {
+    setExecutingTask(task);
+    setShowScheduleModal(true);
+  };
+
   const totalCount = localTasks.length;
-  const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
 
   return (
     <Card>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg flex items-center gap-2">
+            <ListTodo className="h-5 w-5" />
             タスク
             {totalCount > 0 && (
               <Badge variant="secondary">
-                {completedCount}/{totalCount} ({progressPercent}%)
+                {totalCount}件
               </Badge>
             )}
           </CardTitle>
-          <div className="flex gap-2">
+          <div className="flex gap-1">
             {totalCount > 0 && (
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setShowSaveModal(true)}
+                className="h-7 px-2"
               >
-                <Save className="h-4 w-4 mr-1" />
-                保存
+                <Save className="h-3 w-3 mr-1" />
+                <span className="text-xs">保存</span>
               </Button>
             )}
             <Button
               variant="outline"
               size="sm"
               onClick={() => setShowTemplateModal(true)}
+              className="h-7 px-2"
             >
-              <BookTemplate className="h-4 w-4 mr-1" />
-              読込
+              <BookTemplate className="h-3 w-3 mr-1" />
+              <span className="text-xs">読込</span>
             </Button>
           </div>
         </div>
-        {totalCount > 0 && (
-          <div className="w-full bg-muted rounded-full h-2 mt-2">
-            <div
-              className="bg-green-500 h-2 rounded-full transition-all"
-              style={{ width: `${progressPercent}%` }}
-            />
-          </div>
-        )}
+        <p className="text-xs text-muted-foreground mt-1">
+          →ボタンでスケジュールに移行
+        </p>
       </CardHeader>
       <CardContent className="space-y-2">
         {localTasks.length === 0 && (
-          <p className="text-center text-muted-foreground py-4">
+          <p className="text-center text-muted-foreground py-4 text-sm">
             タスクがありません
           </p>
         )}
@@ -591,6 +958,7 @@ export function TaskList({ projectId, tasks, employees, defaultAssigneeId }: Tas
                 key={task.id}
                 task={task}
                 employees={employees}
+                onExecute={handleExecuteTask}
               />
             ))}
           </SortableContext>
@@ -605,6 +973,21 @@ export function TaskList({ projectId, tasks, employees, defaultAssigneeId }: Tas
           タスクを追加
         </Button>
       </CardContent>
+
+      {/* タスク→スケジュール移行モーダル */}
+      <TaskToScheduleModal
+        task={executingTask}
+        projectId={projectId}
+        projectCode={projectCode}
+        employees={employees}
+        currentEmployeeId={currentEmployeeId}
+        projectLocation={projectLocation}
+        open={showScheduleModal}
+        onOpenChange={(open) => {
+          setShowScheduleModal(open);
+          if (!open) setExecutingTask(null);
+        }}
+      />
 
       {/* テンプレート選択モーダル */}
       <TemplateModal
