@@ -40,7 +40,6 @@ import {
 
 interface ProjectScheduleProps {
   projectId: string;
-  projectCode: string;
   events: CalendarEventWithParticipants[];
   employees: Employee[];
   currentEmployeeId: string | null;
@@ -54,7 +53,6 @@ const MINUTE_OPTIONS = ["00", "15", "30", "45"];
 
 export function ProjectSchedule({
   projectId,
-  projectCode,
   events: initialEvents,
   employees,
   currentEmployeeId,
@@ -639,12 +637,6 @@ export function ProjectSchedule({
           </DialogHeader>
 
           <div className="space-y-4">
-            {/* 業務リンク表示（編集不可） */}
-            <div className="flex items-center gap-2 text-sm bg-blue-50 text-blue-700 px-3 py-2 rounded-md">
-              <Briefcase className="h-4 w-4" />
-              <span>業務 {projectCode} にリンク中</span>
-            </div>
-
             {/* タイトル */}
             <div className="space-y-2">
               <Label htmlFor="schedule-title">タイトル *</Label>

@@ -582,6 +582,7 @@ export const PROJECT_AREA_GROUPS: AreaGroup[] = [
       "網走市",
       "紋別市",
       "網走郡美幌町",
+      "網走郡大空町",
       "網走郡津別町",
       "常呂郡訓子府町",
       "常呂郡置戸町",
