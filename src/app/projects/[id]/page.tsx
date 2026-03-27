@@ -8,12 +8,9 @@ import {
   type Contact,
   type Account,
   type Employee,
-  type Task,
   type Comment,
   type CommentAcknowledgement,
-  type RelatedProjectWithDetails,
 } from "@/types/database";
-import { TaskList } from "./task-list";
 import { CommentSection } from "./comment-section";
 import { ProjectInfo, type CustomerData, type CorporateContact } from "./project-info";
 import { StakeholderSection } from "./stakeholder-section";
@@ -52,7 +49,6 @@ export default async function ProjectDetailPage({
     { data: contact },
     { data: account },
     { data: manager },
-    { data: tasks },
     { data: comments },
     { data: employees },
     { data: acknowledgements },
@@ -87,12 +83,6 @@ export default async function ProjectDetailPage({
       ? supabase.from("employees").select("*").eq("id", project.manager_id).single()
       : Promise.resolve({ data: null }),
     supabase
-      .from("tasks" as never)
-      .select("*")
-      .eq("project_id", id)
-      .order("sort_order", { ascending: true })
-      .order("created_at", { ascending: true }),
-    supabase
       .from("comments" as never)
       .select("*")
       .eq("project_id", id)
@@ -116,7 +106,6 @@ export default async function ProjectDetailPage({
   const typedContact = contact as Contact | null;
   const typedAccount = account as Account | null;
   const typedManager = manager as Employee | null;
-  const typedTasks = (tasks as Task[]) || [];
   const typedComments = (comments as Comment[]) || [];
   const typedEmployees = (employees as Employee[]) || [];
   const typedAcknowledgements = (acknowledgements as CommentAcknowledgement[]) || [];
@@ -230,16 +219,6 @@ export default async function ProjectDetailPage({
             employees={typedEmployees}
             currentEmployeeId={currentEmployee?.id || null}
             defaultAssigneeId={typedProject.manager_id}
-          />
-
-          <TaskList
-            projectId={id}
-            projectCode={typedProject.code}
-            tasks={typedTasks}
-            employees={typedEmployees}
-            currentEmployeeId={currentEmployee?.id || null}
-            defaultAssigneeId={typedProject.manager_id}
-            projectLocation={typedProject.location}
           />
 
           <CommentSection

@@ -72,12 +72,12 @@ export async function getProjectEvents(projectId: string): Promise<CalendarEvent
   })) as CalendarEventWithParticipants[];
 }
 
-// プロジェクト用のイベントを作成
+// プロジェクト用のイベントを作成（日時未定の場合はdate=null）
 export async function createProjectEvent(data: {
   projectId: string;
   title: string;
   description?: string;
-  date: string;
+  date: string | null;
   startTime: string | null;
   endTime: string | null;
   allDay: boolean;
@@ -184,13 +184,13 @@ export async function updateProjectEvent(
   return {};
 }
 
-// イベントをフル更新（編集モーダル用）
+// イベントをフル更新（編集モーダル用、日時未定の場合はdate=null）
 export async function updateProjectEventFull(
   eventId: string,
   data: {
     title: string;
     description?: string;
-    date: string;
+    date: string | null;
     startTime: string | null;
     endTime: string | null;
     allDay: boolean;

@@ -25,7 +25,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { CalendarDays, Plus, CheckCircle, Loader2, Pencil, Trash2, MapPin, Briefcase } from "lucide-react";
+import { CalendarDays, Plus, CheckCircle, Loader2, Pencil, Trash2, MapPin, Briefcase, Clock, ArrowRight } from "lucide-react";
 import { format } from "date-fns";
 import { ja } from "date-fns/locale";
 import type { CalendarEventWithParticipants, Employee, EventCategory } from "@/types/database";
@@ -67,6 +67,9 @@ export function ProjectSchedule({
   const [editingEvent, setEditingEvent] = useState<CalendarEventWithParticipants | null>(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
+  // 日時未定で追加するかどうか
+  const [isAddingUndated, setIsAddingUndated] = useState(false);
+
   // イベントカテゴリ
   const [eventCategories, setEventCategories] = useState<EventCategory[]>([]);
 
@@ -92,6 +95,10 @@ export function ProjectSchedule({
   const [completionEndHour, setCompletionEndHour] = useState("");
   const [completionEndMinute, setCompletionEndMinute] = useState("");
 
+  // 日時設定中のイベント
+  const [settingDateEventId, setSettingDateEventId] = useState<string | null>(null);
+  const [settingDate, setSettingDate] = useState("");
+
   // 社員リストをソート（ログインユーザーを先頭に）
   const sortedEmployees = useMemo(() => {
     if (!currentEmployeeId) return employees;
@@ -111,6 +118,27 @@ export function ProjectSchedule({
     loadCategories();
   }, []);
 
+  // イベントを分類：日時確定（古い順）と日時未定
+  const { datedEvents, undatedEvents } = useMemo(() => {
+    const dated: CalendarEventWithParticipants[] = [];
+    const undated: CalendarEventWithParticipants[] = [];
+
+    events.forEach((event) => {
+      if (event.start_date) {
+        dated.push(event);
+      } else {
+        undated.push(event);
+      }
+    });
+
+    // 日時確定は古い順（上から古い順）
+    dated.sort((a, b) => a.start_date.localeCompare(b.start_date));
+    // 日時未定はsort_orderで並び替え
+    undated.sort((a, b) => ((a as { sort_order?: number }).sort_order || 0) - ((b as { sort_order?: number }).sort_order || 0));
+
+    return { datedEvents: dated, undatedEvents: undated };
+  }, [events]);
+
   const resetForm = () => {
     setTitle("");
     setDescription("");
@@ -126,23 +154,28 @@ export function ProjectSchedule({
     setParticipantIds(defaultAssigneeId ? [defaultAssigneeId] : []);
     setIsCompleted(false);
     setEditingEvent(null);
+    setIsAddingUndated(false);
   };
 
-  const handleOpenAddModal = () => {
+  const handleOpenAddModal = (undated: boolean = false) => {
     resetForm();
-    // デフォルトで明日の日付を設定
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    setEventDate(format(tomorrow, "yyyy-MM-dd"));
+    setIsAddingUndated(undated);
+    if (!undated) {
+      // デフォルトで明日の日付を設定
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      setEventDate(format(tomorrow, "yyyy-MM-dd"));
+    }
     setShowModal(true);
   };
 
   const handleOpenEditModal = (event: CalendarEventWithParticipants) => {
     setEditingEvent(event);
+    setIsAddingUndated(!event.start_date);
     setTitle(event.title);
     setDescription(event.description || "");
     setCategoryId(event.event_category_id || "");
-    setEventDate(event.start_date);
+    setEventDate(event.start_date || "");
     const startTimeParts = event.start_time?.slice(0, 5).split(":") || ["", ""];
     setStartHour(startTimeParts[0] || "");
     setStartMinute(startTimeParts[1] || "");
@@ -158,7 +191,9 @@ export function ProjectSchedule({
   };
 
   const handleSubmit = async () => {
-    if (!title.trim() || !eventDate) return;
+    if (!title.trim()) return;
+    // 日時未定でない場合は日付が必須
+    if (!isAddingUndated && !eventDate) return;
 
     startTransition(async () => {
       const startTime = allDay ? null : `${startHour || "09"}:${startMinute || "00"}:00`;
@@ -169,10 +204,10 @@ export function ProjectSchedule({
         const result = await updateProjectEventFull(editingEvent.id, {
           title: title.trim(),
           description: description.trim(),
-          date: eventDate,
-          startTime,
-          endTime,
-          allDay,
+          date: isAddingUndated ? null : eventDate,
+          startTime: isAddingUndated ? null : startTime,
+          endTime: isAddingUndated ? null : endTime,
+          allDay: isAddingUndated ? true : allDay,
           location: location.trim(),
           mapUrl: mapUrl.trim(),
           participantIds,
@@ -190,10 +225,10 @@ export function ProjectSchedule({
           projectId,
           title: title.trim(),
           description: description.trim(),
-          date: eventDate,
-          startTime,
-          endTime,
-          allDay,
+          date: isAddingUndated ? null : eventDate,
+          startTime: isAddingUndated ? null : startTime,
+          endTime: isAddingUndated ? null : endTime,
+          allDay: isAddingUndated ? true : allDay,
           location: location.trim(),
           mapUrl: mapUrl.trim(),
           participantIds,
@@ -292,10 +327,250 @@ export function ProjectSchedule({
     });
   };
 
-  // 日付でソート（近い日付が上）
-  const sortedEvents = [...events].sort((a, b) => {
-    return a.start_date.localeCompare(b.start_date);
-  });
+  // 日時未定イベントに日付を設定
+  const handleSetDate = (event: CalendarEventWithParticipants) => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    setSettingDate(format(tomorrow, "yyyy-MM-dd"));
+    setSettingDateEventId(event.id);
+  };
+
+  const handleCancelSetDate = () => {
+    setSettingDateEventId(null);
+    setSettingDate("");
+  };
+
+  const handleSaveSetDate = async (event: CalendarEventWithParticipants) => {
+    if (!settingDate) {
+      alert("日付を選択してください");
+      return;
+    }
+
+    startTransition(async () => {
+      const result = await updateProjectEventFull(event.id, {
+        title: event.title,
+        description: event.description || "",
+        date: settingDate,
+        startTime: null,
+        endTime: null,
+        allDay: true,
+        location: event.location || "",
+        mapUrl: event.map_url || "",
+        participantIds: event.participants.map((p) => p.id),
+        eventCategoryId: event.event_category_id || null,
+        isCompleted: false,
+      });
+
+      if (result.error) {
+        alert(result.error);
+        return;
+      }
+
+      handleCancelSetDate();
+      const updatedEvents = await getProjectEvents(projectId);
+      setEvents(updatedEvents);
+      router.refresh();
+    });
+  };
+
+  // イベント行の描画
+  const renderEventRow = (event: CalendarEventWithParticipants, isUndated: boolean = false) => {
+    const isCompleting = completingEventId === event.id;
+    const isSettingDate = settingDateEventId === event.id;
+    const category = eventCategories.find((c) => c.id === event.event_category_id);
+
+    return (
+      <div
+        key={event.id}
+        className={`flex items-start gap-3 py-2 px-3 rounded-md border ${
+          event.is_completed
+            ? "bg-green-50 border-green-200"
+            : isUndated
+            ? "bg-amber-50/50 border-amber-200"
+            : "bg-muted/30"
+        }`}
+      >
+        {/* 完了チェック or 日時設定ボタン */}
+        {isUndated && !event.is_completed ? (
+          <button
+            onClick={() => handleSetDate(event)}
+            className="w-6 h-6 border border-blue-300 rounded flex items-center justify-center flex-shrink-0 mt-0.5 hover:bg-blue-50 transition-colors text-blue-500"
+            title="日時を設定"
+          >
+            <ArrowRight className="h-3.5 w-3.5" />
+          </button>
+        ) : event.is_completed ? (
+          <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
+        ) : (
+          <button
+            onClick={() => handleCompletionClick(event)}
+            className="w-5 h-5 border-2 border-muted-foreground/30 rounded-full flex-shrink-0 mt-0.5 hover:border-green-500 transition-colors"
+            title="完了にする"
+          />
+        )}
+
+        <div className="flex-1 min-w-0">
+          {/* タイトル & 日付 & 編集ボタン */}
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2">
+                <span className={`text-sm font-medium ${event.is_completed ? "text-green-800" : ""}`}>
+                  {event.title}
+                </span>
+                {category && (
+                  <span
+                    className={`text-xs px-1.5 py-0.5 rounded text-white ${category.color || "bg-gray-500"}`}
+                  >
+                    {category.name}
+                  </span>
+                )}
+              </div>
+              {event.location && (
+                <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
+                  <MapPin className="h-3 w-3" />
+                  {event.location}
+                </div>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {isUndated ? (
+                <span className="text-xs text-amber-600 whitespace-nowrap flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  日時未定
+                </span>
+              ) : event.start_date && (
+                <span className="text-xs text-muted-foreground whitespace-nowrap">
+                  {format(new Date(event.start_date), "M/d(E)", { locale: ja })}
+                  {event.start_time && !event.all_day && (
+                    <span className="ml-1">
+                      {event.start_time.slice(0, 5)}
+                      {event.end_time && `〜${event.end_time.slice(0, 5)}`}
+                    </span>
+                  )}
+                </span>
+              )}
+              <button
+                onClick={() => handleOpenEditModal(event)}
+                className="p-1 rounded hover:bg-muted transition-colors"
+                title="編集"
+              >
+                <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
+              </button>
+            </div>
+          </div>
+
+          {/* 日時設定フォーム（日時未定イベント用） */}
+          {isSettingDate && (
+            <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded-md space-y-2">
+              <p className="text-xs font-medium text-blue-800">日付を設定</p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <Input
+                  type="date"
+                  value={settingDate}
+                  onChange={(e) => setSettingDate(e.target.value)}
+                  className="h-7 w-36 text-xs"
+                />
+                <div className="flex gap-1 ml-auto">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-xs"
+                    onClick={handleCancelSetDate}
+                    disabled={isPending}
+                  >
+                    取消
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="h-7 px-2 text-xs bg-blue-600 hover:bg-blue-700"
+                    onClick={() => handleSaveSetDate(event)}
+                    disabled={isPending}
+                  >
+                    {isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+                    設定
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 完了時刻入力フォーム */}
+          {isCompleting && (
+            <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-md space-y-2">
+              <p className="text-xs font-medium text-green-800">実際の作業時間を入力</p>
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="flex items-center gap-1">
+                  <select
+                    className="w-14 h-7 px-1 rounded border text-xs"
+                    value={completionStartHour}
+                    onChange={(e) => setCompletionStartHour(e.target.value)}
+                  >
+                    <option value="">--</option>
+                    {HOUR_OPTIONS.map((h) => (
+                      <option key={h} value={h}>{h}</option>
+                    ))}
+                  </select>
+                  <span>:</span>
+                  <select
+                    className="w-14 h-7 px-1 rounded border text-xs"
+                    value={completionStartMinute}
+                    onChange={(e) => setCompletionStartMinute(e.target.value)}
+                  >
+                    {MINUTE_OPTIONS.map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                </div>
+                <span className="text-xs">〜</span>
+                <div className="flex items-center gap-1">
+                  <select
+                    className="w-14 h-7 px-1 rounded border text-xs"
+                    value={completionEndHour}
+                    onChange={(e) => setCompletionEndHour(e.target.value)}
+                  >
+                    <option value="">--</option>
+                    {HOUR_OPTIONS.map((h) => (
+                      <option key={h} value={h}>{h}</option>
+                    ))}
+                  </select>
+                  <span>:</span>
+                  <select
+                    className="w-14 h-7 px-1 rounded border text-xs"
+                    value={completionEndMinute}
+                    onChange={(e) => setCompletionEndMinute(e.target.value)}
+                  >
+                    {MINUTE_OPTIONS.map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex gap-1 ml-auto">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-xs"
+                    onClick={handleCancelCompletion}
+                    disabled={isPending}
+                  >
+                    取消
+                  </Button>
+                  <Button
+                    size="sm"
+                    className="h-7 px-2 text-xs bg-green-600 hover:bg-green-700"
+                    onClick={() => handleSaveCompletion(event)}
+                    disabled={isPending}
+                  >
+                    {isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
+                    完了
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <Card>
@@ -305,164 +580,48 @@ export function ProjectSchedule({
             <CalendarDays className="h-5 w-5" />
             スケジュール
           </CardTitle>
-          <Button size="sm" variant="outline" onClick={handleOpenAddModal}>
-            <Plus className="h-4 w-4 mr-1" />
-            追加
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => handleOpenAddModal(true)}>
+              <Clock className="h-4 w-4 mr-1" />
+              未定
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => handleOpenAddModal(false)}>
+              <Plus className="h-4 w-4 mr-1" />
+              追加
+            </Button>
+          </div>
         </div>
       </CardHeader>
-      <CardContent>
-        {sortedEvents.length === 0 ? (
+      <CardContent className="space-y-4">
+        {/* 日時確定イベント（古い順に上から） */}
+        {datedEvents.length > 0 && (
+          <div className="space-y-2">
+            {datedEvents.map((event) => renderEventRow(event, false))}
+          </div>
+        )}
+
+        {/* 日時未定イベント */}
+        {undatedEvents.length > 0 && (
+          <div className="space-y-2">
+            {datedEvents.length > 0 && (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground pt-2">
+                <div className="h-px flex-1 bg-border" />
+                <span className="flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  日時未定
+                </span>
+                <div className="h-px flex-1 bg-border" />
+              </div>
+            )}
+            {undatedEvents.map((event) => renderEventRow(event, true))}
+          </div>
+        )}
+
+        {/* イベントがない場合 */}
+        {datedEvents.length === 0 && undatedEvents.length === 0 && (
           <p className="text-muted-foreground text-sm text-center py-4">
             スケジュールがありません
           </p>
-        ) : (
-          <div className="space-y-2">
-            {sortedEvents.map((event) => {
-              const isCompleting = completingEventId === event.id;
-              const category = eventCategories.find((c) => c.id === event.event_category_id);
-
-              return (
-                <div
-                  key={event.id}
-                  className={`flex items-start gap-3 py-2 px-3 rounded-md border ${
-                    event.is_completed ? "bg-green-50 border-green-200" : "bg-muted/30"
-                  }`}
-                >
-                  {/* 完了チェック */}
-                  {event.is_completed ? (
-                    <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0 mt-0.5" />
-                  ) : (
-                    <button
-                      onClick={() => handleCompletionClick(event)}
-                      className="w-5 h-5 border-2 border-muted-foreground/30 rounded-full flex-shrink-0 mt-0.5 hover:border-green-500 transition-colors"
-                      title="完了にする"
-                    />
-                  )}
-
-                  <div className="flex-1 min-w-0">
-                    {/* タイトル & 日付 & 編集ボタン */}
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className={`text-sm font-medium ${event.is_completed ? "text-green-800" : ""}`}>
-                            {event.title}
-                          </span>
-                          {category && (
-                            <span
-                              className={`text-xs px-1.5 py-0.5 rounded text-white ${category.color || "bg-gray-500"}`}
-                            >
-                              {category.name}
-                            </span>
-                          )}
-                        </div>
-                        {event.location && (
-                          <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
-                            <MapPin className="h-3 w-3" />
-                            {event.location}
-                          </div>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs text-muted-foreground whitespace-nowrap">
-                          {format(new Date(event.start_date), "M/d(E)", { locale: ja })}
-                          {event.start_time && !event.all_day && (
-                            <span className="ml-1">
-                              {event.start_time.slice(0, 5)}
-                              {event.end_time && `〜${event.end_time.slice(0, 5)}`}
-                            </span>
-                          )}
-                        </span>
-                        <button
-                          onClick={() => handleOpenEditModal(event)}
-                          className="p-1 rounded hover:bg-muted transition-colors"
-                          title="編集"
-                        >
-                          <Pencil className="h-3.5 w-3.5 text-muted-foreground" />
-                        </button>
-                      </div>
-                    </div>
-
-                    {/* 完了時刻入力フォーム */}
-                    {isCompleting && (
-                      <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded-md space-y-2">
-                        <p className="text-xs font-medium text-green-800">
-                          実際の作業時間を入力
-                        </p>
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <div className="flex items-center gap-1">
-                            <select
-                              className="w-14 h-7 px-1 rounded border text-xs"
-                              value={completionStartHour}
-                              onChange={(e) => setCompletionStartHour(e.target.value)}
-                            >
-                              <option value="">--</option>
-                              {HOUR_OPTIONS.map((h) => (
-                                <option key={h} value={h}>{h}</option>
-                              ))}
-                            </select>
-                            <span>:</span>
-                            <select
-                              className="w-14 h-7 px-1 rounded border text-xs"
-                              value={completionStartMinute}
-                              onChange={(e) => setCompletionStartMinute(e.target.value)}
-                            >
-                              {MINUTE_OPTIONS.map((m) => (
-                                <option key={m} value={m}>{m}</option>
-                              ))}
-                            </select>
-                          </div>
-                          <span className="text-xs">〜</span>
-                          <div className="flex items-center gap-1">
-                            <select
-                              className="w-14 h-7 px-1 rounded border text-xs"
-                              value={completionEndHour}
-                              onChange={(e) => setCompletionEndHour(e.target.value)}
-                            >
-                              <option value="">--</option>
-                              {HOUR_OPTIONS.map((h) => (
-                                <option key={h} value={h}>{h}</option>
-                              ))}
-                            </select>
-                            <span>:</span>
-                            <select
-                              className="w-14 h-7 px-1 rounded border text-xs"
-                              value={completionEndMinute}
-                              onChange={(e) => setCompletionEndMinute(e.target.value)}
-                            >
-                              {MINUTE_OPTIONS.map((m) => (
-                                <option key={m} value={m}>{m}</option>
-                              ))}
-                            </select>
-                          </div>
-                          <div className="flex gap-1 ml-auto">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 px-2 text-xs"
-                              onClick={handleCancelCompletion}
-                              disabled={isPending}
-                            >
-                              取消
-                            </Button>
-                            <Button
-                              size="sm"
-                              className="h-7 px-2 text-xs bg-green-600 hover:bg-green-700"
-                              onClick={() => handleSaveCompletion(event)}
-                              disabled={isPending}
-                            >
-                              {isPending && <Loader2 className="h-3 w-3 mr-1 animate-spin" />}
-                              完了
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
         )}
       </CardContent>
 
@@ -471,7 +630,11 @@ export function ProjectSchedule({
         <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
-              {editingEvent ? "スケジュールを編集" : "スケジュールを追加"}
+              {editingEvent
+                ? "スケジュールを編集"
+                : isAddingUndated
+                ? "日時未定のスケジュールを追加"
+                : "スケジュールを追加"}
             </DialogTitle>
           </DialogHeader>
 
@@ -517,91 +680,107 @@ export function ProjectSchedule({
               </div>
             )}
 
-            {/* 日付 */}
-            <div className="space-y-2">
-              <Label htmlFor="schedule-date">日付 *</Label>
-              <Input
-                id="schedule-date"
-                type="date"
-                value={eventDate}
-                onChange={(e) => setEventDate(e.target.value)}
-              />
-            </div>
-
-            {/* 終日 */}
+            {/* 日時未定/確定の切り替え */}
             <div className="flex items-center gap-2">
               <Checkbox
-                id="schedule-allDay"
-                checked={allDay}
-                onCheckedChange={(checked) => setAllDay(!!checked)}
+                id="schedule-undated"
+                checked={isAddingUndated}
+                onCheckedChange={(checked) => setIsAddingUndated(!!checked)}
               />
-              <Label htmlFor="schedule-allDay" className="cursor-pointer">
-                終日
+              <Label htmlFor="schedule-undated" className="cursor-pointer">
+                日時未定
               </Label>
             </div>
 
-            {/* 時刻 */}
-            {!allDay && (
-              <div className="grid grid-cols-2 gap-4">
+            {/* 日付（日時未定でない場合のみ） */}
+            {!isAddingUndated && (
+              <>
                 <div className="space-y-2">
-                  <Label>開始時刻</Label>
-                  <div className="flex items-center gap-1">
-                    <select
-                      className="w-16 h-9 px-2 rounded-md border text-sm"
-                      value={startHour}
-                      onChange={(e) => {
-                        setStartHour(e.target.value);
-                        if (!startMinute) setStartMinute("00");
-                        if (e.target.value) {
-                          const endHourNum = (parseInt(e.target.value) + 1) % 24;
-                          setEndHour(String(endHourNum).padStart(2, "0"));
-                          if (!endMinute) setEndMinute("00");
-                        }
-                      }}
-                    >
-                      <option value="">--</option>
-                      {HOUR_OPTIONS.map((h) => (
-                        <option key={h} value={h}>{h}</option>
-                      ))}
-                    </select>
-                    <span>:</span>
-                    <select
-                      className="w-16 h-9 px-2 rounded-md border text-sm"
-                      value={startMinute}
-                      onChange={(e) => setStartMinute(e.target.value)}
-                    >
-                      {MINUTE_OPTIONS.map((m) => (
-                        <option key={m} value={m}>{m}</option>
-                      ))}
-                    </select>
-                  </div>
+                  <Label htmlFor="schedule-date">日付 *</Label>
+                  <Input
+                    id="schedule-date"
+                    type="date"
+                    value={eventDate}
+                    onChange={(e) => setEventDate(e.target.value)}
+                  />
                 </div>
-                <div className="space-y-2">
-                  <Label>終了時刻</Label>
-                  <div className="flex items-center gap-1">
-                    <select
-                      className="w-16 h-9 px-2 rounded-md border text-sm"
-                      value={endHour}
-                      onChange={(e) => setEndHour(e.target.value)}
-                    >
-                      <option value="">--</option>
-                      {HOUR_OPTIONS.map((h) => (
-                        <option key={h} value={h}>{h}</option>
-                      ))}
-                    </select>
-                    <span>:</span>
-                    <select
-                      className="w-16 h-9 px-2 rounded-md border text-sm"
-                      value={endMinute}
-                      onChange={(e) => setEndMinute(e.target.value)}
-                    >
-                      {MINUTE_OPTIONS.map((m) => (
-                        <option key={m} value={m}>{m}</option>
-                      ))}
-                    </select>
-                  </div>
+
+                {/* 終日 */}
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="schedule-allDay"
+                    checked={allDay}
+                    onCheckedChange={(checked) => setAllDay(!!checked)}
+                  />
+                  <Label htmlFor="schedule-allDay" className="cursor-pointer">
+                    終日
+                  </Label>
                 </div>
-              </div>
+
+                {/* 時刻 */}
+                {!allDay && (
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label>開始時刻</Label>
+                      <div className="flex items-center gap-1">
+                        <select
+                          className="w-16 h-9 px-2 rounded-md border text-sm"
+                          value={startHour}
+                          onChange={(e) => {
+                            setStartHour(e.target.value);
+                            if (!startMinute) setStartMinute("00");
+                            if (e.target.value) {
+                              const endHourNum = (parseInt(e.target.value) + 1) % 24;
+                              setEndHour(String(endHourNum).padStart(2, "0"));
+                              if (!endMinute) setEndMinute("00");
+                            }
+                          }}
+                        >
+                          <option value="">--</option>
+                          {HOUR_OPTIONS.map((h) => (
+                            <option key={h} value={h}>{h}</option>
+                          ))}
+                        </select>
+                        <span>:</span>
+                        <select
+                          className="w-16 h-9 px-2 rounded-md border text-sm"
+                          value={startMinute}
+                          onChange={(e) => setStartMinute(e.target.value)}
+                        >
+                          {MINUTE_OPTIONS.map((m) => (
+                            <option key={m} value={m}>{m}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>終了時刻</Label>
+                      <div className="flex items-center gap-1">
+                        <select
+                          className="w-16 h-9 px-2 rounded-md border text-sm"
+                          value={endHour}
+                          onChange={(e) => setEndHour(e.target.value)}
+                        >
+                          <option value="">--</option>
+                          {HOUR_OPTIONS.map((h) => (
+                            <option key={h} value={h}>{h}</option>
+                          ))}
+                        </select>
+                        <span>:</span>
+                        <select
+                          className="w-16 h-9 px-2 rounded-md border text-sm"
+                          value={endMinute}
+                          onChange={(e) => setEndMinute(e.target.value)}
+                        >
+                          {MINUTE_OPTIONS.map((m) => (
+                            <option key={m} value={m}>{m}</option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
 
             {/* 場所 */}
@@ -669,8 +848,8 @@ export function ProjectSchedule({
               </div>
             </div>
 
-            {/* 完了フラグ（編集時のみ） */}
-            {editingEvent && (
+            {/* 完了フラグ（編集時かつ日時確定の場合のみ） */}
+            {editingEvent && !isAddingUndated && (
               <div className="flex items-center gap-2 pt-2 border-t">
                 <Checkbox
                   id="schedule-completed"
@@ -698,7 +877,10 @@ export function ProjectSchedule({
             <Button variant="outline" onClick={() => setShowModal(false)}>
               キャンセル
             </Button>
-            <Button onClick={handleSubmit} disabled={isPending || !title.trim() || !eventDate}>
+            <Button
+              onClick={handleSubmit}
+              disabled={isPending || !title.trim() || (!isAddingUndated && !eventDate)}
+            >
               {isPending ? "保存中..." : "保存"}
             </Button>
           </DialogFooter>
