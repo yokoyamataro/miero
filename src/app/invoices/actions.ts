@@ -465,7 +465,6 @@ export async function getProjectsForInvoice(): Promise<
   const { data, error } = await supabase
     .from("projects")
     .select("id, code, name, contact_id")
-    .in("status", ["active", "completed"])
     .order("code", { ascending: false })
     .limit(500);
 
