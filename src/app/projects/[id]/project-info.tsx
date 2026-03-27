@@ -106,7 +106,6 @@ interface ProjectInfoProps {
   customerData: CustomerData;
   currentEmployeeId: string | null;
   industries: Industry[];
-  stakeholderSection?: React.ReactNode;
   documentTemplates: DocumentTemplate[];
 }
 
@@ -1486,7 +1485,6 @@ export function ProjectInfo({
   customerData,
   currentEmployeeId,
   industries,
-  stakeholderSection,
   documentTemplates,
 }: ProjectInfoProps) {
   const router = useRouter();
@@ -1671,9 +1669,6 @@ export function ProjectInfo({
               />
             </div>
           </div>
-
-          {/* 関係者セクション（顧客と期間の間に配置） */}
-          {stakeholderSection}
 
           <EditableField
             label="担当者"

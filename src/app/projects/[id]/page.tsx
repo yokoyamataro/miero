@@ -13,10 +13,9 @@ import {
 } from "@/types/database";
 import { CommentSection } from "./comment-section";
 import { ProjectInfo, type CustomerData, type CorporateContact } from "./project-info";
-import { StakeholderSection } from "./stakeholder-section";
 import { ProjectNotes } from "./project-notes";
 import { ProjectSchedule } from "./project-schedule";
-import { getCurrentEmployee, getStakeholderTags, getProjectStakeholders, getIndustries, getRelatedProjects } from "./actions";
+import { getCurrentEmployee, getIndustries, getRelatedProjects } from "./actions";
 import { getProjectEvents } from "./schedule-actions";
 import { DropboxLinks } from "./dropbox-links";
 import { RelatedProjectsSection } from "./related-projects-section";
@@ -55,8 +54,6 @@ export default async function ProjectDetailPage({
     { data: allContacts },
     { data: allAccounts },
     currentEmployee,
-    stakeholderTags,
-    projectStakeholders,
     industries,
     relatedProjects,
     documentTemplates,
@@ -104,8 +101,6 @@ export default async function ProjectDetailPage({
     // 顧客選択用：全法人を取得
     supabase.from("accounts" as never).select("*").is("deleted_at", null),
     getCurrentEmployee(),
-    getStakeholderTags(),
-    getProjectStakeholders(id),
     getIndustries(),
     getRelatedProjects(id),
     getDocumentTemplates(),
@@ -193,17 +188,6 @@ export default async function ProjectDetailPage({
             currentEmployeeId={currentEmployee?.id || null}
             industries={industries}
             documentTemplates={documentTemplates}
-            stakeholderSection={
-              <StakeholderSection
-                projectId={id}
-                stakeholders={projectStakeholders}
-                tags={stakeholderTags}
-                customerData={customerData}
-                documentTemplates={documentTemplates}
-                employees={typedEmployees}
-                currentEmployeeId={currentEmployee?.id || null}
-              />
-            }
           />
 
           {/* Dropboxフォルダリンク */}
