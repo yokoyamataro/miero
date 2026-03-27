@@ -34,6 +34,7 @@ export async function updateProject(
     is_on_hold?: boolean;
     category?: ProjectCategory;
     contact_id?: string | null;
+    account_id?: string | null;
     manager_id?: string | null;
     start_date?: string | null;
     end_date?: string | null;

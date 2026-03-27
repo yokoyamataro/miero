@@ -221,6 +221,7 @@ export interface Project {
   is_urgent: boolean;
   is_on_hold: boolean;
   contact_id: string | null;
+  account_id: string | null;  // 法人顧客の場合はこちらを使用
   manager_id: string | null;
   start_date: string | null;
   end_date: string | null;
@@ -243,6 +244,7 @@ export interface ProjectInsert {
   is_urgent?: boolean;
   is_on_hold?: boolean;
   contact_id?: string | null;
+  account_id?: string | null;  // 法人顧客の場合はこちらを使用
   manager_id?: string | null;
   start_date?: string | null;
   end_date?: string | null;

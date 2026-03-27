@@ -125,14 +125,26 @@ function formatCurrency(amount: number | null): string {
   return `¥${amount.toLocaleString()}`;
 }
 
-// 顧客選択モーダル（2段階選択 + 新規追加）
-type ContactSelectStep = "list" | "accountContacts" | "newType";
+// 顧客選択の結果（法人 or 個人 or 未選択）
+export type CustomerSelection = {
+  type: "none";
+} | {
+  type: "individual";
+  contactId: string;
+} | {
+  type: "corporate";
+  accountId: string;
+};
+
+// 顧客選択モーダル
+type ContactSelectStep = "list" | "newType";
 
 export function ContactSelectModal({
   open,
   onOpenChange,
   customerData,
   currentContactId,
+  currentAccountId,
   onSelect,
   industries,
 }: {
@@ -140,14 +152,14 @@ export function ContactSelectModal({
   onOpenChange: (open: boolean) => void;
   customerData: CustomerData;
   currentContactId: string | null;
-  onSelect: (contactId: string | null) => void;
+  currentAccountId: string | null;
+  onSelect: (selection: CustomerSelection) => void;
   industries: Industry[];
 }) {
   const router = useRouter();
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
   const [step, setStep] = useState<ContactSelectStep>("list");
   const [searchQuery, setSearchQuery] = useState("");
-  const [selectedAccount, setSelectedAccount] = useState<AccountOption | null>(null);
 
   // 新規追加モーダル
   const [showAddIndividualModal, setShowAddIndividualModal] = useState(false);
@@ -156,7 +168,6 @@ export function ContactSelectModal({
   const reset = () => {
     setStep("list");
     setSearchQuery("");
-    setSelectedAccount(null);
   };
 
   // 検索フィルタリング
@@ -165,8 +176,7 @@ export function ContactSelectModal({
 
     const filteredAccounts = customerData.accounts.filter((acc) => {
       const matchesCompany = acc.companyName.toLowerCase().includes(query);
-      const matchesContact = acc.contacts.some((c) => c.name.toLowerCase().includes(query));
-      return matchesCompany || matchesContact;
+      return matchesCompany;
     });
 
     const filteredIndividuals = customerData.individuals.filter((ind) =>
@@ -176,8 +186,20 @@ export function ContactSelectModal({
     return { filteredAccounts, filteredIndividuals };
   }, [customerData, searchQuery]);
 
-  const handleSelect = (contactId: string | null) => {
-    onSelect(contactId);
+  const handleSelectNone = () => {
+    onSelect({ type: "none" });
+    onOpenChange(false);
+    reset();
+  };
+
+  const handleSelectIndividual = (contactId: string) => {
+    onSelect({ type: "individual", contactId });
+    onOpenChange(false);
+    reset();
+  };
+
+  const handleSelectCorporate = (accountId: string) => {
+    onSelect({ type: "corporate", accountId });
     onOpenChange(false);
     reset();
   };
@@ -188,34 +210,22 @@ export function ContactSelectModal({
   };
 
   const handleBack = () => {
-    if (step === "accountContacts") {
-      setSelectedAccount(null);
-      setStep("list");
-    } else if (step === "newType") {
+    if (step === "newType") {
       setStep("list");
     }
   };
 
-  // 法人内の担当者をフィルタリング
-  const filteredContactsInAccount = useMemo(() => {
-    if (!selectedAccount) return [];
-    const query = searchQuery.toLowerCase();
-    return selectedAccount.contacts.filter((c) =>
-      c.name.toLowerCase().includes(query)
-    );
-  }, [selectedAccount, searchQuery]);
-
   // 新規個人顧客が作成されたとき
   const handleIndividualCreated = (contactId: string, _name: string) => {
-    onSelect(contactId);
+    onSelect({ type: "individual", contactId });
     onOpenChange(false);
     reset();
     router.refresh();
   };
 
-  // 新規法人+担当者が作成されたとき
-  const handleAccountCreated = (contactId: string, _accountId: string, _companyName: string, _contactName: string) => {
-    onSelect(contactId);
+  // 新規法人が作成されたとき
+  const handleAccountCreated = (_contactId: string, accountId: string, _companyName: string, _contactName: string) => {
+    onSelect({ type: "corporate", accountId });
     onOpenChange(false);
     reset();
     router.refresh();
@@ -224,15 +234,6 @@ export function ContactSelectModal({
   // タイトル
   const getTitle = () => {
     switch (step) {
-      case "accountContacts":
-        return (
-          <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" onClick={handleBack} className="h-8 w-8 p-0">
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            {selectedAccount?.companyName}の担当者
-          </div>
-        );
       case "newType":
         return (
           <div className="flex items-center gap-2">
@@ -249,7 +250,7 @@ export function ContactSelectModal({
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className={`max-w-md max-h-[80vh] flex flex-col ${isPending ? "opacity-50" : ""}`}>
+      <DialogContent className="max-w-md max-h-[80vh] flex flex-col">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {getTitle()}
@@ -292,9 +293,9 @@ export function ContactSelectModal({
 
               {/* 未選択オプション */}
               <Button
-                variant={currentContactId === null ? "secondary" : "ghost"}
+                variant={currentContactId === null && currentAccountId === null ? "secondary" : "ghost"}
                 className="w-full justify-start"
-                onClick={() => handleSelect(null)}
+                onClick={() => onSelect({ type: "none" })}
               >
                 <span className="text-muted-foreground">未選択</span>
               </Button>
@@ -310,21 +311,11 @@ export function ContactSelectModal({
                     {filteredAccounts.map((account) => (
                       <Button
                         key={account.id}
-                        variant="ghost"
-                        className="w-full justify-between h-auto py-2"
-                        onClick={() => {
-                          setSelectedAccount(account);
-                          setStep("accountContacts");
-                          setSearchQuery("");
-                        }}
+                        variant={currentAccountId === account.id ? "secondary" : "ghost"}
+                        className="w-full justify-start h-auto py-2"
+                        onClick={() => handleSelectCorporate(account.id)}
                       >
-                        <div className="text-left">
-                          <div className="font-medium">{account.companyName}</div>
-                          <div className="text-xs text-muted-foreground">
-                            担当者 {account.contacts.length}名
-                          </div>
-                        </div>
-                        <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        <div className="font-medium">{account.companyName}</div>
                       </Button>
                     ))}
                   </div>
@@ -344,7 +335,7 @@ export function ContactSelectModal({
                         key={contact.id}
                         variant={currentContactId === contact.id ? "secondary" : "ghost"}
                         className="w-full justify-start"
-                        onClick={() => handleSelect(contact.id)}
+                        onClick={() => handleSelectIndividual(contact.id)}
                       >
                         {contact.name}
                       </Button>
@@ -356,73 +347,6 @@ export function ContactSelectModal({
               {filteredAccounts.length === 0 && filteredIndividuals.length === 0 && searchQuery && (
                 <div className="text-center text-muted-foreground py-4">
                   該当する依頼人がありません
-                </div>
-              )}
-            </div>
-          </>
-        )}
-
-        {step === "accountContacts" && selectedAccount && (
-          <>
-            {/* 検索ボックス */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="担当者名で検索..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-10"
-                autoFocus
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2"
-                >
-                  <X className="h-4 w-4 text-muted-foreground" />
-                </button>
-              )}
-            </div>
-
-            <div className="flex-1 overflow-y-auto space-y-1 mt-4">
-              {/* 担当者無しオプション - 代表連絡先（is_primary）を使用 */}
-              <Button
-                variant="ghost"
-                className="w-full justify-start text-muted-foreground"
-                onClick={() => {
-                  // 代表連絡先（is_primaryの連絡先、なければ最初の連絡先）を選択
-                  // 「（担当者未設定）」以外の連絡先を優先
-                  const normalContacts = selectedAccount.contacts.filter(c => c.name !== "（担当者未設定）");
-                  if (normalContacts.length > 0) {
-                    handleSelect(normalContacts[0].id);
-                  } else if (selectedAccount.contacts.length > 0) {
-                    // 連絡先が全て「（担当者未設定）」の場合はそれを使用
-                    handleSelect(selectedAccount.contacts[0].id);
-                  } else {
-                    // 連絡先がない場合は未選択
-                    handleSelect(null);
-                  }
-                }}
-              >
-                担当者無し
-              </Button>
-              {filteredContactsInAccount.length > 0 ? (
-                filteredContactsInAccount
-                  .filter(contact => contact.name !== "（担当者未設定）")
-                  .map((contact) => (
-                    <Button
-                      key={contact.id}
-                      variant={currentContactId === contact.id ? "secondary" : "ghost"}
-                      className="w-full justify-start"
-                      onClick={() => handleSelect(contact.id)}
-                    >
-                      {contact.name}
-                    </Button>
-                  ))
-              ) : null}
-              {filteredContactsInAccount.filter(c => c.name !== "（担当者未設定）").length === 0 && (
-                <div className="text-center text-muted-foreground py-4">
-                  担当者が登録されていません
                 </div>
               )}
             </div>
@@ -495,7 +419,8 @@ function CustomerDetailSection({
   onChangeClick: () => void;
   onDocumentClick: () => void;
 }) {
-  if (!contact) {
+  // 顧客が選択されていない場合
+  if (!contact && !account) {
     return (
       <div className="text-muted-foreground text-sm">
         依頼人が選択されていません
@@ -522,7 +447,7 @@ function CustomerDetailSection({
     return parts.length > 0 ? parts.join(" ") : null;
   };
 
-  const contactAddress = formatAddress(contact);
+  const contactAddress = contact ? formatAddress(contact) : null;
   const accountAddress = account ? formatAddress(account) : null;
 
   return (
@@ -532,29 +457,33 @@ function CustomerDetailSection({
         <div className="font-medium">
           {account ? (
             <span>{account.company_name}</span>
-          ) : (
+          ) : contact ? (
             <span>{contact.last_name} {contact.first_name}</span>
-          )}
+          ) : null}
         </div>
         <div className="flex gap-1">
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 w-7 p-0"
-            onClick={onDocumentClick}
-            title="文書作成"
-          >
-            <FileText className="h-4 w-4 text-primary" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 px-2"
-            onClick={onEditClick}
-          >
-            <Pencil className="h-3.5 w-3.5 mr-1" />
-            修正
-          </Button>
+          {contact && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 w-7 p-0"
+              onClick={onDocumentClick}
+              title="文書作成"
+            >
+              <FileText className="h-4 w-4 text-primary" />
+            </Button>
+          )}
+          {(contact || account) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2"
+              onClick={onEditClick}
+            >
+              <Pencil className="h-3.5 w-3.5 mr-1" />
+              修正
+            </Button>
+          )}
           <Button
             variant="ghost"
             size="sm"
@@ -595,44 +524,37 @@ function CustomerDetailSection({
         </div>
       )}
 
-      {/* 担当者情報（法人の場合）または個人情報 */}
-      <div className="bg-muted/50 rounded-lg p-3 space-y-2">
-        <div className="text-xs font-medium text-muted-foreground">
-          {account ? "担当者情報" : "個人情報"}
+      {/* 担当者情報（個人の場合のみ表示） */}
+      {contact && !account && (
+        <div className="bg-muted/50 rounded-lg p-3 space-y-2">
+          <div className="text-xs font-medium text-muted-foreground">個人情報</div>
+          {contact.phone && (
+            <div className="flex items-center gap-2">
+              <Phone className="h-3.5 w-3.5 text-muted-foreground" />
+              <span>{contact.phone}</span>
+            </div>
+          )}
+          {contact.email && (
+            <div className="flex items-center gap-2">
+              <Mail className="h-3.5 w-3.5 text-muted-foreground" />
+              <a
+                href={`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(contact.email)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline"
+              >
+                {contact.email}
+              </a>
+            </div>
+          )}
+          {contactAddress && (
+            <div className="flex items-start gap-2">
+              <MapPinIcon className="h-3.5 w-3.5 text-muted-foreground mt-0.5" />
+              <span>{contactAddress}</span>
+            </div>
+          )}
         </div>
-        {account && (
-          <div className="font-medium">
-            {contact.last_name} {contact.first_name}
-            {contact.department && <span className="text-muted-foreground ml-2">{contact.department}</span>}
-            {contact.position && <span className="text-muted-foreground ml-1">{contact.position}</span>}
-          </div>
-        )}
-        {contact.phone && (
-          <div className="flex items-center gap-2">
-            <Phone className="h-3.5 w-3.5 text-muted-foreground" />
-            <span>{contact.phone}</span>
-          </div>
-        )}
-        {contact.email && (
-          <div className="flex items-center gap-2">
-            <Mail className="h-3.5 w-3.5 text-muted-foreground" />
-            <a
-              href={`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(contact.email)}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-primary hover:underline"
-            >
-              {contact.email}
-            </a>
-          </div>
-        )}
-        {!account && contactAddress && (
-          <div className="flex items-start gap-2">
-            <MapPinIcon className="h-3.5 w-3.5 text-muted-foreground mt-0.5" />
-            <span>{contactAddress}</span>
-          </div>
-        )}
-      </div>
+      )}
     </div>
   );
 }
@@ -1620,9 +1542,16 @@ export function ProjectInfo({
     });
   };
 
-  const handleContactChange = (contactId: string | null) => {
+  const handleCustomerChange = (selection: CustomerSelection) => {
     startTransition(async () => {
-      await updateProject(project.id, { contact_id: contactId });
+      if (selection.type === "none") {
+        await updateProject(project.id, { contact_id: null, account_id: null });
+      } else if (selection.type === "individual") {
+        await updateProject(project.id, { contact_id: selection.contactId, account_id: null });
+      } else if (selection.type === "corporate") {
+        await updateProject(project.id, { contact_id: null, account_id: selection.accountId });
+      }
+      setShowContactModal(false);
       router.refresh();
     });
   };
@@ -1793,7 +1722,8 @@ export function ProjectInfo({
         onOpenChange={setShowContactModal}
         customerData={customerData}
         currentContactId={project.contact_id}
-        onSelect={handleContactChange}
+        currentAccountId={project.account_id}
+        onSelect={handleCustomerChange}
         industries={industries}
       />
 

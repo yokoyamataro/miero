@@ -65,7 +65,17 @@ export default async function ProjectDetailPage({
     project.contact_id
       ? supabase.from("contacts" as never).select("*").eq("id", project.contact_id).single()
       : Promise.resolve({ data: null }),
+    // account_idが直接設定されている場合はそれを使用、なければcontact経由で取得
     (async () => {
+      // account_idが直接設定されている場合
+      if (project.account_id) {
+        return supabase
+          .from("accounts" as never)
+          .select("*")
+          .eq("id", project.account_id)
+          .single();
+      }
+      // contact_id経由でaccountを取得
       if (!project.contact_id) return { data: null };
       const { data: c } = await supabase
         .from("contacts" as never)
