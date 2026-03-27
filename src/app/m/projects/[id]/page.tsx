@@ -6,6 +6,14 @@ interface Props {
   params: Promise<{ id: string }>;
 }
 
+interface CalendarEvent {
+  id: string;
+  title: string;
+  is_completed: boolean;
+  start_date: string | null;
+  sort_order: number;
+}
+
 export default async function MobileProjectDetailPage({ params }: Props) {
   const { id } = await params;
   const supabase = await createClient();
@@ -21,10 +29,10 @@ export default async function MobileProjectDetailPage({ params }: Props) {
     notFound();
   }
 
-  // タスク一覧を取得
-  const { data: tasks } = await supabase
-    .from("tasks" as never)
-    .select("*")
+  // スケジュール（calendar_events）を取得
+  const { data: events } = await supabase
+    .from("calendar_events")
+    .select("id, title, is_completed, start_date, sort_order")
     .eq("project_id", id)
     .order("sort_order", { ascending: true });
 
@@ -38,7 +46,18 @@ export default async function MobileProjectDetailPage({ params }: Props) {
   type AccountType = { id: string; company_name: string };
 
   let customerName: string | null = null;
-  if (project.contact_id) {
+
+  // account_idが直接設定されている場合
+  if (project.account_id) {
+    const { data: account } = await supabase
+      .from("accounts" as never)
+      .select("id, company_name")
+      .eq("id", project.account_id)
+      .single();
+    const typedAccount = account as AccountType | null;
+    customerName = typedAccount?.company_name || null;
+  } else if (project.contact_id) {
+    // contact_id経由で取得
     const { data: contact } = await supabase
       .from("contacts" as never)
       .select("id, last_name, first_name, account_id")
@@ -69,7 +88,7 @@ export default async function MobileProjectDetailPage({ params }: Props) {
   return (
     <MobileProjectDetail
       project={project}
-      tasks={tasks || []}
+      events={(events as CalendarEvent[]) || []}
       customerName={customerName}
       employeeMap={employeeMap}
     />

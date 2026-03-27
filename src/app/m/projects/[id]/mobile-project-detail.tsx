@@ -2,7 +2,7 @@
 
 import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, MapPin, User, Calendar, FolderOpen, CheckCircle2, Circle, Plus, Pencil, Trash2, Loader2, FileText, Check, Play } from "lucide-react";
+import { ArrowLeft, MapPin, User, Calendar, FolderOpen, CheckCircle2, Circle, Plus, Pencil, Trash2, Loader2, Check, Play } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -14,8 +14,7 @@ import {
   SheetFooter,
 } from "@/components/ui/sheet";
 import { PROJECT_CATEGORY_LABELS, type ProjectCategory, type ProjectStatus } from "@/types/database";
-import { toggleTaskComplete, createTask, updateTask, deleteTask, saveProjectView, updateProjectStatus } from "./actions";
-import { MobileTemplateSheet } from "./mobile-template-sheet";
+import { toggleEventComplete, createEvent, updateEventTitle, deleteEvent, saveProjectView, updateProjectStatus } from "./actions";
 
 interface Project {
   id: string;
@@ -34,39 +33,37 @@ interface Project {
   main_folder_path: string | null;
 }
 
-interface Task {
+interface CalendarEvent {
   id: string;
   title: string;
   is_completed: boolean;
+  start_date: string | null;
   sort_order: number;
 }
 
 interface MobileProjectDetailProps {
   project: Project;
-  tasks: Task[];
+  events: CalendarEvent[];
   customerName: string | null;
   employeeMap: Record<string, string>;
 }
 
 export function MobileProjectDetail({
   project,
-  tasks,
+  events,
   customerName,
   employeeMap,
 }: MobileProjectDetailProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [localTasks, setLocalTasks] = useState(tasks);
+  const [localEvents, setLocalEvents] = useState(events);
 
-  // タスク編集用state
-  const [showTaskForm, setShowTaskForm] = useState(false);
-  const [editingTask, setEditingTask] = useState<Task | null>(null);
-  const [taskTitle, setTaskTitle] = useState("");
+  // スケジュール編集用state
+  const [showEventForm, setShowEventForm] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<CalendarEvent | null>(null);
+  const [eventTitle, setEventTitle] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
-
-  // テンプレート選択用state
-  const [showTemplateSheet, setShowTemplateSheet] = useState(false);
 
   // ステータス変更用state
   const [currentStatus, setCurrentStatus] = useState<ProjectStatus>(project.status as ProjectStatus);
@@ -81,58 +78,69 @@ export function MobileProjectDetail({
   const location = [project.location, project.location_detail].filter(Boolean).join(" ");
   const categoryLabel = PROJECT_CATEGORY_LABELS[project.category] || project.category;
 
-  const completedCount = localTasks.filter((t) => t.is_completed).length;
-  const totalCount = localTasks.length;
+  // 日付あり（古い順）と日時未定に分ける
+  const datedEvents = localEvents
+    .filter((e) => e.start_date !== null)
+    .sort((a, b) => {
+      if (a.start_date && b.start_date) {
+        return a.start_date.localeCompare(b.start_date);
+      }
+      return 0;
+    });
+  const undatedEvents = localEvents.filter((e) => e.start_date === null);
 
-  const handleTaskToggle = async (taskId: string, currentState: boolean) => {
+  const completedCount = localEvents.filter((e) => e.is_completed).length;
+  const totalCount = localEvents.length;
+
+  const handleEventToggle = async (eventId: string, currentState: boolean) => {
     // 楽観的更新
-    setLocalTasks((prev) =>
-      prev.map((t) => (t.id === taskId ? { ...t, is_completed: !currentState } : t))
+    setLocalEvents((prev) =>
+      prev.map((e) => (e.id === eventId ? { ...e, is_completed: !currentState } : e))
     );
 
     startTransition(async () => {
-      const result = await toggleTaskComplete(taskId, !currentState);
+      const result = await toggleEventComplete(eventId, !currentState);
       if (result.error) {
         // エラー時は元に戻す
-        setLocalTasks((prev) =>
-          prev.map((t) => (t.id === taskId ? { ...t, is_completed: currentState } : t))
+        setLocalEvents((prev) =>
+          prev.map((e) => (e.id === eventId ? { ...e, is_completed: currentState } : e))
         );
       }
     });
   };
 
-  const handleAddTask = () => {
-    setEditingTask(null);
-    setTaskTitle("");
-    setShowTaskForm(true);
+  const handleAddEvent = () => {
+    setEditingEvent(null);
+    setEventTitle("");
+    setShowEventForm(true);
   };
 
-  const handleEditTask = (task: Task) => {
-    setEditingTask(task);
-    setTaskTitle(task.title);
-    setShowTaskForm(true);
+  const handleEditEvent = (event: CalendarEvent) => {
+    setEditingEvent(event);
+    setEventTitle(event.title);
+    setShowEventForm(true);
   };
 
-  const handleSaveTask = async () => {
-    if (!taskTitle.trim()) return;
+  const handleSaveEvent = async () => {
+    if (!eventTitle.trim()) return;
 
     setIsSaving(true);
     try {
-      if (editingTask) {
+      if (editingEvent) {
         // 更新
-        const result = await updateTask(editingTask.id, taskTitle);
+        const result = await updateEventTitle(editingEvent.id, eventTitle);
         if (!result.error) {
-          setLocalTasks((prev) =>
-            prev.map((t) => (t.id === editingTask.id ? { ...t, title: taskTitle.trim() } : t))
+          setLocalEvents((prev) =>
+            prev.map((e) => (e.id === editingEvent.id ? { ...e, title: eventTitle.trim() } : e))
           );
-          setShowTaskForm(false);
+          setShowEventForm(false);
         }
       } else {
-        // 新規作成
-        const result = await createTask(project.id, taskTitle);
-        if (result.task) {
-          setLocalTasks((prev) => [...prev, result.task!]);
-          setShowTaskForm(false);
+        // 新規作成（日時未定として作成）
+        const result = await createEvent(project.id, eventTitle, true);
+        if (result.event) {
+          setLocalEvents((prev) => [...prev, result.event!]);
+          setShowEventForm(false);
         }
       }
     } finally {
@@ -140,26 +148,20 @@ export function MobileProjectDetail({
     }
   };
 
-  const handleDeleteTask = async () => {
-    if (!editingTask) return;
-    if (!confirm("このタスクを削除しますか？")) return;
+  const handleDeleteEvent = async () => {
+    if (!editingEvent) return;
+    if (!confirm("このスケジュールを削除しますか？")) return;
 
     setIsDeleting(true);
     try {
-      const result = await deleteTask(editingTask.id);
+      const result = await deleteEvent(editingEvent.id);
       if (!result.error) {
-        setLocalTasks((prev) => prev.filter((t) => t.id !== editingTask.id));
-        setShowTaskForm(false);
+        setLocalEvents((prev) => prev.filter((e) => e.id !== editingEvent.id));
+        setShowEventForm(false);
       }
     } finally {
       setIsDeleting(false);
     }
-  };
-
-  // テンプレートからタスク作成後のリロード
-  const handleTasksCreatedFromTemplate = async (count: number) => {
-    // ページをリロードして最新のタスクを取得
-    router.refresh();
   };
 
   // ステータス変更
@@ -180,6 +182,57 @@ export function MobileProjectDetail({
       setIsStatusChanging(false);
     }
   };
+
+  // 日付フォーマット
+  const formatDate = (dateStr: string | null) => {
+    if (!dateStr) return "";
+    const date = new Date(dateStr);
+    return `${date.getMonth() + 1}/${date.getDate()}`;
+  };
+
+  // イベント行のレンダリング
+  const renderEventItem = (event: CalendarEvent) => (
+    <div
+      key={event.id}
+      className={`flex items-center gap-2 p-3 rounded-lg border transition-colors ${
+        event.is_completed
+          ? "bg-muted/50 border-muted"
+          : "bg-background border-border"
+      }`}
+    >
+      <button
+        onClick={() => handleEventToggle(event.id, event.is_completed)}
+        disabled={isPending}
+        className="flex-shrink-0"
+      >
+        {event.is_completed ? (
+          <CheckCircle2 className="h-5 w-5 text-green-500" />
+        ) : (
+          <Circle className="h-5 w-5 text-muted-foreground" />
+        )}
+      </button>
+      <div className="flex-1 min-w-0">
+        <span
+          className={`text-sm block ${
+            event.is_completed ? "line-through text-muted-foreground" : ""
+          }`}
+        >
+          {event.title}
+        </span>
+        {event.start_date && (
+          <span className="text-xs text-muted-foreground">
+            {formatDate(event.start_date)}
+          </span>
+        )}
+      </div>
+      <button
+        onClick={() => handleEditEvent(event)}
+        className="p-1.5 rounded-md hover:bg-muted transition-colors flex-shrink-0"
+      >
+        <Pencil className="h-4 w-4 text-muted-foreground" />
+      </button>
+    </div>
+  );
 
   return (
     <div className="flex flex-col h-full">
@@ -285,109 +338,82 @@ export function MobileProjectDetail({
           )}
         </div>
 
-        {/* タスク一覧 */}
+        {/* スケジュール一覧 */}
         <div className="px-4 py-4">
           <div className="flex items-center justify-between mb-3">
-            <h2 className="font-bold">タスク</h2>
+            <h2 className="font-bold">スケジュール</h2>
             <div className="flex items-center gap-2">
               {totalCount > 0 && (
                 <span className="text-sm text-muted-foreground">
                   {completedCount}/{totalCount}
                 </span>
               )}
-              <Button size="sm" variant="outline" onClick={() => setShowTemplateSheet(true)}>
-                <FileText className="h-4 w-4 mr-1" />
-                テンプレ
-              </Button>
-              <Button size="sm" variant="outline" onClick={handleAddTask}>
+              <Button size="sm" variant="outline" onClick={handleAddEvent}>
                 <Plus className="h-4 w-4 mr-1" />
                 追加
               </Button>
             </div>
           </div>
 
-          {localTasks.length === 0 ? (
+          {localEvents.length === 0 ? (
             <div className="text-center py-8">
               <p className="text-sm text-muted-foreground mb-4">
-                タスクがありません
+                スケジュールがありません
               </p>
-              <div className="flex gap-2 justify-center">
-                <Button variant="outline" onClick={() => setShowTemplateSheet(true)}>
-                  <FileText className="h-4 w-4 mr-1" />
-                  テンプレートから
-                </Button>
-                <Button variant="outline" onClick={handleAddTask}>
-                  <Plus className="h-4 w-4 mr-1" />
-                  追加
-                </Button>
-              </div>
+              <Button variant="outline" onClick={handleAddEvent}>
+                <Plus className="h-4 w-4 mr-1" />
+                追加
+              </Button>
             </div>
           ) : (
-            <div className="space-y-2">
-              {localTasks.map((task) => (
-                <div
-                  key={task.id}
-                  className={`flex items-center gap-2 p-3 rounded-lg border transition-colors ${
-                    task.is_completed
-                      ? "bg-muted/50 border-muted"
-                      : "bg-background border-border"
-                  }`}
-                >
-                  <button
-                    onClick={() => handleTaskToggle(task.id, task.is_completed)}
-                    disabled={isPending}
-                    className="flex-shrink-0"
-                  >
-                    {task.is_completed ? (
-                      <CheckCircle2 className="h-5 w-5 text-green-500" />
-                    ) : (
-                      <Circle className="h-5 w-5 text-muted-foreground" />
-                    )}
-                  </button>
-                  <span
-                    className={`text-sm flex-1 ${
-                      task.is_completed ? "line-through text-muted-foreground" : ""
-                    }`}
-                  >
-                    {task.title}
-                  </span>
-                  <button
-                    onClick={() => handleEditTask(task)}
-                    className="p-1.5 rounded-md hover:bg-muted transition-colors flex-shrink-0"
-                  >
-                    <Pencil className="h-4 w-4 text-muted-foreground" />
-                  </button>
+            <div className="space-y-4">
+              {/* 日付ありのイベント（古い順） */}
+              {datedEvents.length > 0 && (
+                <div className="space-y-2">
+                  {datedEvents.map(renderEventItem)}
                 </div>
-              ))}
+              )}
+
+              {/* 日時未定のイベント */}
+              {undatedEvents.length > 0 && (
+                <div className="space-y-2">
+                  {datedEvents.length > 0 && (
+                    <div className="text-xs text-muted-foreground pt-2 border-t">
+                      日時未定
+                    </div>
+                  )}
+                  {undatedEvents.map(renderEventItem)}
+                </div>
+              )}
             </div>
           )}
         </div>
       </div>
 
-      {/* タスク追加・編集シート */}
-      <Sheet open={showTaskForm} onOpenChange={setShowTaskForm}>
+      {/* スケジュール追加・編集シート */}
+      <Sheet open={showEventForm} onOpenChange={setShowEventForm}>
         <SheetContent side="bottom" className="rounded-t-xl">
           <SheetHeader className="pb-4">
             <SheetTitle>
-              {editingTask ? "タスクを編集" : "タスクを追加"}
+              {editingEvent ? "スケジュールを編集" : "スケジュールを追加"}
             </SheetTitle>
           </SheetHeader>
 
           <div className="py-4">
             <Input
-              value={taskTitle}
-              onChange={(e) => setTaskTitle(e.target.value)}
-              placeholder="タスク名"
+              value={eventTitle}
+              onChange={(e) => setEventTitle(e.target.value)}
+              placeholder="タイトル"
               className="h-12"
               autoFocus
             />
           </div>
 
           <SheetFooter className="flex gap-2">
-            {editingTask && (
+            {editingEvent && (
               <Button
                 variant="destructive"
-                onClick={handleDeleteTask}
+                onClick={handleDeleteEvent}
                 disabled={isDeleting || isSaving}
                 className="flex-1"
               >
@@ -397,14 +423,14 @@ export function MobileProjectDetail({
             )}
             <Button
               variant="outline"
-              onClick={() => setShowTaskForm(false)}
+              onClick={() => setShowEventForm(false)}
               className="flex-1"
             >
               キャンセル
             </Button>
             <Button
-              onClick={handleSaveTask}
-              disabled={isSaving || !taskTitle.trim()}
+              onClick={handleSaveEvent}
+              disabled={isSaving || !eventTitle.trim()}
               className="flex-1"
             >
               {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : "保存"}
@@ -412,14 +438,6 @@ export function MobileProjectDetail({
           </SheetFooter>
         </SheetContent>
       </Sheet>
-
-      {/* テンプレート選択シート */}
-      <MobileTemplateSheet
-        open={showTemplateSheet}
-        onOpenChange={setShowTemplateSheet}
-        projectId={project.id}
-        onTasksCreated={handleTasksCreatedFromTemplate}
-      />
     </div>
   );
 }

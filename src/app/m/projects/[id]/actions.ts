@@ -2,118 +2,6 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import {
-  getTaskTemplateSets as getTaskTemplateSetsOriginal,
-  createTasksFromTemplateSet as createTasksFromTemplateSetOriginal,
-} from "@/app/projects/[id]/actions";
-
-// PC版のテンプレート関連関数をラップしてexport
-export async function getTaskTemplateSets() {
-  return getTaskTemplateSetsOriginal();
-}
-
-export async function createTasksFromTemplateSet(
-  projectId: string,
-  setId: string,
-  defaultAssigneeId?: string | null
-) {
-  return createTasksFromTemplateSetOriginal(projectId, setId, defaultAssigneeId);
-}
-
-export async function toggleTaskComplete(
-  taskId: string,
-  isCompleted: boolean
-): Promise<{ success?: boolean; error?: string }> {
-  const supabase = await createClient();
-
-  const { error } = await supabase
-    .from("tasks" as never)
-    .update({ is_completed: isCompleted } as never)
-    .eq("id", taskId);
-
-  if (error) {
-    console.error("Error toggling task:", error);
-    return { error: error.message };
-  }
-
-  revalidatePath("/m/projects");
-  return { success: true };
-}
-
-export async function createTask(
-  projectId: string,
-  title: string
-): Promise<{ success?: boolean; error?: string; task?: { id: string; title: string; is_completed: boolean; sort_order: number } }> {
-  const supabase = await createClient();
-
-  // 現在の最大sort_orderを取得
-  const { data: existingTasks } = await supabase
-    .from("tasks" as never)
-    .select("sort_order")
-    .eq("project_id", projectId)
-    .order("sort_order", { ascending: false })
-    .limit(1);
-
-  const maxSortOrder = (existingTasks as { sort_order: number }[] | null)?.[0]?.sort_order || 0;
-
-  const { data, error } = await supabase
-    .from("tasks" as never)
-    .insert({
-      project_id: projectId,
-      title: title.trim(),
-      is_completed: false,
-      sort_order: maxSortOrder + 1,
-    } as never)
-    .select("id, title, is_completed, sort_order")
-    .single();
-
-  if (error) {
-    console.error("Error creating task:", error);
-    return { error: error.message };
-  }
-
-  revalidatePath("/m/projects");
-  return { success: true, task: data as { id: string; title: string; is_completed: boolean; sort_order: number } };
-}
-
-export async function updateTask(
-  taskId: string,
-  title: string
-): Promise<{ success?: boolean; error?: string }> {
-  const supabase = await createClient();
-
-  const { error } = await supabase
-    .from("tasks" as never)
-    .update({ title: title.trim() } as never)
-    .eq("id", taskId);
-
-  if (error) {
-    console.error("Error updating task:", error);
-    return { error: error.message };
-  }
-
-  revalidatePath("/m/projects");
-  return { success: true };
-}
-
-export async function deleteTask(
-  taskId: string
-): Promise<{ success?: boolean; error?: string }> {
-  const supabase = await createClient();
-
-  const { error } = await supabase
-    .from("tasks" as never)
-    .delete()
-    .eq("id", taskId);
-
-  if (error) {
-    console.error("Error deleting task:", error);
-    return { error: error.message };
-  }
-
-  revalidatePath("/m/projects");
-  return { success: true };
-}
 
 // ============================================
 // 業務ステータス変更
@@ -171,4 +59,146 @@ export async function saveProjectView(projectId: string): Promise<void> {
     } as never,
     { onConflict: "project_id,employee_id" }
   );
+}
+
+// ============================================
+// スケジュール（calendar_events）関連
+// ============================================
+
+// スケジュールの完了状態をトグル
+export async function toggleEventComplete(
+  eventId: string,
+  isCompleted: boolean
+): Promise<{ success?: boolean; error?: string }> {
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("calendar_events")
+    .update({ is_completed: isCompleted })
+    .eq("id", eventId);
+
+  if (error) {
+    console.error("Error toggling event:", error);
+    return { error: error.message };
+  }
+
+  revalidatePath("/m/projects");
+  revalidatePath("/");
+  return { success: true };
+}
+
+// スケジュールを作成（日時未定の場合はstart_date=null）
+export async function createEvent(
+  projectId: string,
+  title: string,
+  isUndated: boolean = true
+): Promise<{
+  success?: boolean;
+  error?: string;
+  event?: {
+    id: string;
+    title: string;
+    is_completed: boolean;
+    start_date: string | null;
+    sort_order: number;
+  };
+}> {
+  const supabase = await createClient();
+
+  // ログインユーザーを取得
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  let creatorId: string | null = null;
+  if (user) {
+    const { data: employee } = await supabase
+      .from("employees")
+      .select("id")
+      .eq("auth_id", user.id)
+      .single();
+    creatorId = employee?.id || null;
+  }
+
+  // 現在の最大sort_orderを取得
+  const { data: existingEvents } = await supabase
+    .from("calendar_events")
+    .select("sort_order")
+    .eq("project_id", projectId)
+    .order("sort_order", { ascending: false })
+    .limit(1);
+
+  const maxSortOrder = existingEvents?.[0]?.sort_order || 0;
+
+  const { data, error } = await supabase
+    .from("calendar_events")
+    .insert({
+      project_id: projectId,
+      title: title.trim(),
+      is_completed: false,
+      start_date: isUndated ? null : new Date().toISOString().split("T")[0],
+      all_day: true,
+      sort_order: maxSortOrder + 1,
+      creator_id: creatorId,
+    })
+    .select("id, title, is_completed, start_date, sort_order")
+    .single();
+
+  if (error) {
+    console.error("Error creating event:", error);
+    return { error: error.message };
+  }
+
+  revalidatePath("/m/projects");
+  revalidatePath("/");
+  return { success: true, event: data };
+}
+
+// スケジュールのタイトルを更新
+export async function updateEventTitle(
+  eventId: string,
+  title: string
+): Promise<{ success?: boolean; error?: string }> {
+  const supabase = await createClient();
+
+  const { error } = await supabase
+    .from("calendar_events")
+    .update({ title: title.trim() })
+    .eq("id", eventId);
+
+  if (error) {
+    console.error("Error updating event:", error);
+    return { error: error.message };
+  }
+
+  revalidatePath("/m/projects");
+  revalidatePath("/");
+  return { success: true };
+}
+
+// スケジュールを削除
+export async function deleteEvent(
+  eventId: string
+): Promise<{ success?: boolean; error?: string }> {
+  const supabase = await createClient();
+
+  // まず参加者を削除
+  await supabase
+    .from("calendar_event_participants")
+    .delete()
+    .eq("event_id", eventId);
+
+  const { error } = await supabase
+    .from("calendar_events")
+    .delete()
+    .eq("id", eventId);
+
+  if (error) {
+    console.error("Error deleting event:", error);
+    return { error: error.message };
+  }
+
+  revalidatePath("/m/projects");
+  revalidatePath("/");
+  return { success: true };
 }
