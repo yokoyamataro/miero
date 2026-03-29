@@ -904,3 +904,74 @@ export interface LeaveBalanceSummary {
   total_used: number;     // 使用合計
   remaining: number;      // 残日数
 }
+
+// ============================================
+// StandardTaskTemplate (標準業務)
+// ============================================
+export type StandardTaskStatus = "未着手" | "進行中" | "完了" | "不要";
+
+export const STANDARD_TASK_STATUS_LABELS: Record<StandardTaskStatus, string> = {
+  未着手: "未着手",
+  進行中: "進行中",
+  完了: "完了",
+  不要: "不要",
+};
+
+export const STANDARD_TASK_STATUS_COLORS: Record<StandardTaskStatus, string> = {
+  未着手: "bg-gray-200 text-gray-700",
+  進行中: "bg-blue-500 text-white",
+  完了: "bg-green-500 text-white",
+  不要: "bg-gray-400 text-white",
+};
+
+// 標準業務テンプレート（マスター）
+export interface StandardTaskTemplate {
+  id: string;
+  name: string;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+// 標準業務のTodo項目（マスター）
+export interface StandardTaskItem {
+  id: string;
+  template_id: string;
+  title: string;
+  sort_order: number;
+  created_at: string;
+}
+
+// テンプレートとアイテムを含む
+export interface StandardTaskTemplateWithItems extends StandardTaskTemplate {
+  items: StandardTaskItem[];
+}
+
+// プロジェクトに割り当てられた標準業務
+export interface ProjectStandardTask {
+  id: string;
+  project_id: string;
+  template_id: string;
+  sort_order: number;
+  created_at: string;
+}
+
+// プロジェクト標準業務の進捗
+export interface ProjectStandardTaskProgress {
+  id: string;
+  project_standard_task_id: string;
+  item_id: string;
+  status: StandardTaskStatus;
+  updated_at: string;
+  updated_by: string | null;
+}
+
+// プロジェクトに割り当てられた標準業務（詳細付き）
+export interface ProjectStandardTaskWithDetails extends ProjectStandardTask {
+  template: StandardTaskTemplate;
+  progress: {
+    item: StandardTaskItem;
+    status: StandardTaskStatus;
+    updated_at: string | null;
+  }[];
+}

@@ -21,6 +21,8 @@ import { DropboxLinks } from "./dropbox-links";
 import { RelatedProjectsSection } from "./related-projects-section";
 import { getDocumentTemplates } from "@/app/customers/document-actions";
 import { ProjectHeader } from "./project-header";
+import { StandardTaskSection } from "./standard-task-section";
+import { getStandardTaskTemplates, getProjectStandardTasks } from "./standard-task-actions";
 
 
 
@@ -58,6 +60,8 @@ export default async function ProjectDetailPage({
     relatedProjects,
     documentTemplates,
     projectEvents,
+    standardTaskTemplates,
+    projectStandardTasks,
   ] = await Promise.all([
     project.contact_id
       ? supabase.from("contacts" as never).select("*").eq("id", project.contact_id).single()
@@ -105,6 +109,8 @@ export default async function ProjectDetailPage({
     getRelatedProjects(id),
     getDocumentTemplates(),
     getProjectEvents(id),
+    getStandardTaskTemplates(),
+    getProjectStandardTasks(id),
   ]);
 
   const typedProject = project as Project;
@@ -212,6 +218,12 @@ export default async function ProjectDetailPage({
             employees={typedEmployees}
             currentEmployeeId={currentEmployee?.id || null}
             defaultAssigneeId={typedProject.manager_id}
+          />
+
+          <StandardTaskSection
+            projectId={id}
+            templates={standardTaskTemplates}
+            projectTasks={projectStandardTasks}
           />
 
           <CommentSection
