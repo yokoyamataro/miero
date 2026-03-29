@@ -56,6 +56,12 @@ export default async function ProjectsPage() {
     }
   }
 
+  // account_id → 表示名のマップを作成（法人顧客の直接参照用）
+  const accountDisplayMap: Record<string, string> = {};
+  for (const [id, account] of Object.entries(accountMap)) {
+    accountDisplayMap[id] = account.company_name;
+  }
+
   // 担当者マップを作成
   const { data: employeesData } = await supabase
     .from("employees")
@@ -120,6 +126,7 @@ export default async function ProjectsPage() {
       <ProjectList
         projects={projects || []}
         contactDisplayMap={contactDisplayMap}
+        accountDisplayMap={accountDisplayMap}
         employeeMap={employeeNameMap}
         recentProjectIds={recentProjectIds}
       />

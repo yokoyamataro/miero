@@ -48,6 +48,7 @@ interface ProjectData {
   is_urgent: boolean;
   is_on_hold: boolean;
   contact_id: string | null;
+  account_id: string | null;
   manager_id: string | null;
   start_date: string | null;
   end_date: string | null;
@@ -59,6 +60,7 @@ interface ProjectData {
 interface ProjectListProps {
   projects: ProjectData[];
   contactDisplayMap: Record<string, string>;
+  accountDisplayMap: Record<string, string>;
   employeeMap: Record<string, string>;
   recentProjectIds: string[]; // 2週間以内の閲覧履歴（最新順）
 }
@@ -92,7 +94,7 @@ function loadFiltersFromStorage(): FilterState {
 }
 
 
-export function ProjectList({ projects, contactDisplayMap, employeeMap, recentProjectIds }: ProjectListProps) {
+export function ProjectList({ projects, contactDisplayMap, accountDisplayMap, employeeMap, recentProjectIds }: ProjectListProps) {
   const [filters, setFilters] = useState<FilterState>(loadFiltersFromStorage);
   // ソートは常に閲覧履歴順をデフォルトに（セッション中のみ維持）
   const [sort, setSort] = useState<SortState>({ key: null, order: "asc" });
@@ -157,8 +159,11 @@ export function ProjectList({ projects, contactDisplayMap, employeeMap, recentPr
 
   // ソート処理（デフォルトは閲覧履歴順）
   const sorted = useMemo(() => {
-    const getCustomerName = (p: ProjectData) =>
-      p.contact_id ? contactDisplayMap[p.contact_id] || "" : "";
+    const getCustomerName = (p: ProjectData) => {
+      if (p.account_id) return accountDisplayMap[p.account_id] || "";
+      if (p.contact_id) return contactDisplayMap[p.contact_id] || "";
+      return "";
+    };
     const getManagerName = (p: ProjectData) =>
       p.manager_id ? employeeMap[p.manager_id] || "" : "";
     const getLocation = (p: ProjectData) =>
@@ -287,7 +292,12 @@ export function ProjectList({ projects, contactDisplayMap, employeeMap, recentPr
                     </Badge>
                   </TableCell>
                   <TableCell className="text-xs py-1 truncate max-w-[140px]">
-                    {project.contact_id ? (contactDisplayMap[project.contact_id] || "-").slice(0, 16) : "-"}
+                    {(project.account_id
+                      ? accountDisplayMap[project.account_id]
+                      : project.contact_id
+                        ? contactDisplayMap[project.contact_id]
+                        : "-"
+                    ).slice(0, 16)}
                   </TableCell>
                   <TableCell className="py-1 max-w-[200px]">
                     <Link href={`/projects/${project.id}`} className="block text-sm hover:underline truncate">

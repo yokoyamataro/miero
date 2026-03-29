@@ -9,7 +9,7 @@ export default async function MobileProjectsPage() {
   // 業務一覧を取得（進行中のみ）
   const { data: projects } = await supabase
     .from("projects")
-    .select("id, code, category, name, status, is_urgent, is_on_hold, contact_id, manager_id, location, location_detail")
+    .select("id, code, category, name, status, is_urgent, is_on_hold, contact_id, account_id, manager_id, location, location_detail")
     .eq("status", "進行中")
     .order("code", { ascending: false })
     .limit(100);
@@ -54,10 +54,17 @@ export default async function MobileProjectsPage() {
     contactDisplayMap[c.id] = accountName || `${c.last_name} ${c.first_name}`;
   });
 
+  // account_id → 表示名のマップを作成（法人顧客の直接参照用）
+  const accountDisplayMap: Record<string, string> = {};
+  (accounts as AccountType[] || []).forEach((a) => {
+    accountDisplayMap[a.id] = a.company_name;
+  });
+
   return (
     <MobileProjectList
       projects={projects || []}
       contactDisplayMap={contactDisplayMap}
+      accountDisplayMap={accountDisplayMap}
       recentProjectIds={recentProjectIds}
     />
   );

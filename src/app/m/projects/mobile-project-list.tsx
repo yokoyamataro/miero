@@ -15,6 +15,7 @@ interface Project {
   is_urgent: boolean;
   is_on_hold: boolean;
   contact_id: string | null;
+  account_id: string | null;
   manager_id: string | null;
   location: string | null;
   location_detail: string | null;
@@ -23,12 +24,14 @@ interface Project {
 interface MobileProjectListProps {
   projects: Project[];
   contactDisplayMap: Record<string, string>;
+  accountDisplayMap: Record<string, string>;
   recentProjectIds: string[]; // サーバーから渡される2週間以内の閲覧履歴
 }
 
 export function MobileProjectList({
   projects,
   contactDisplayMap,
+  accountDisplayMap,
   recentProjectIds,
 }: MobileProjectListProps) {
   const [searchQuery, setSearchQuery] = useState("");
@@ -42,9 +45,12 @@ export function MobileProjectList({
         const q = searchQuery.toLowerCase();
         const matchName = p.name.toLowerCase().includes(q);
         const matchCode = p.code.toLowerCase().includes(q);
-        const matchCustomer = p.contact_id
-          ? (contactDisplayMap[p.contact_id] || "").toLowerCase().includes(q)
-          : false;
+        const customerName = p.account_id
+          ? accountDisplayMap[p.account_id] || ""
+          : p.contact_id
+            ? contactDisplayMap[p.contact_id] || ""
+            : "";
+        const matchCustomer = customerName.toLowerCase().includes(q);
         if (!matchName && !matchCode && !matchCustomer) return false;
       }
 
@@ -72,9 +78,11 @@ export function MobileProjectList({
   const totalCount = recentProjects.length + otherProjects.length;
 
   const renderProjectItem = (project: Project, isRecent: boolean = false) => {
-    const customerName = project.contact_id
-      ? contactDisplayMap[project.contact_id]
-      : null;
+    const customerName = project.account_id
+      ? accountDisplayMap[project.account_id]
+      : project.contact_id
+        ? contactDisplayMap[project.contact_id]
+        : null;
     const location = [project.location, project.location_detail]
       .filter(Boolean)
       .join(" ");
