@@ -12,6 +12,7 @@ import {
   Home,
   Receipt,
   CalendarDays,
+  Settings,
 } from "lucide-react";
 import { format, addHours } from "date-fns";
 import { ja } from "date-fns/locale";
@@ -35,6 +36,10 @@ const navItems = [
   { href: "/leaves", label: "休暇", icon: CalendarDays },
 ];
 
+const adminNavItems = [
+  { href: "/settings/standard-tasks", label: "標準業務", icon: Settings },
+];
+
 export async function Header() {
   // ログインページではヘッダーを表示しない
   const headersList = await headers();
@@ -48,6 +53,7 @@ export async function Header() {
   const { data: { user } } = await supabase.auth.getUser();
 
   let employeeName = "";
+  let isAdmin = false;
   // 一時的に非表示
   // let employeeId: string | null = null;
   // let attendance: { id: string; clock_in: string | null; clock_out: string | null; date: string } | null = null;
@@ -62,10 +68,11 @@ export async function Header() {
     const adminClient = createAdminClient();
     const { data: employee } = await adminClient
       .from("employees")
-      .select("id, name")
+      .select("id, name, role")
       .eq("auth_id", user.id)
       .single();
     employeeName = employee?.name || "";
+    isAdmin = employee?.role === "admin";
     // employeeId = employee?.id || null; // 一時的に非表示
 
     // 今日の勤怠データを取得 - 一時的に非表示
@@ -99,6 +106,14 @@ export async function Header() {
               {navItems.map((item) => (
                 <Link key={item.href} href={item.href}>
                   <Button variant="ghost" size="sm" className="gap-2">
+                    <item.icon className="h-4 w-4" />
+                    {item.label}
+                  </Button>
+                </Link>
+              ))}
+              {isAdmin && adminNavItems.map((item) => (
+                <Link key={item.href} href={item.href}>
+                  <Button variant="ghost" size="sm" className="gap-2 text-orange-600">
                     <item.icon className="h-4 w-4" />
                     {item.label}
                   </Button>
@@ -151,6 +166,19 @@ export async function Header() {
                       </Link>
                     </DropdownMenuItem>
                   ))}
+                  {isAdmin && (
+                    <>
+                      <DropdownMenuSeparator />
+                      {adminNavItems.map((item) => (
+                        <DropdownMenuItem key={item.href} asChild>
+                          <Link href={item.href} className="flex items-center gap-2 text-orange-600">
+                            <item.icon className="h-4 w-4" />
+                            {item.label}
+                          </Link>
+                        </DropdownMenuItem>
+                      ))}
+                    </>
+                  )}
                   {user && (
                     <>
                       <DropdownMenuSeparator />
