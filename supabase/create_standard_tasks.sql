@@ -57,7 +57,8 @@ CREATE POLICY "Allow all for authenticated users" ON project_standard_task_progr
 -- サンプルデータ: 分筆登記
 INSERT INTO standard_task_templates (name, sort_order) VALUES ('分筆登記', 1);
 INSERT INTO standard_task_items (template_id, title, sort_order)
-SELECT id, title, sort_order FROM standard_task_templates,
+SELECT standard_task_templates.id, items.title, items.sort_order
+FROM standard_task_templates,
   (VALUES
     ('見積', 1), ('受託', 2), ('資料調査', 3), ('筆界資料調査', 4),
     ('立入通知', 5), ('調査測量', 6), ('計算整理', 7), ('境界設置', 8),
@@ -68,7 +69,8 @@ WHERE standard_task_templates.name = '分筆登記';
 -- サンプルデータ: 敷地計測
 INSERT INTO standard_task_templates (name, sort_order) VALUES ('敷地計測', 2);
 INSERT INTO standard_task_items (template_id, title, sort_order)
-SELECT id, title, sort_order FROM standard_task_templates,
+SELECT standard_task_templates.id, items.title, items.sort_order
+FROM standard_task_templates,
   (VALUES
     ('敷地調査', 1), ('図面作成', 2), ('写真提出', 3), ('請求処理', 4)
   ) AS items(title, sort_order)
