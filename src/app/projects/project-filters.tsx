@@ -10,11 +10,6 @@ import {
   type ProjectStatus,
 } from "@/types/database";
 
-interface Employee {
-  id: string;
-  name: string;
-}
-
 export const NULL_MARKER = "__null__";
 export const ALL_MARKER = "__all__";
 
@@ -22,11 +17,9 @@ export interface FilterState {
   search: string;
   category: ProjectCategory | typeof NULL_MARKER | typeof ALL_MARKER;
   status: ProjectStatus | typeof ALL_MARKER;
-  managerId: string | typeof NULL_MARKER | typeof ALL_MARKER;
 }
 
 interface ProjectFiltersProps {
-  employees: Employee[];
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
 }
@@ -38,7 +31,7 @@ const ALL_STATUSES: ProjectStatus[] = ["進行中", "完了"];
 const BTN_ACTIVE = "bg-foreground text-background border-foreground";
 const BTN_INACTIVE = "bg-background text-muted-foreground border-border hover:border-foreground/30";
 
-export function ProjectFilters({ employees, filters, onFiltersChange }: ProjectFiltersProps) {
+export function ProjectFilters({ filters, onFiltersChange }: ProjectFiltersProps) {
   // カテゴリ（単一選択）
   const selectCategory = (cat: ProjectCategory | typeof NULL_MARKER | typeof ALL_MARKER) => {
     onFiltersChange({ ...filters, category: cat });
@@ -47,11 +40,6 @@ export function ProjectFilters({ employees, filters, onFiltersChange }: ProjectF
   // ステータス（単一選択）
   const selectStatus = (status: ProjectStatus | typeof ALL_MARKER) => {
     onFiltersChange({ ...filters, status });
-  };
-
-  // 担当者（単一選択）
-  const selectManager = (id: string | typeof NULL_MARKER | typeof ALL_MARKER) => {
-    onFiltersChange({ ...filters, managerId: id });
   };
 
   const setSearch = (search: string) => {
@@ -137,40 +125,6 @@ export function ProjectFilters({ employees, filters, onFiltersChange }: ProjectF
           })}
         </div>
 
-        {/* 担当者 */}
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-xs text-muted-foreground mr-1">担当者</span>
-          <button
-            type="button"
-            onClick={() => selectManager(ALL_MARKER)}
-            className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-              filters.managerId === ALL_MARKER ? BTN_ACTIVE : BTN_INACTIVE
-            }`}
-          >
-            全て
-          </button>
-          {employees.map((emp) => (
-            <button
-              key={emp.id}
-              type="button"
-              onClick={() => selectManager(emp.id)}
-              className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                filters.managerId === emp.id ? BTN_ACTIVE : BTN_INACTIVE
-              }`}
-            >
-              {emp.name}
-            </button>
-          ))}
-          <button
-            type="button"
-            onClick={() => selectManager(NULL_MARKER)}
-            className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-              filters.managerId === NULL_MARKER ? BTN_ACTIVE : BTN_INACTIVE
-            }`}
-          >
-            指定なし
-          </button>
-        </div>
       </CardContent>
     </Card>
   );

@@ -56,14 +56,8 @@ interface ProjectData {
   location_detail: string | null;
 }
 
-interface Employee {
-  id: string;
-  name: string;
-}
-
 interface ProjectListProps {
   projects: ProjectData[];
-  employees: Employee[];
   contactDisplayMap: Record<string, string>;
   employeeMap: Record<string, string>;
   recentProjectIds: string[]; // 2週間以内の閲覧履歴（最新順）
@@ -74,7 +68,6 @@ const DEFAULT_FILTERS: FilterState = {
   search: "",
   category: ALL_MARKER,
   status: "進行中",
-  managerId: ALL_MARKER,
 };
 
 // フィルター状態をlocalStorageから読み込む
@@ -90,7 +83,6 @@ function loadFiltersFromStorage(): FilterState {
         search: parsed.search || "",
         category: parsed.category || ALL_MARKER,
         status: parsed.status || "進行中",
-        managerId: parsed.managerId || ALL_MARKER,
       };
     }
   } catch {
@@ -100,7 +92,7 @@ function loadFiltersFromStorage(): FilterState {
 }
 
 
-export function ProjectList({ projects, employees, contactDisplayMap, employeeMap, recentProjectIds }: ProjectListProps) {
+export function ProjectList({ projects, contactDisplayMap, employeeMap, recentProjectIds }: ProjectListProps) {
   const [filters, setFilters] = useState<FilterState>(loadFiltersFromStorage);
   // ソートは常に閲覧履歴順をデフォルトに（セッション中のみ維持）
   const [sort, setSort] = useState<SortState>({ key: null, order: "asc" });
@@ -111,7 +103,6 @@ export function ProjectList({ projects, employees, contactDisplayMap, employeeMa
       search: filters.search,
       category: filters.category,
       status: filters.status,
-      managerId: filters.managerId,
     };
     localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(toSave));
   }, [filters]);
@@ -158,15 +149,6 @@ export function ProjectList({ projects, employees, contactDisplayMap, employeeMa
       // ステータスフィルタ（単一選択、ALL_MARKERなら全表示）
       if (filters.status !== ALL_MARKER) {
         if (p.status !== filters.status) return false;
-      }
-
-      // 担当者フィルタ（単一選択、ALL_MARKERなら全表示）
-      if (filters.managerId !== ALL_MARKER) {
-        if (filters.managerId === NULL_MARKER) {
-          if (p.manager_id) return false;
-        } else {
-          if (p.manager_id !== filters.managerId) return false;
-        }
       }
 
       return true;
@@ -237,7 +219,6 @@ export function ProjectList({ projects, employees, contactDisplayMap, employeeMa
   return (
     <>
       <ProjectFilters
-        employees={employees}
         filters={filters}
         onFiltersChange={setFilters}
       />

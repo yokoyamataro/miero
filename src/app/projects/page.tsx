@@ -119,7 +119,6 @@ export default async function ProjectsPage() {
 
       <ProjectList
         projects={projects || []}
-        employees={employees}
         contactDisplayMap={contactDisplayMap}
         employeeMap={employeeNameMap}
         recentProjectIds={recentProjectIds}

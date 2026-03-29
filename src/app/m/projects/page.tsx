@@ -6,19 +6,13 @@ export default async function MobileProjectsPage() {
   const supabase = await createClient();
   const currentEmployeeId = await getCurrentEmployeeId();
 
-  // 業務一覧を取得（進行中のみ、担当者でフィルタ可能）
+  // 業務一覧を取得（進行中のみ）
   const { data: projects } = await supabase
     .from("projects")
     .select("id, code, category, name, status, is_urgent, is_on_hold, contact_id, manager_id, location, location_detail")
     .eq("status", "進行中")
     .order("code", { ascending: false })
     .limit(100);
-
-  // 社員一覧
-  const { data: employees } = await supabase
-    .from("employees")
-    .select("id, name")
-    .order("name");
 
   // 連絡先と法人の情報
   const { data: contacts } = await supabase
@@ -63,9 +57,7 @@ export default async function MobileProjectsPage() {
   return (
     <MobileProjectList
       projects={projects || []}
-      employees={employees || []}
       contactDisplayMap={contactDisplayMap}
-      currentEmployeeId={currentEmployeeId}
       recentProjectIds={recentProjectIds}
     />
   );

@@ -20,28 +20,18 @@ interface Project {
   location_detail: string | null;
 }
 
-interface Employee {
-  id: string;
-  name: string;
-}
-
 interface MobileProjectListProps {
   projects: Project[];
-  employees: Employee[];
   contactDisplayMap: Record<string, string>;
-  currentEmployeeId: string | null;
   recentProjectIds: string[]; // サーバーから渡される2週間以内の閲覧履歴
 }
 
 export function MobileProjectList({
   projects,
-  employees,
   contactDisplayMap,
-  currentEmployeeId,
   recentProjectIds,
 }: MobileProjectListProps) {
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterManagerId, setFilterManagerId] = useState<string | null>(currentEmployeeId);
 
   // フィルタリングとソート
   const { recentProjects, otherProjects } = useMemo(() => {
@@ -56,11 +46,6 @@ export function MobileProjectList({
           ? (contactDisplayMap[p.contact_id] || "").toLowerCase().includes(q)
           : false;
         if (!matchName && !matchCode && !matchCustomer) return false;
-      }
-
-      // 担当者フィルタ
-      if (filterManagerId && p.manager_id !== filterManagerId) {
-        return false;
       }
 
       return true;
@@ -82,7 +67,7 @@ export function MobileProjectList({
     recent.sort((a, b) => recentProjectIds.indexOf(a.id) - recentProjectIds.indexOf(b.id));
 
     return { recentProjects: recent, otherProjects: other };
-  }, [projects, searchQuery, filterManagerId, contactDisplayMap, recentProjectIds]);
+  }, [projects, searchQuery, contactDisplayMap, recentProjectIds]);
 
   const totalCount = recentProjects.length + otherProjects.length;
 
@@ -163,7 +148,7 @@ export function MobileProjectList({
         <h1 className="text-lg font-bold mb-3">業務一覧</h1>
 
         {/* 検索 */}
-        <div className="relative mb-3">
+        <div className="relative">
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="検索..."
@@ -171,33 +156,6 @@ export function MobileProjectList({
             onChange={(e) => setSearchQuery(e.target.value)}
             className="pl-9 h-9"
           />
-        </div>
-
-        {/* 担当者フィルタ */}
-        <div className="flex gap-2 overflow-x-auto pb-1 -mx-4 px-4">
-          <button
-            onClick={() => setFilterManagerId(null)}
-            className={`px-3 py-1 rounded-full text-xs font-medium border whitespace-nowrap transition-colors ${
-              !filterManagerId
-                ? "bg-foreground text-background border-foreground"
-                : "bg-background text-muted-foreground border-border"
-            }`}
-          >
-            全員
-          </button>
-          {employees.map((emp) => (
-            <button
-              key={emp.id}
-              onClick={() => setFilterManagerId(emp.id)}
-              className={`px-3 py-1 rounded-full text-xs font-medium border whitespace-nowrap transition-colors ${
-                filterManagerId === emp.id
-                  ? "bg-foreground text-background border-foreground"
-                  : "bg-background text-muted-foreground border-border"
-              }`}
-            >
-              {emp.name}
-            </button>
-          ))}
         </div>
       </header>
 
