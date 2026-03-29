@@ -18,6 +18,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -28,12 +34,11 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Plus, Trash2, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
+import { Plus, Trash2, Loader2 } from "lucide-react";
 import {
   type StandardTaskTemplateWithItems,
   type ProjectStandardTaskWithDetails,
   type StandardTaskStatus,
-  STANDARD_TASK_STATUS_COLORS,
 } from "@/types/database";
 import {
   assignStandardTaskToProject,
@@ -47,6 +52,34 @@ interface StandardTaskSectionProps {
   projectTasks: ProjectStandardTaskWithDetails[];
 }
 
+// ステータスアイコン
+const getStatusIcon = (status: StandardTaskStatus) => {
+  switch (status) {
+    case "完了":
+      return "✓";
+    case "進行中":
+      return "●";
+    case "不要":
+      return "−";
+    default:
+      return "○";
+  }
+};
+
+// ステータス色
+const getStatusColor = (status: StandardTaskStatus) => {
+  switch (status) {
+    case "完了":
+      return "bg-green-100 text-green-700 border-green-300 hover:bg-green-200";
+    case "進行中":
+      return "bg-blue-100 text-blue-700 border-blue-300 hover:bg-blue-200";
+    case "不要":
+      return "bg-gray-100 text-gray-400 border-gray-200 line-through hover:bg-gray-200";
+    default:
+      return "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100";
+  }
+};
+
 export function StandardTaskSection({
   projectId,
   templates,
@@ -56,9 +89,6 @@ export function StandardTaskSection({
   const [projectTasks, setProjectTasks] = useState(initialProjectTasks);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
-  const [expandedTasks, setExpandedTasks] = useState<Set<string>>(
-    new Set(initialProjectTasks.map((t) => t.id))
-  );
 
   // 割り当て可能なテンプレート（まだ割り当てられていないもの）
   const assignedTemplateIds = new Set(projectTasks.map((pt) => pt.template_id));
@@ -72,7 +102,6 @@ export function StandardTaskSection({
     startTransition(async () => {
       const result = await assignStandardTaskToProject(projectId, selectedTemplateId);
       if (result.success) {
-        // ページをリロードして最新データを取得
         window.location.reload();
       } else {
         alert(result.error || "エラーが発生しました");
@@ -121,21 +150,8 @@ export function StandardTaskSection({
         projectId
       );
       if (result.error) {
-        // エラー時はリロードして正しい状態に戻す
         window.location.reload();
       }
-    });
-  };
-
-  const toggleExpand = (taskId: string) => {
-    setExpandedTasks((prev) => {
-      const next = new Set(prev);
-      if (next.has(taskId)) {
-        next.delete(taskId);
-      } else {
-        next.add(taskId);
-      }
-      return next;
     });
   };
 
@@ -143,9 +159,8 @@ export function StandardTaskSection({
   const getProgressSummary = (task: ProjectStandardTaskWithDetails) => {
     const total = task.progress.length;
     const completed = task.progress.filter((p) => p.status === "完了").length;
-    const inProgress = task.progress.filter((p) => p.status === "進行中").length;
     const notNeeded = task.progress.filter((p) => p.status === "不要").length;
-    return { total, completed, inProgress, notNeeded };
+    return { total, completed, notNeeded };
   };
 
   return (
@@ -172,118 +187,79 @@ export function StandardTaskSection({
           </p>
         ) : (
           projectTasks.map((task) => {
-            const isExpanded = expandedTasks.has(task.id);
             const summary = getProgressSummary(task);
+            const effectiveTotal = summary.total - summary.notNeeded;
 
             return (
-              <div key={task.id} className="border rounded-lg">
+              <div key={task.id} className="border rounded-lg p-3">
                 {/* ヘッダー */}
-                <div
-                  className="flex items-center justify-between p-3 cursor-pointer hover:bg-muted/50"
-                  onClick={() => toggleExpand(task.id)}
-                >
+                <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
-                    {isExpanded ? (
-                      <ChevronUp className="h-4 w-4 text-muted-foreground" />
-                    ) : (
-                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                    )}
                     <span className="font-medium">{task.template.name}</span>
                     <span className="text-sm text-muted-foreground">
-                      ({summary.completed}/{summary.total - summary.notNeeded})
+                      [{summary.completed}/{effectiveTotal}]
                     </span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {/* 進捗バー */}
-                    <div className="w-24 h-2 bg-gray-200 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-green-500 transition-all"
-                        style={{
-                          width: `${
-                            summary.total - summary.notNeeded > 0
-                              ? (summary.completed /
-                                  (summary.total - summary.notNeeded)) *
-                                100
-                              : 0
-                          }%`,
-                        }}
-                      />
-                    </div>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8"
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          <Trash2 className="h-4 w-4 text-muted-foreground" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>標準業務の削除</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            「{task.template.name}」を削除しますか？
-                            進捗状況も削除されます。
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>キャンセル</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={() => handleRemove(task.id)}
-                          >
-                            削除
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
-                  </div>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 px-2 text-muted-foreground hover:text-destructive"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>標準業務の削除</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          「{task.template.name}」を削除しますか？
+                          進捗状況も削除されます。
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                        <AlertDialogAction onClick={() => handleRemove(task.id)}>
+                          削除
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
                 </div>
 
-                {/* 項目一覧 */}
-                {isExpanded && (
-                  <div className="border-t px-3 py-2 space-y-2">
-                    {task.progress.map((p) => (
-                      <div
-                        key={p.item.id}
-                        className="flex items-center justify-between gap-2 py-1"
-                      >
-                        <span
-                          className={`text-sm ${
-                            p.status === "完了"
-                              ? "text-muted-foreground line-through"
-                              : p.status === "不要"
-                              ? "text-muted-foreground"
-                              : ""
-                          }`}
+                {/* バッジ一覧 */}
+                <div className="flex flex-wrap gap-1.5">
+                  {task.progress.map((p) => (
+                    <DropdownMenu key={p.item.id}>
+                      <DropdownMenuTrigger asChild>
+                        <button
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded border cursor-pointer transition-colors ${getStatusColor(
+                            p.status
+                          )}`}
                         >
-                          {p.item.title}
-                        </span>
-                        <Select
-                          value={p.status}
-                          onValueChange={(value) =>
-                            handleStatusChange(
-                              task.id,
-                              p.item.id,
-                              value as StandardTaskStatus
-                            )
-                          }
-                        >
-                          <SelectTrigger className="w-24 h-7 text-xs">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="未着手">未着手</SelectItem>
-                            <SelectItem value="進行中">進行中</SelectItem>
-                            <SelectItem value="完了">完了</SelectItem>
-                            <SelectItem value="不要">不要</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                          <span>{getStatusIcon(p.status)}</span>
+                          <span>{p.item.title}</span>
+                        </button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start">
+                        {(["未着手", "進行中", "完了", "不要"] as StandardTaskStatus[]).map(
+                          (status) => (
+                            <DropdownMenuItem
+                              key={status}
+                              className={p.status === status ? "bg-muted font-medium" : ""}
+                              onClick={() =>
+                                handleStatusChange(task.id, p.item.id, status)
+                              }
+                            >
+                              {getStatusIcon(status)} {status}
+                            </DropdownMenuItem>
+                          )
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ))}
+                </div>
               </div>
             );
           })
