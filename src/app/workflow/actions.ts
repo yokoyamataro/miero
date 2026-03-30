@@ -68,19 +68,14 @@ export async function getTemplateItems(templateId: string): Promise<StandardTask
 export async function getWorkflowProjects(templateId: string): Promise<WorkflowProject[]> {
   const supabase = await createClient();
 
-  console.log("[Workflow] templateId:", templateId);
-
   // テンプレート情報を取得
-  const { data: template, error: templateError } = await supabase
+  const { data: template } = await supabase
     .from("standard_task_templates" as never)
     .select("id, name")
     .eq("id", templateId)
     .single();
 
-  console.log("[Workflow] template:", template, "error:", templateError);
-
   if (!template) {
-    console.log("[Workflow] No template found");
     return [];
   }
 
@@ -94,15 +89,12 @@ export async function getWorkflowProjects(templateId: string): Promise<WorkflowP
   const templateItems = (items as StandardTaskItem[]) || [];
 
   // このテンプレートが割り当てられているプロジェクトを取得
-  const { data: projectTasks, error: projectTasksError } = await supabase
+  const { data: projectTasks } = await supabase
     .from("project_standard_tasks" as never)
     .select("id, project_id, template_id")
     .eq("template_id", templateId);
 
-  console.log("[Workflow] projectTasks:", projectTasks, "error:", projectTasksError);
-
   if (!projectTasks || projectTasks.length === 0) {
-    console.log("[Workflow] No project tasks found for this template");
     return [];
   }
 
@@ -111,18 +103,14 @@ export async function getWorkflowProjects(templateId: string): Promise<WorkflowP
   const projectTaskIds = typedProjectTasks.map((pt) => pt.id);
 
   // プロジェクト情報を取得（進行中のみ）
-  const { data: projects, error: projectsError } = await supabase
+  const { data: projects } = await supabase
     .from("projects")
     .select("id, project_number, name, status, manager_id")
     .in("id", projectIds)
     .eq("status", "進行中")
     .is("deleted_at", null);
 
-  console.log("[Workflow] projectIds:", projectIds);
-  console.log("[Workflow] projects:", projects, "error:", projectsError);
-
   if (!projects || projects.length === 0) {
-    console.log("[Workflow] No active projects found");
     return [];
   }
 

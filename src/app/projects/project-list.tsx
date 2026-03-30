@@ -293,15 +293,15 @@ export function ProjectList({ projects, contactDisplayMap, accountDisplayMap, em
                   </TableCell>
                   <TableCell className="text-xs py-1 truncate max-w-[140px]">
                     {(project.account_id
-                      ? accountDisplayMap[project.account_id]
+                      ? accountDisplayMap[project.account_id] || "-"
                       : project.contact_id
-                        ? contactDisplayMap[project.contact_id]
+                        ? contactDisplayMap[project.contact_id] || "-"
                         : "-"
                     ).slice(0, 16)}
                   </TableCell>
                   <TableCell className="py-1 max-w-[200px]">
                     <Link href={`/projects/${project.id}`} className="block text-sm hover:underline truncate">
-                      {project.name.slice(0, 16)}
+                      {(project.name || "").slice(0, 16)}
                     </Link>
                   </TableCell>
                   <TableCell className="text-xs py-1 truncate max-w-[100px]">
