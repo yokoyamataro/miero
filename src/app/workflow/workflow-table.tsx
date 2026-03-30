@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import Link from "next/link";
 import {
   Select,
@@ -23,7 +23,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { GripVertical } from "lucide-react";
 import type { StandardTaskItem, StandardTaskStatus } from "@/types/database";
 import type { WorkflowProject } from "./actions";
 import { getWorkflowProjects, getTemplateItems, updateWorkflowStatus } from "./actions";
@@ -53,7 +53,7 @@ const getStatusIcon = (status: StandardTaskStatus) => {
 const getStatusCellClass = (status: StandardTaskStatus) => {
   switch (status) {
     case "完了":
-      return "bg-orange-100 text-orange-700";
+      return "bg-green-100 text-green-700";
     case "進行中":
       return "bg-yellow-100 text-yellow-700";
     case "不要":
@@ -62,6 +62,9 @@ const getStatusCellClass = (status: StandardTaskStatus) => {
       return "bg-blue-100 text-blue-700";
   }
 };
+
+// localStorage キー
+const getStorageKey = (templateId: string) => `workflowProjectOrder_${templateId}`;
 
 export function WorkflowTable({
   templates,
@@ -73,6 +76,76 @@ export function WorkflowTable({
   const [selectedTemplateId, setSelectedTemplateId] = useState(initialTemplateId || "");
   const [items, setItems] = useState(initialItems);
   const [projects, setProjects] = useState(initialProjects);
+  const [projectOrder, setProjectOrder] = useState<string[]>([]);
+  const [draggingProjectId, setDraggingProjectId] = useState<string | null>(null);
+
+  // localStorageから順序を読み込み
+  useEffect(() => {
+    if (!selectedTemplateId) return;
+    const saved = localStorage.getItem(getStorageKey(selectedTemplateId));
+    if (saved) {
+      try {
+        setProjectOrder(JSON.parse(saved));
+      } catch {
+        setProjectOrder([]);
+      }
+    } else {
+      setProjectOrder([]);
+    }
+  }, [selectedTemplateId]);
+
+  // 順序を保存
+  const saveProjectOrder = useCallback((order: string[]) => {
+    if (!selectedTemplateId) return;
+    setProjectOrder(order);
+    localStorage.setItem(getStorageKey(selectedTemplateId), JSON.stringify(order));
+  }, [selectedTemplateId]);
+
+  // ソートされた業務リスト
+  const sortedProjects = useMemo(() => {
+    if (projectOrder.length === 0) return projects;
+    return [...projects].sort((a, b) => {
+      const indexA = projectOrder.indexOf(a.id);
+      const indexB = projectOrder.indexOf(b.id);
+      // 順序に含まれない業務は末尾に
+      if (indexA === -1 && indexB === -1) return 0;
+      if (indexA === -1) return 1;
+      if (indexB === -1) return -1;
+      return indexA - indexB;
+    });
+  }, [projects, projectOrder]);
+
+  // ドラッグ開始
+  const handleDragStart = useCallback((projectId: string) => {
+    setDraggingProjectId(projectId);
+  }, []);
+
+  // ドロップ
+  const handleDrop = useCallback((targetProjectId: string) => {
+    if (!draggingProjectId || draggingProjectId === targetProjectId) {
+      setDraggingProjectId(null);
+      return;
+    }
+
+    const currentOrder = projectOrder.length > 0
+      ? [...projectOrder]
+      : sortedProjects.map(p => p.id);
+
+    const dragIndex = currentOrder.indexOf(draggingProjectId);
+    const dropIndex = currentOrder.indexOf(targetProjectId);
+
+    if (dragIndex === -1 || dropIndex === -1) {
+      setDraggingProjectId(null);
+      return;
+    }
+
+    // 並び替え
+    currentOrder.splice(dragIndex, 1);
+    currentOrder.splice(dropIndex, 0, draggingProjectId);
+
+    saveProjectOrder(currentOrder);
+    setDraggingProjectId(null);
+  }, [draggingProjectId, projectOrder, sortedProjects, saveProjectOrder]);
 
   const handleTemplateChange = async (templateId: string) => {
     setSelectedTemplateId(templateId);
@@ -91,15 +164,15 @@ export function WorkflowTable({
   };
 
   const handleStatusChange = async (
-    projectIndex: number,
+    projectId: string,
     projectStandardTaskId: string,
     itemId: string,
     status: StandardTaskStatus
   ) => {
     // 楽観的更新
     setProjects((prev) =>
-      prev.map((project, idx) => {
-        if (idx !== projectIndex) return project;
+      prev.map((project) => {
+        if (project.id !== projectId) return project;
         return {
           ...project,
           progress: (project.progress || []).map((p) =>
@@ -117,64 +190,75 @@ export function WorkflowTable({
   };
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle>工程表</CardTitle>
-          <Select value={selectedTemplateId} onValueChange={handleTemplateChange}>
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="標準業務を選択" />
-            </SelectTrigger>
-            <SelectContent>
-              {templates.map((template) => (
-                <SelectItem key={template.id} value={template.id}>
-                  {template.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </div>
-      </CardHeader>
-      <CardContent>
-        {!selectedTemplateId ? (
-          <p className="text-center text-muted-foreground py-8">
-            標準業務を選択してください
-          </p>
-        ) : projects.length === 0 ? (
-          <p className="text-center text-muted-foreground py-8">
-            この標準業務が割り当てられている進行中の業務はありません
-          </p>
-        ) : (
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="sticky left-0 bg-background z-10 min-w-[200px]">
-                    業務
+    <div className="space-y-4">
+      {/* ヘッダー：タイトルとプルダウン */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">工程表</h1>
+        <Select value={selectedTemplateId} onValueChange={handleTemplateChange}>
+          <SelectTrigger className="w-[200px]">
+            <SelectValue placeholder="標準業務を選択" />
+          </SelectTrigger>
+          <SelectContent>
+            {templates.map((template) => (
+              <SelectItem key={template.id} value={template.id}>
+                {template.name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* テーブル */}
+      {!selectedTemplateId ? (
+        <p className="text-center text-muted-foreground py-8">
+          標準業務を選択してください
+        </p>
+      ) : projects.length === 0 ? (
+        <p className="text-center text-muted-foreground py-8">
+          この標準業務が割り当てられている進行中の業務はありません
+        </p>
+      ) : (
+        <div className="overflow-auto border rounded-lg">
+          <Table>
+            <TableHeader className="sticky top-0 bg-muted z-20">
+              <TableRow>
+                <TableHead className="sticky left-0 bg-muted z-30 min-w-[220px]">
+                  業務
+                </TableHead>
+                {items.map((item) => (
+                  <TableHead
+                    key={item.id}
+                    className="text-center min-w-[60px] text-xs bg-muted"
+                  >
+                    {item.title}
                   </TableHead>
-                  {items.map((item) => (
-                    <TableHead
-                      key={item.id}
-                      className="text-center min-w-[60px] text-xs"
-                    >
-                      {item.title}
-                    </TableHead>
-                  ))}
-                </TableRow>
-              </TableHeader>
+                ))}
+              </TableRow>
+            </TableHeader>
               <TableBody>
-                {projects.map((project, projectIndex) => (
-                  <TableRow key={project.id}>
+                {sortedProjects.map((project) => (
+                  <TableRow
+                    key={project.id}
+                    draggable
+                    onDragStart={() => handleDragStart(project.id)}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={() => handleDrop(project.id)}
+                    className={draggingProjectId === project.id ? "opacity-50 bg-primary/10" : ""}
+                  >
                     <TableCell className="sticky left-0 bg-background z-10">
-                      <Link
-                        href={`/projects/${project.id}`}
-                        className="text-primary hover:underline"
-                      >
-                        <span className="font-medium">
-                          {project.code && <span className="text-muted-foreground mr-1">{project.code}</span>}
-                          {project.name}
-                        </span>
-                      </Link>
+                      <div className="flex items-center gap-1">
+                        <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab flex-shrink-0" />
+                        <Link
+                          href={`/projects/${project.id}`}
+                          className="text-primary hover:underline"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <span className="font-medium">
+                            {project.code && <span className="text-muted-foreground mr-1">{project.code}</span>}
+                            {project.name}
+                          </span>
+                        </Link>
+                      </div>
                     </TableCell>
                     {items.map((item) => {
                       const progressItem = (project.progress || []).find(
@@ -204,7 +288,7 @@ export function WorkflowTable({
                                     className={status === s ? "bg-muted font-medium" : ""}
                                     onClick={() =>
                                       handleStatusChange(
-                                        projectIndex,
+                                        project.id,
                                         project.project_standard_task_id,
                                         item.id,
                                         s
@@ -229,7 +313,7 @@ export function WorkflowTable({
 
         {/* 凡例 */}
         {selectedTemplateId && projects.length > 0 && (
-          <div className="flex items-center gap-4 mt-4 text-sm text-muted-foreground">
+          <div className="flex items-center gap-4 text-sm text-muted-foreground">
             <span className="flex items-center gap-1">
               <span className="inline-block w-5 h-5 bg-blue-100 text-blue-700 text-center rounded">□</span>
               未着手
@@ -239,7 +323,7 @@ export function WorkflowTable({
               進行中
             </span>
             <span className="flex items-center gap-1">
-              <span className="inline-block w-5 h-5 bg-orange-100 text-orange-700 text-center rounded">✓</span>
+              <span className="inline-block w-5 h-5 bg-green-100 text-green-700 text-center rounded">✓</span>
               完了
             </span>
             <span className="flex items-center gap-1">
@@ -248,7 +332,6 @@ export function WorkflowTable({
             </span>
           </div>
         )}
-      </CardContent>
-    </Card>
+    </div>
   );
 }

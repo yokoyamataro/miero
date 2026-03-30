@@ -56,7 +56,7 @@ const getStatusIcon = (status: StandardTaskStatus) => {
 const getStatusCellClass = (status: StandardTaskStatus) => {
   switch (status) {
     case "完了":
-      return "bg-orange-100 text-orange-700";
+      return "bg-green-100 text-green-700";
     case "進行中":
       return "bg-yellow-100 text-yellow-700";
     case "不要":
@@ -260,7 +260,7 @@ export function MobileWorkflowView({
               進行中
             </span>
             <span className="flex items-center gap-1">
-              <span className="inline-block w-4 h-4 bg-orange-100 text-orange-700 text-center rounded text-[10px]">
+              <span className="inline-block w-4 h-4 bg-green-100 text-green-700 text-center rounded text-[10px]">
                 ✓
               </span>
               完了

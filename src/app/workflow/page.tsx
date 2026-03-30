@@ -29,12 +29,7 @@ export default async function WorkflowPage() {
     : [[], []];
 
   return (
-    <main className="container mx-auto px-4 py-8">
-      <h1 className="text-2xl font-bold mb-6">工程表</h1>
-      <p className="text-muted-foreground mb-6">
-        標準業務ごとに進行中の業務の工程状況を確認・更新できます。
-      </p>
-
+    <main className="container mx-auto px-4 py-4">
       <WorkflowTable
         templates={templates}
         initialTemplateId={initialTemplateId}
