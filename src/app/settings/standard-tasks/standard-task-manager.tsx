@@ -307,32 +307,42 @@ export function StandardTaskManager({ templates: initialTemplates }: StandardTas
                     >
                       <Pencil className="h-4 w-4" />
                     </Button>
-                    <AlertDialog>
-                      <AlertDialogTrigger asChild>
-                        <Button size="icon" variant="ghost">
-                          <Trash2 className="h-4 w-4 text-destructive" />
-                        </Button>
-                      </AlertDialogTrigger>
-                      <AlertDialogContent>
-                        <AlertDialogHeader>
-                          <AlertDialogTitle>テンプレートの削除</AlertDialogTitle>
-                          <AlertDialogDescription>
-                            「{template.name}」を削除しますか？
-                            このテンプレートに含まれる全ての項目も削除されます。
-                            既にプロジェクトに割り当てられている場合、その進捗データも削除されます。
-                          </AlertDialogDescription>
-                        </AlertDialogHeader>
-                        <AlertDialogFooter>
-                          <AlertDialogCancel>キャンセル</AlertDialogCancel>
-                          <AlertDialogAction
-                            onClick={() => handleDeleteTemplate(template.id)}
-                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                          >
-                            削除
-                          </AlertDialogAction>
-                        </AlertDialogFooter>
-                      </AlertDialogContent>
-                    </AlertDialog>
+                    {(template.items || []).length === 0 ? (
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button size="icon" variant="ghost">
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>テンプレートの削除</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              「{template.name}」を削除しますか？
+                              既にプロジェクトに割り当てられている場合、その進捗データも削除されます。
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                            <AlertDialogAction
+                              onClick={() => handleDeleteTemplate(template.id)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              削除
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    ) : (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        disabled
+                        title="全ての項目を削除してからテンプレートを削除してください"
+                      >
+                        <Trash2 className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                    )}
                   </div>
                 </div>
               </CardHeader>
