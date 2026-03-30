@@ -29,6 +29,61 @@ export interface WorkflowProject {
   }[];
 }
 
+// デバッグ情報取得
+export async function getDebugInfo(templateId: string): Promise<{
+  templateId: string;
+  templateName: string | null;
+  projectTasksCount: number;
+  projectIds: string[];
+  activeProjectsCount: number;
+  projectStatuses: string[];
+}> {
+  const supabase = await createClient();
+
+  // テンプレート情報
+  const { data: template } = await supabase
+    .from("standard_task_templates" as never)
+    .select("name")
+    .eq("id", templateId)
+    .single();
+
+  // project_standard_tasks
+  const { data: projectTasks } = await supabase
+    .from("project_standard_tasks" as never)
+    .select("id, project_id")
+    .eq("template_id", templateId);
+
+  const projectIds = (projectTasks as { id: string; project_id: string }[] || []).map(pt => pt.project_id);
+
+  // プロジェクト情報（全ステータス）
+  const { data: allProjects } = projectIds.length > 0
+    ? await supabase
+        .from("projects")
+        .select("id, status")
+        .in("id", projectIds)
+        .is("deleted_at", null)
+    : { data: [] };
+
+  // 進行中のみ
+  const { data: activeProjects } = projectIds.length > 0
+    ? await supabase
+        .from("projects")
+        .select("id")
+        .in("id", projectIds)
+        .eq("status", "進行中")
+        .is("deleted_at", null)
+    : { data: [] };
+
+  return {
+    templateId,
+    templateName: (template as { name: string } | null)?.name || null,
+    projectTasksCount: (projectTasks as unknown[] || []).length,
+    projectIds,
+    activeProjectsCount: (activeProjects as unknown[] || []).length,
+    projectStatuses: (allProjects as { id: string; status: string }[] || []).map(p => p.status),
+  };
+}
+
 // テンプレート一覧（選択用）
 export async function getWorkflowTemplates(): Promise<{ id: string; name: string }[]> {
   const supabase = await createClient();
