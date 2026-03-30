@@ -3,15 +3,15 @@
 import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
-import { DashboardCalendar, type DroppedTaskData } from "./dashboard-calendar";
-import { DashboardTaskList } from "./dashboard-task-list";
+import { DashboardCalendar, type DroppedProjectData } from "./dashboard-calendar";
+import { DashboardProjectList } from "./dashboard-project-list";
 import { EventModal } from "./calendar/event-modal";
 import {
   type CalendarEventWithParticipants,
   type Employee,
   type EventCategory,
 } from "@/types/database";
-import { type TaskWithProject, type PersonalTask } from "./dashboard-actions";
+import { type ActiveProject, type PersonalTask } from "./dashboard-actions";
 
 type ViewMode = "day" | "dayAll" | "fiveDay" | "fiveDayAll" | "month";
 
@@ -20,7 +20,7 @@ interface DashboardViewProps {
   employees: Employee[];
   eventCategories: EventCategory[];
   currentEmployeeId: string | null;
-  tasks: TaskWithProject[];
+  activeProjects: ActiveProject[];
   personalTasks: PersonalTask[];
   initialView?: ViewMode;
   initialDate?: string;
@@ -31,7 +31,7 @@ export function DashboardView({
   employees,
   eventCategories,
   currentEmployeeId,
-  tasks,
+  activeProjects,
   personalTasks,
   initialView = "dayAll",
   initialDate,
@@ -39,38 +39,32 @@ export function DashboardView({
   const router = useRouter();
   const [showEventModal, setShowEventModal] = useState(false);
   const [droppedDate, setDroppedDate] = useState<Date | null>(null);
-  const [droppedTaskData, setDroppedTaskData] = useState<DroppedTaskData | null>(null);
+  const [droppedProjectData, setDroppedProjectData] = useState<DroppedProjectData | null>(null);
   const [droppedStartTime, setDroppedStartTime] = useState<{ hour: string; minute: string } | null>(null);
   const [droppedEndTime, setDroppedEndTime] = useState<{ hour: string; minute: string } | null>(null);
   const [droppedTargetEmployeeId, setDroppedTargetEmployeeId] = useState<string | null>(null);
-  const [draggingTask, setDraggingTask] = useState<TaskWithProject | null>(null);
 
-  // タスクをカレンダーにドロップしたとき
-  const handleDropTask = useCallback((
+  // 業務をカレンダーにドロップしたとき
+  const handleDropProject = useCallback((
     date: Date,
-    taskData: DroppedTaskData,
+    projectData: DroppedProjectData,
     startTime?: { hour: string; minute: string },
     endTime?: { hour: string; minute: string },
     targetEmployeeId?: string
   ) => {
     setDroppedDate(date);
-    setDroppedTaskData(taskData);
+    setDroppedProjectData(projectData);
     setDroppedStartTime(startTime || null);
     setDroppedEndTime(endTime || null);
     setDroppedTargetEmployeeId(targetEmployeeId || null);
     setShowEventModal(true);
   }, []);
 
-  // ドラッグ開始
-  const handleDragStart = useCallback((task: TaskWithProject) => {
-    setDraggingTask(task);
-  }, []);
-
   // イベント保存後
   const handleEventSaved = (_savedEvent: CalendarEventWithParticipants | CalendarEventWithParticipants[], _isNew: boolean) => {
     setShowEventModal(false);
     setDroppedDate(null);
-    setDroppedTaskData(null);
+    setDroppedProjectData(null);
     setDroppedStartTime(null);
     setDroppedEndTime(null);
     setDroppedTargetEmployeeId(null);
@@ -85,10 +79,10 @@ export function DashboardView({
     : null;
   const presetParticipants = targetEmployee ? [targetEmployee] : [];
 
-  const presetEvent: CalendarEventWithParticipants | null = droppedTaskData
+  const presetEvent: CalendarEventWithParticipants | null = droppedProjectData
     ? {
         id: "",
-        title: `${droppedTaskData.projectName.slice(0, 10)}>${droppedTaskData.taskTitle}`,
+        title: droppedProjectData.projectName,
         description: null,
         category: "その他",
         event_category_id: eventCategories[0]?.id || null,
@@ -98,11 +92,11 @@ export function DashboardView({
         end_time: droppedEndTime ? `${droppedEndTime.hour}:${droppedEndTime.minute}:00` : null,
         all_day: false,
         is_completed: false,
-        location: null,
+        location: droppedProjectData.projectLocation || null,
         map_url: null,
         created_by: currentEmployeeId,
-        project_id: droppedTaskData.projectId,
-        task_id: droppedTaskData.taskId,
+        project_id: droppedProjectData.projectId,
+        task_id: null,
         // 繰り返し予定関連
         recurrence_type: "none",
         recurrence_day_of_week: null,
@@ -115,9 +109,9 @@ export function DashboardView({
         participants: presetParticipants,
         creator: null,
         project: {
-          id: droppedTaskData.projectId,
-          code: droppedTaskData.projectCode,
-          name: droppedTaskData.projectName,
+          id: droppedProjectData.projectId,
+          code: droppedProjectData.projectCode,
+          name: droppedProjectData.projectName,
         } as any,
         task: null,
         eventCategory: eventCategories[0] || null,
@@ -137,18 +131,17 @@ export function DashboardView({
             initialView={initialView}
             initialDate={initialDate || format(new Date(), "yyyy-MM-dd")}
             currentEmployeeId={currentEmployeeId}
-            onDropTask={handleDropTask}
+            onDropProject={handleDropProject}
           />
         </div>
 
-        {/* 右側: タスクリスト (1/4) */}
+        {/* 右側: 業務リスト (1/4) */}
         <div className="min-h-0">
-          <DashboardTaskList
-            tasks={tasks}
+          <DashboardProjectList
+            activeProjects={activeProjects}
             personalTasks={personalTasks}
             employees={employees}
             currentEmployeeId={currentEmployeeId}
-            onDragStart={handleDragStart}
           />
         </div>
       </div>
@@ -160,7 +153,7 @@ export function DashboardView({
           setShowEventModal(open);
           if (!open) {
             setDroppedDate(null);
-            setDroppedTaskData(null);
+            setDroppedProjectData(null);
             setDroppedStartTime(null);
             setDroppedEndTime(null);
             setDroppedTargetEmployeeId(null);

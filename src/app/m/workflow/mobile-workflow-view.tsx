@@ -15,7 +15,14 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Card, CardContent } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import type { StandardTaskItem, StandardTaskStatus } from "@/types/database";
 import type { WorkflowProject } from "@/app/workflow/actions";
 import {
@@ -45,17 +52,17 @@ const getStatusIcon = (status: StandardTaskStatus) => {
   }
 };
 
-// ステータス色
-const getStatusColor = (status: StandardTaskStatus) => {
+// ステータス色（セル用）
+const getStatusCellClass = (status: StandardTaskStatus) => {
   switch (status) {
     case "完了":
-      return "bg-green-100 text-green-700 border-green-300";
+      return "bg-green-100 text-green-700";
     case "進行中":
-      return "bg-yellow-100 text-yellow-700 border-yellow-300";
+      return "bg-yellow-100 text-yellow-700";
     case "不要":
-      return "bg-gray-100 text-gray-400 border-gray-200 line-through";
+      return "bg-gray-100 text-gray-400 line-through";
     default:
-      return "bg-blue-100 text-blue-700 border-blue-300";
+      return "bg-blue-100 text-blue-700";
   }
 };
 
@@ -117,19 +124,10 @@ export function MobileWorkflowView({
     }
   };
 
-  // 進捗サマリーを計算
-  const getProgressSummary = (project: WorkflowProject) => {
-    const progress = project.progress || [];
-    const total = progress.length;
-    const completed = progress.filter((p) => p.status === "完了").length;
-    const notNeeded = progress.filter((p) => p.status === "不要").length;
-    return { total, completed, effectiveTotal: total - notNeeded };
-  };
-
   return (
     <div className="flex flex-col h-full">
       {/* ヘッダー */}
-      <header className="sticky top-0 z-10 bg-background border-b px-4 py-3">
+      <header className="sticky top-0 z-20 bg-background border-b px-4 py-3">
         <h1 className="text-lg font-bold mb-2">工程管理</h1>
         <Select value={selectedTemplateId} onValueChange={handleTemplateChange}>
           <SelectTrigger className="w-full">
@@ -146,7 +144,7 @@ export function MobileWorkflowView({
       </header>
 
       {/* コンテンツ */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3">
+      <div className="flex-1 overflow-auto">
         {!selectedTemplateId ? (
           <p className="text-center text-muted-foreground py-8">
             標準業務を選択してください
@@ -160,77 +158,92 @@ export function MobileWorkflowView({
             進行中の業務はありません
           </p>
         ) : (
-          projects.map((project, projectIndex) => {
-            const summary = getProgressSummary(project);
-
-            return (
-              <Card key={project.id}>
-                <CardContent className="p-3">
-                  {/* プロジェクト情報 */}
-                  <div className="flex items-start justify-between mb-2">
-                    <Link
-                      href={`/m/projects/${project.id}`}
-                      className="flex-1 min-w-0"
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="sticky left-0 bg-background z-10 min-w-[120px] text-xs py-2">
+                    業務名
+                  </TableHead>
+                  {items.map((item) => (
+                    <TableHead
+                      key={item.id}
+                      className="text-center min-w-[40px] text-[10px] py-2 px-1"
                     >
-                      <div className="font-medium text-sm truncate text-primary">
-                        {project.name}
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        {project.code && <span>{project.code}</span>}
-                        {project.manager_name && (
-                          <span>担当: {project.manager_name}</span>
+                      {item.title}
+                    </TableHead>
+                  ))}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {projects.map((project, projectIndex) => (
+                  <TableRow key={project.id}>
+                    <TableCell className="sticky left-0 bg-background z-10 py-1 px-2">
+                      <Link
+                        href={`/m/projects/${project.id}`}
+                        className="text-primary"
+                      >
+                        <div className="text-xs font-medium truncate max-w-[110px]">
+                          {project.name}
+                        </div>
+                        {project.code && (
+                          <div className="text-[10px] text-muted-foreground">
+                            {project.code}
+                          </div>
                         )}
-                      </div>
-                    </Link>
-                    <span className="text-xs text-muted-foreground ml-2 whitespace-nowrap">
-                      [{summary.completed}/{summary.effectiveTotal}]
-                    </span>
-                  </div>
+                      </Link>
+                    </TableCell>
+                    {items.map((item) => {
+                      const progressItem = (project.progress || []).find(
+                        (p) => p.item_id === item.id
+                      );
+                      const status = progressItem?.status || "未着手";
 
-                  {/* 工程バッジ */}
-                  <div className="flex flex-wrap gap-1.5">
-                    {(project.progress || []).map((p) => (
-                      <DropdownMenu key={p.item_id}>
-                        <DropdownMenuTrigger asChild>
-                          <button
-                            className={`inline-flex items-center gap-1 px-2 py-0.5 text-xs rounded border cursor-pointer transition-colors ${getStatusColor(
-                              p.status
-                            )}`}
-                            disabled={isLoading}
-                          >
-                            <span>{getStatusIcon(p.status)}</span>
-                            <span>{p.item_title}</span>
-                          </button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="start">
-                          {(
-                            ["未着手", "進行中", "完了", "不要"] as StandardTaskStatus[]
-                          ).map((status) => (
-                            <DropdownMenuItem
-                              key={status}
-                              className={
-                                p.status === status ? "bg-muted font-medium" : ""
-                              }
-                              onClick={() =>
-                                handleStatusChange(
-                                  projectIndex,
-                                  project.project_standard_task_id,
-                                  p.item_id,
-                                  status
-                                )
-                              }
-                            >
-                              {getStatusIcon(status)} {status}
-                            </DropdownMenuItem>
-                          ))}
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })
+                      return (
+                        <TableCell
+                          key={item.id}
+                          className={`text-center p-0 ${getStatusCellClass(status)}`}
+                        >
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <button
+                                className="w-full h-full py-2 px-1 cursor-pointer hover:opacity-80 transition-opacity text-sm"
+                                disabled={isLoading}
+                              >
+                                {getStatusIcon(status)}
+                              </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="center">
+                              {(
+                                ["未着手", "進行中", "完了", "不要"] as StandardTaskStatus[]
+                              ).map((s) => (
+                                <DropdownMenuItem
+                                  key={s}
+                                  className={
+                                    status === s ? "bg-muted font-medium" : ""
+                                  }
+                                  onClick={() =>
+                                    handleStatusChange(
+                                      projectIndex,
+                                      project.project_standard_task_id,
+                                      item.id,
+                                      s
+                                    )
+                                  }
+                                >
+                                  {getStatusIcon(s)} {s}
+                                </DropdownMenuItem>
+                              ))}
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        </TableCell>
+                      );
+                    })}
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         )}
       </div>
 

@@ -1,6 +1,6 @@
 import { format, subMonths, addMonths, startOfMonth, endOfMonth } from "date-fns";
 import { getEventsInRange, getEmployees, getCurrentEmployeeId, getEventCategories } from "./calendar/actions";
-import { getIncompleteTasks, getIncompletePersonalTasks } from "./dashboard-actions";
+import { getActiveProjects, getIncompletePersonalTasks } from "./dashboard-actions";
 import { DashboardView } from "./dashboard-view";
 
 export default async function Home({
@@ -18,13 +18,13 @@ export default async function Home({
   const initialDate = params.date || format(today, "yyyy-MM-dd");
 
   // 並列でデータ取得
-  const [events, employees, currentEmployeeId, eventCategories, tasks, personalTasks] =
+  const [events, employees, currentEmployeeId, eventCategories, activeProjects, personalTasks] =
     await Promise.all([
       getEventsInRange(rangeStart, rangeEnd),
       getEmployees(),
       getCurrentEmployeeId(),
       getEventCategories(),
-      getIncompleteTasks(),
+      getActiveProjects(),
       getIncompletePersonalTasks(),
     ]);
 
@@ -35,7 +35,7 @@ export default async function Home({
         employees={employees}
         eventCategories={eventCategories}
         currentEmployeeId={currentEmployeeId}
-        tasks={tasks}
+        activeProjects={activeProjects}
         personalTasks={personalTasks}
         initialView={initialView}
         initialDate={initialDate}

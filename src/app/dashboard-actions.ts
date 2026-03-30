@@ -218,6 +218,29 @@ export async function getEmployees(): Promise<Employee[]> {
   return (employees as Employee[]) || [];
 }
 
+// 進行中の業務型
+export type ActiveProject = Pick<Project, "id" | "code" | "name" | "location" | "is_urgent" | "is_on_hold"> & {
+  manager_id: string | null;
+};
+
+// 進行中の業務一覧を取得
+export async function getActiveProjects(): Promise<ActiveProject[]> {
+  const supabase = await createClient();
+
+  const { data: projects, error } = await supabase
+    .from("projects")
+    .select("id, code, name, location, is_urgent, is_on_hold, manager_id")
+    .eq("status", "進行中")
+    .order("code", { ascending: false });
+
+  if (error) {
+    console.error("Error fetching active projects:", error);
+    return [];
+  }
+
+  return (projects as ActiveProject[]) || [];
+}
+
 // タスクの完了状態を切り替え
 export async function toggleTaskComplete(
   taskId: string,

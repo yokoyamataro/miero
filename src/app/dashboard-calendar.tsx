@@ -57,7 +57,6 @@ import {
 import { EventModal } from "./calendar/event-modal";
 import { EventDetailModal } from "./calendar/event-detail-modal";
 import { updateEvent } from "./calendar/actions";
-import { type TaskWithProject } from "./dashboard-actions";
 
 type ViewMode = "day" | "dayAll" | "fiveDay" | "fiveDayAll" | "month";
 type EmployeeFilter = "me" | "all" | string; // "me" = 自分のみ, "all" = 全員, string = 特定の社員ID
@@ -69,22 +68,20 @@ interface DashboardCalendarProps {
   initialView: ViewMode;
   initialDate: string;
   currentEmployeeId: string | null;
-  onDropTask: (
+  onDropProject: (
     date: Date,
-    taskData: DroppedTaskData,
+    projectData: DroppedProjectData,
     startTime?: { hour: string; minute: string },
     endTime?: { hour: string; minute: string },
     targetEmployeeId?: string
   ) => void;
 }
 
-export interface DroppedTaskData {
-  taskId: string;
+export interface DroppedProjectData {
   projectId: string;
   projectCode: string;
   projectName: string;
   projectLocation: string | null;
-  taskTitle: string;
 }
 
 const WEEKDAY_LABELS = ["月", "火", "水", "木", "金", "土", "日"];
@@ -96,7 +93,7 @@ export function DashboardCalendar({
   initialView,
   initialDate,
   currentEmployeeId,
-  onDropTask,
+  onDropProject,
 }: DashboardCalendarProps) {
   const [viewMode, setViewMode] = useState<ViewMode>(initialView);
   const [currentDate, setCurrentDate] = useState(() => new Date()); // 常に今日で初期化
@@ -449,14 +446,14 @@ export function DashboardCalendar({
       try {
         const data = e.dataTransfer.getData("text/plain");
         if (data) {
-          const taskData = JSON.parse(data) as DroppedTaskData;
-          onDropTask(date, taskData, undefined, undefined, targetEmployeeId);
+          const projectData = JSON.parse(data) as DroppedProjectData;
+          onDropProject(date, projectData, undefined, undefined, targetEmployeeId);
         }
       } catch (err) {
         console.error("Drop error:", err);
       }
     },
-    [onDropTask]
+    [onDropProject]
   );
 
   const handleDragOver = useCallback((date: Date, e: React.DragEvent) => {
@@ -483,7 +480,7 @@ export function DashboardCalendar({
     lastDragOverSlotRef.current = null;
   }, []);
 
-  // 時間枠へのドロップ（イベント移動 or タスクドロップ）
+  // 時間枠へのドロップ（イベント移動 or 業務ドロップ）
   const handleTimeSlotDrop = useCallback(async (date: Date, hour: number, e: React.DragEvent, targetEmployeeId?: string) => {
     e.preventDefault();
     e.stopPropagation();
@@ -491,13 +488,13 @@ export function DashboardCalendar({
     setDragOverDate(null);
     lastDragOverSlotRef.current = null;
 
-    // まずタスクのドロップをチェック
-    const taskData = e.dataTransfer.getData("text/plain");
-    if (taskData) {
+    // まず業務のドロップをチェック
+    const projectDataStr = e.dataTransfer.getData("text/plain");
+    if (projectDataStr) {
       try {
-        const parsed = JSON.parse(taskData) as DroppedTaskData;
-        if (parsed.taskId) {
-          // タスクがドロップされた - 時刻付きで予定作成
+        const parsed = JSON.parse(projectDataStr) as DroppedProjectData;
+        if (parsed.projectId) {
+          // 業務がドロップされた - 時刻付きで予定作成
           let startHour: string;
           let startMinute = "00";
           let endHour: string;
@@ -515,7 +512,7 @@ export function DashboardCalendar({
           }
 
           // 時刻情報付きで親コンポーネントに通知（ドロップ先社員IDも渡す）
-          onDropTask(
+          onDropProject(
             date,
             parsed,
             { hour: startHour, minute: startMinute },
@@ -591,7 +588,7 @@ export function DashboardCalendar({
         prev.map((e) => (e.id === eventId ? event : e))
       );
     }
-  }, [events, onDropTask, playClickSound]);
+  }, [events, onDropProject, playClickSound]);
 
   // 時間枠へのドラッグオーバー（イベント or タスク）
   const handleTimeSlotDragOver = useCallback((date: Date, hour: number, e: React.DragEvent) => {
