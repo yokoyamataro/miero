@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Calendar, Briefcase, Palmtree, Monitor } from "lucide-react";
+import { Calendar, Briefcase, Palmtree, Monitor, ClipboardList } from "lucide-react";
 
 const navItems = [
   { href: "/m/calendar", label: "カレンダー", icon: Calendar },
   { href: "/m/projects", label: "業務", icon: Briefcase },
+  { href: "/m/workflow", label: "工程", icon: ClipboardList },
   { href: "/m/leaves", label: "休暇", icon: Palmtree },
 ];
 
