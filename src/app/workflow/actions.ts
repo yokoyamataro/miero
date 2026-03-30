@@ -1,6 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { revalidatePath } from "next/cache";
 import type {
   StandardTaskTemplate,
@@ -39,6 +40,7 @@ export async function getDebugInfo(templateId: string): Promise<{
   projectStatuses: string[];
 }> {
   const supabase = await createClient();
+  const adminClient = createAdminClient();
 
   // テンプレート情報
   const { data: template } = await supabase
@@ -55,9 +57,9 @@ export async function getDebugInfo(templateId: string): Promise<{
 
   const projectIds = (projectTasks as { id: string; project_id: string }[] || []).map(pt => pt.project_id);
 
-  // プロジェクト情報（全ステータス）
+  // プロジェクト情報（全ステータス）- RLSバイパスのため管理者クライアント使用
   const { data: allProjects } = projectIds.length > 0
-    ? await supabase
+    ? await adminClient
         .from("projects")
         .select("id, status")
         .in("id", projectIds)
@@ -66,7 +68,7 @@ export async function getDebugInfo(templateId: string): Promise<{
 
   // 進行中のみ
   const { data: activeProjects } = projectIds.length > 0
-    ? await supabase
+    ? await adminClient
         .from("projects")
         .select("id")
         .in("id", projectIds)
@@ -122,6 +124,7 @@ export async function getTemplateItems(templateId: string): Promise<StandardTask
 // 工程表データ取得
 export async function getWorkflowProjects(templateId: string): Promise<WorkflowProject[]> {
   const supabase = await createClient();
+  const adminClient = createAdminClient();
 
   // テンプレート情報を取得
   const { data: template } = await supabase
@@ -157,8 +160,8 @@ export async function getWorkflowProjects(templateId: string): Promise<WorkflowP
   const projectIds = typedProjectTasks.map((pt) => pt.project_id);
   const projectTaskIds = typedProjectTasks.map((pt) => pt.id);
 
-  // プロジェクト情報を取得（進行中のみ）
-  const { data: projects } = await supabase
+  // プロジェクト情報を取得（進行中のみ）- RLSバイパスのため管理者クライアント使用
+  const { data: projects } = await adminClient
     .from("projects")
     .select("id, project_number, name, status, manager_id")
     .in("id", projectIds)
@@ -180,10 +183,10 @@ export async function getWorkflowProjects(templateId: string): Promise<WorkflowP
   const typedProjects = projects as ProjectType[];
   const activeProjectIds = new Set(typedProjects.map((p) => p.id));
 
-  // 担当者情報を取得
+  // 担当者情報を取得 - RLSバイパスのため管理者クライアント使用
   const managerIds = typedProjects.map((p) => p.manager_id).filter((id): id is string => !!id);
   const { data: managers } = managerIds.length > 0
-    ? await supabase
+    ? await adminClient
         .from("employees")
         .select("id, name")
         .in("id", managerIds)
