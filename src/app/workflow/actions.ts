@@ -40,6 +40,7 @@ export async function getDebugInfo(templateId: string): Promise<{
   projectStatuses: string[];
   error: string | null;
   workflowProjectsCount: number;
+  workflowDebug: string;
 }> {
   const supabase = await createClient();
 
@@ -56,6 +57,7 @@ export async function getDebugInfo(templateId: string): Promise<{
       projectStatuses: [],
       error: `adminClient作成失敗: ${e instanceof Error ? e.message : String(e)}`,
       workflowProjectsCount: 0,
+      workflowDebug: "",
     };
   }
 
@@ -96,7 +98,7 @@ export async function getDebugInfo(templateId: string): Promise<{
   if (activeProjectsError) errorMessages.push(`activeProjects: ${activeProjectsError.message}`);
 
   // getWorkflowProjectsも呼んでみる
-  const workflowProjects = await getWorkflowProjects(templateId);
+  const { projects: workflowProjects, debug: workflowDebug } = await getWorkflowProjectsWithDebug(templateId);
 
   return {
     templateId,
@@ -107,6 +109,7 @@ export async function getDebugInfo(templateId: string): Promise<{
     projectStatuses: (allProjects as { id: string; status: string }[] || []).map(p => p.status),
     error: errorMessages.length > 0 ? errorMessages.join("; ") : null,
     workflowProjectsCount: workflowProjects.length,
+    workflowDebug,
   };
 }
 
@@ -145,16 +148,17 @@ export async function getTemplateItems(templateId: string): Promise<StandardTask
   return (data as StandardTaskItem[]) || [];
 }
 
-// 工程表データ取得
-export async function getWorkflowProjects(templateId: string): Promise<WorkflowProject[]> {
+// 工程表データ取得（デバッグ用）
+async function getWorkflowProjectsWithDebug(templateId: string): Promise<{ projects: WorkflowProject[]; debug: string }> {
+  const debugSteps: string[] = [];
   const supabase = await createClient();
 
   let adminClient;
   try {
     adminClient = createAdminClient();
+    debugSteps.push("adminClient:OK");
   } catch (e) {
-    console.error("adminClient作成失敗:", e);
-    return [];
+    return { projects: [], debug: `adminClient:FAIL(${e instanceof Error ? e.message : String(e)})` };
   }
 
   // テンプレート情報を取得
@@ -165,9 +169,9 @@ export async function getWorkflowProjects(templateId: string): Promise<WorkflowP
     .single();
 
   if (templateError || !template) {
-    console.error("テンプレート取得失敗:", templateError);
-    return [];
+    return { projects: [], debug: `template:FAIL(${templateError?.message || "no data"})` };
   }
+  debugSteps.push("template:OK");
 
   // テンプレートの項目を取得
   const { data: items, error: itemsError } = await supabase
@@ -177,7 +181,9 @@ export async function getWorkflowProjects(templateId: string): Promise<WorkflowP
     .order("sort_order");
 
   if (itemsError) {
-    console.error("項目取得失敗:", itemsError);
+    debugSteps.push(`items:FAIL(${itemsError.message})`);
+  } else {
+    debugSteps.push(`items:${(items || []).length}`);
   }
 
   const templateItems = (items as StandardTaskItem[]) || [];
@@ -189,13 +195,13 @@ export async function getWorkflowProjects(templateId: string): Promise<WorkflowP
     .eq("template_id", templateId);
 
   if (projectTasksError) {
-    console.error("project_standard_tasks取得失敗:", projectTasksError);
+    return { projects: [], debug: debugSteps.join(",") + `,projectTasks:FAIL(${projectTasksError.message})` };
   }
 
   if (!projectTasks || projectTasks.length === 0) {
-    console.error("projectTasks が空");
-    return [];
+    return { projects: [], debug: debugSteps.join(",") + ",projectTasks:0" };
   }
+  debugSteps.push(`projectTasks:${projectTasks.length}`);
 
   const typedProjectTasks = projectTasks as ProjectStandardTask[];
   const projectIds = typedProjectTasks.map((pt) => pt.project_id);
@@ -208,14 +214,15 @@ export async function getWorkflowProjects(templateId: string): Promise<WorkflowP
     .eq("status", "進行中");
 
   if (projectsError) {
-    console.error("projects取得失敗:", projectsError);
+    return { projects: [], debug: debugSteps.join(",") + `,projects:FAIL(${projectsError.message})` };
   }
 
   if (!projects || projects.length === 0) {
-    console.error("進行中プロジェクトが0件", { projectIds, projectsError });
-    return [];
+    return { projects: [], debug: debugSteps.join(",") + ",projects:0" };
   }
+  debugSteps.push(`projects:${projects.length}`);
 
+  // 以下、結果組み立て（getWorkflowProjectsと同じ）
   type ProjectType = {
     id: string;
     project_number: string | null;
@@ -227,7 +234,6 @@ export async function getWorkflowProjects(templateId: string): Promise<WorkflowP
   const typedProjects = projects as ProjectType[];
   const activeProjectIds = new Set(typedProjects.map((p) => p.id));
 
-  // 担当者情報を取得 - RLSバイパスのため管理者クライアント使用
   const managerIds = typedProjects.map((p) => p.manager_id).filter((id): id is string => !!id);
   const { data: managers } = managerIds.length > 0
     ? await adminClient
@@ -240,7 +246,6 @@ export async function getWorkflowProjects(templateId: string): Promise<WorkflowP
     ((managers as { id: string; name: string }[]) || []).map((m) => [m.id, m.name])
   );
 
-  // 進捗情報を取得
   const activeProjectTaskIds = typedProjectTasks
     .filter((pt) => activeProjectIds.has(pt.project_id))
     .map((pt) => pt.id);
@@ -260,7 +265,6 @@ export async function getWorkflowProjects(templateId: string): Promise<WorkflowP
     progressMap.get(p.project_standard_task_id)!.set(p.item_id, p);
   });
 
-  // 結果を組み立て
   const result: WorkflowProject[] = [];
 
   for (const project of typedProjects) {
@@ -291,7 +295,6 @@ export async function getWorkflowProjects(templateId: string): Promise<WorkflowP
     });
   }
 
-  // プロジェクト番号でソート
   result.sort((a, b) => {
     if (!a.project_number && !b.project_number) return 0;
     if (!a.project_number) return 1;
@@ -299,7 +302,14 @@ export async function getWorkflowProjects(templateId: string): Promise<WorkflowP
     return a.project_number.localeCompare(b.project_number);
   });
 
-  return result;
+  debugSteps.push(`result:${result.length}`);
+  return { projects: result, debug: debugSteps.join(",") };
+}
+
+// 工程表データ取得
+export async function getWorkflowProjects(templateId: string): Promise<WorkflowProject[]> {
+  const { projects } = await getWorkflowProjectsWithDebug(templateId);
+  return projects;
 }
 
 // ステータス更新

@@ -49,6 +49,7 @@ export default async function WorkflowPage() {
           <p>進行中プロジェクト件数: {debugInfo.activeProjectsCount}</p>
           <p>プロジェクトステータス: {debugInfo.projectStatuses.join(", ") || "なし"}</p>
           <p>getWorkflowProjects結果: {debugInfo.workflowProjectsCount}件</p>
+          <p>workflowDebug: {debugInfo.workflowDebug}</p>
           {debugInfo.error && (
             <p className="text-red-600 font-bold">エラー: {debugInfo.error}</p>
           )}
