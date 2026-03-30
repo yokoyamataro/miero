@@ -39,6 +39,7 @@ export async function getDebugInfo(templateId: string): Promise<{
   activeProjectsCount: number;
   projectStatuses: string[];
   error: string | null;
+  workflowProjectsCount: number;
 }> {
   const supabase = await createClient();
 
@@ -54,6 +55,7 @@ export async function getDebugInfo(templateId: string): Promise<{
       activeProjectsCount: 0,
       projectStatuses: [],
       error: `adminClient作成失敗: ${e instanceof Error ? e.message : String(e)}`,
+      workflowProjectsCount: 0,
     };
   }
 
@@ -93,6 +95,9 @@ export async function getDebugInfo(templateId: string): Promise<{
   if (allProjectsError) errorMessages.push(`allProjects: ${allProjectsError.message}`);
   if (activeProjectsError) errorMessages.push(`activeProjects: ${activeProjectsError.message}`);
 
+  // getWorkflowProjectsも呼んでみる
+  const workflowProjects = await getWorkflowProjects(templateId);
+
   return {
     templateId,
     templateName: (template as { name: string } | null)?.name || null,
@@ -101,6 +106,7 @@ export async function getDebugInfo(templateId: string): Promise<{
     activeProjectsCount: (activeProjects as unknown[] || []).length,
     projectStatuses: (allProjects as { id: string; status: string }[] || []).map(p => p.status),
     error: errorMessages.length > 0 ? errorMessages.join("; ") : null,
+    workflowProjectsCount: workflowProjects.length,
   };
 }
 
@@ -142,50 +148,71 @@ export async function getTemplateItems(templateId: string): Promise<StandardTask
 // 工程表データ取得
 export async function getWorkflowProjects(templateId: string): Promise<WorkflowProject[]> {
   const supabase = await createClient();
-  const adminClient = createAdminClient();
+
+  let adminClient;
+  try {
+    adminClient = createAdminClient();
+  } catch (e) {
+    console.error("adminClient作成失敗:", e);
+    return [];
+  }
 
   // テンプレート情報を取得
-  const { data: template } = await supabase
+  const { data: template, error: templateError } = await supabase
     .from("standard_task_templates" as never)
     .select("id, name")
     .eq("id", templateId)
     .single();
 
-  if (!template) {
+  if (templateError || !template) {
+    console.error("テンプレート取得失敗:", templateError);
     return [];
   }
 
   // テンプレートの項目を取得
-  const { data: items } = await supabase
+  const { data: items, error: itemsError } = await supabase
     .from("standard_task_items" as never)
     .select("*")
     .eq("template_id", templateId)
     .order("sort_order");
 
+  if (itemsError) {
+    console.error("項目取得失敗:", itemsError);
+  }
+
   const templateItems = (items as StandardTaskItem[]) || [];
 
   // このテンプレートが割り当てられているプロジェクトを取得
-  const { data: projectTasks } = await supabase
+  const { data: projectTasks, error: projectTasksError } = await supabase
     .from("project_standard_tasks" as never)
     .select("id, project_id, template_id")
     .eq("template_id", templateId);
 
+  if (projectTasksError) {
+    console.error("project_standard_tasks取得失敗:", projectTasksError);
+  }
+
   if (!projectTasks || projectTasks.length === 0) {
+    console.error("projectTasks が空");
     return [];
   }
 
   const typedProjectTasks = projectTasks as ProjectStandardTask[];
   const projectIds = typedProjectTasks.map((pt) => pt.project_id);
-  const projectTaskIds = typedProjectTasks.map((pt) => pt.id);
 
   // プロジェクト情報を取得（進行中のみ）- RLSバイパスのため管理者クライアント使用
-  const { data: projects } = await adminClient
+  const { data: projects, error: projectsError } = await adminClient
     .from("projects")
     .select("id, project_number, name, status, manager_id")
     .in("id", projectIds)
     .eq("status", "進行中");
 
+  if (projectsError) {
+    console.error("projects取得失敗:", projectsError);
+  }
+
   if (!projects || projects.length === 0) {
+    console.error("進行中プロジェクトが0件", { projectIds, projectsError });
     return [];
   }
 
