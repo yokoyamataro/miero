@@ -70,7 +70,7 @@ const getStatusIcon = (status: StandardTaskStatus) => {
 const getStatusColor = (status: StandardTaskStatus) => {
   switch (status) {
     case "完了":
-      return "bg-green-100 text-green-700 border-green-300 hover:bg-green-200";
+      return "bg-orange-100 text-orange-700 border-orange-300 hover:bg-orange-200";
     case "進行中":
       return "bg-yellow-100 text-yellow-700 border-yellow-300 hover:bg-yellow-200";
     case "不要":

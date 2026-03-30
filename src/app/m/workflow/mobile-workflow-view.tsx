@@ -56,7 +56,7 @@ const getStatusIcon = (status: StandardTaskStatus) => {
 const getStatusCellClass = (status: StandardTaskStatus) => {
   switch (status) {
     case "完了":
-      return "bg-green-100 text-green-700";
+      return "bg-orange-100 text-orange-700";
     case "進行中":
       return "bg-yellow-100 text-yellow-700";
     case "不要":
@@ -162,8 +162,8 @@ export function MobileWorkflowView({
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="sticky left-0 bg-background z-10 min-w-[120px] text-xs py-2">
-                    業務名
+                  <TableHead className="sticky left-0 bg-background z-10 min-w-[140px] text-xs py-2">
+                    業務
                   </TableHead>
                   {items.map((item) => (
                     <TableHead
@@ -183,14 +183,10 @@ export function MobileWorkflowView({
                         href={`/m/projects/${project.id}`}
                         className="text-primary"
                       >
-                        <div className="text-xs font-medium truncate max-w-[110px]">
+                        <span className="text-xs font-medium">
+                          {project.code && <span className="text-muted-foreground mr-1">{project.code}</span>}
                           {project.name}
-                        </div>
-                        {project.code && (
-                          <div className="text-[10px] text-muted-foreground">
-                            {project.code}
-                          </div>
-                        )}
+                        </span>
                       </Link>
                     </TableCell>
                     {items.map((item) => {
@@ -264,7 +260,7 @@ export function MobileWorkflowView({
               進行中
             </span>
             <span className="flex items-center gap-1">
-              <span className="inline-block w-4 h-4 bg-green-100 text-green-700 text-center rounded text-[10px]">
+              <span className="inline-block w-4 h-4 bg-orange-100 text-orange-700 text-center rounded text-[10px]">
                 ✓
               </span>
               完了

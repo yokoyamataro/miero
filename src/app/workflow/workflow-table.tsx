@@ -53,7 +53,7 @@ const getStatusIcon = (status: StandardTaskStatus) => {
 const getStatusCellClass = (status: StandardTaskStatus) => {
   switch (status) {
     case "完了":
-      return "bg-green-100 text-green-700";
+      return "bg-orange-100 text-orange-700";
     case "進行中":
       return "bg-yellow-100 text-yellow-700";
     case "不要":
@@ -150,9 +150,8 @@ export function WorkflowTable({
               <TableHeader>
                 <TableRow>
                   <TableHead className="sticky left-0 bg-background z-10 min-w-[200px]">
-                    業務名
+                    業務
                   </TableHead>
-                  <TableHead className="min-w-[80px]">担当</TableHead>
                   {items.map((item) => (
                     <TableHead
                       key={item.id}
@@ -171,16 +170,11 @@ export function WorkflowTable({
                         href={`/projects/${project.id}`}
                         className="text-primary hover:underline"
                       >
-                        <div className="font-medium">{project.name}</div>
-                        {project.code && (
-                          <div className="text-xs text-muted-foreground">
-                            {project.code}
-                          </div>
-                        )}
+                        <span className="font-medium">
+                          {project.code && <span className="text-muted-foreground mr-1">{project.code}</span>}
+                          {project.name}
+                        </span>
                       </Link>
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {project.manager_name || "-"}
                     </TableCell>
                     {items.map((item) => {
                       const progressItem = (project.progress || []).find(
@@ -245,7 +239,7 @@ export function WorkflowTable({
               進行中
             </span>
             <span className="flex items-center gap-1">
-              <span className="inline-block w-5 h-5 bg-green-100 text-green-700 text-center rounded">✓</span>
+              <span className="inline-block w-5 h-5 bg-orange-100 text-orange-700 text-center rounded">✓</span>
               完了
             </span>
             <span className="flex items-center gap-1">
