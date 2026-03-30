@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import {
   Select,
@@ -69,25 +69,28 @@ export function WorkflowTable({
   initialItems,
   initialProjects,
 }: WorkflowTableProps) {
-  const [isPending, startTransition] = useTransition();
+  const [isLoading, setIsLoading] = useState(false);
   const [selectedTemplateId, setSelectedTemplateId] = useState(initialTemplateId || "");
   const [items, setItems] = useState(initialItems);
   const [projects, setProjects] = useState(initialProjects);
 
-  const handleTemplateChange = (templateId: string) => {
+  const handleTemplateChange = async (templateId: string) => {
     setSelectedTemplateId(templateId);
+    setIsLoading(true);
 
-    startTransition(async () => {
+    try {
       const [newItems, newProjects] = await Promise.all([
         getTemplateItems(templateId),
         getWorkflowProjects(templateId),
       ]);
       setItems(newItems);
       setProjects(newProjects);
-    });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleStatusChange = (
+  const handleStatusChange = async (
     projectIndex: number,
     projectStandardTaskId: string,
     itemId: string,
@@ -106,13 +109,11 @@ export function WorkflowTable({
       })
     );
 
-    startTransition(async () => {
-      const result = await updateWorkflowStatus(projectStandardTaskId, itemId, status);
-      if (result.error) {
-        // エラー時はリロード
-        window.location.reload();
-      }
-    });
+    const result = await updateWorkflowStatus(projectStandardTaskId, itemId, status);
+    if (result.error) {
+      // エラー時はリロード
+      window.location.reload();
+    }
   };
 
   return (
@@ -196,7 +197,7 @@ export function WorkflowTable({
                             <DropdownMenuTrigger asChild>
                               <button
                                 className="w-full h-full py-2 px-1 cursor-pointer hover:opacity-80 transition-opacity"
-                                disabled={isPending}
+                                disabled={isLoading}
                               >
                                 {getStatusIcon(status)}
                               </button>
