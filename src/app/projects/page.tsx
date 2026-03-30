@@ -93,6 +93,36 @@ export default async function ProjectsPage() {
     (v) => v.project_id
   ) || [];
 
+  // 標準フロー（テンプレート）を取得
+  const { data: projectStandardTasks } = await supabase
+    .from("project_standard_tasks" as never)
+    .select("project_id, template_id");
+
+  // テンプレート情報を取得
+  const { data: templates } = await supabase
+    .from("standard_task_templates" as never)
+    .select("id, name");
+
+  type ProjectStandardTaskType = { project_id: string; template_id: string };
+  type TemplateType = { id: string; name: string };
+
+  const templateMap = ((templates as TemplateType[]) || []).reduce((acc, t) => {
+    acc[t.id] = t.name;
+    return acc;
+  }, {} as Record<string, string>);
+
+  // project_id → テンプレート名の配列のマップを作成
+  const standardTasksMap: Record<string, string[]> = {};
+  for (const pst of (projectStandardTasks as ProjectStandardTaskType[]) || []) {
+    const templateName = templateMap[pst.template_id];
+    if (templateName) {
+      if (!standardTasksMap[pst.project_id]) {
+        standardTasksMap[pst.project_id] = [];
+      }
+      standardTasksMap[pst.project_id].push(templateName);
+    }
+  }
+
   if (error) {
     console.error("Error fetching projects:", error);
   }
@@ -129,6 +159,7 @@ export default async function ProjectsPage() {
         accountDisplayMap={accountDisplayMap}
         employeeMap={employeeNameMap}
         recentProjectIds={recentProjectIds}
+        standardTasksMap={standardTasksMap}
       />
     </main>
   );

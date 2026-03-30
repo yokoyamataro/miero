@@ -63,6 +63,7 @@ interface ProjectListProps {
   accountDisplayMap: Record<string, string>;
   employeeMap: Record<string, string>;
   recentProjectIds: string[]; // 2週間以内の閲覧履歴（最新順）
+  standardTasksMap: Record<string, string[]>; // project_id → テンプレート名の配列
 }
 
 // デフォルトのフィルター状態
@@ -94,7 +95,7 @@ function loadFiltersFromStorage(): FilterState {
 }
 
 
-export function ProjectList({ projects, contactDisplayMap, accountDisplayMap, employeeMap, recentProjectIds }: ProjectListProps) {
+export function ProjectList({ projects, contactDisplayMap, accountDisplayMap, employeeMap, recentProjectIds, standardTasksMap }: ProjectListProps) {
   const [filters, setFilters] = useState<FilterState>(loadFiltersFromStorage);
   // ソートは常に閲覧履歴順をデフォルトに（セッション中のみ維持）
   const [sort, setSort] = useState<SortState>({ key: null, order: "asc" });
@@ -269,6 +270,9 @@ export function ProjectList({ projects, contactDisplayMap, accountDisplayMap, em
                 <TableHead className="w-[90px] py-1 text-xs cursor-pointer hover:bg-muted/50" onClick={() => handleSort("end_date")}>
                   完了<SortIcon columnKey="end_date" />
                 </TableHead>
+                <TableHead className="w-[120px] py-1 text-xs">
+                  標準フロー
+                </TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -315,6 +319,9 @@ export function ProjectList({ projects, contactDisplayMap, accountDisplayMap, em
                   </TableCell>
                   <TableCell className="text-xs py-1 text-muted-foreground">
                     {formatDate(project.end_date)}
+                  </TableCell>
+                  <TableCell className="text-xs py-1 truncate max-w-[120px]">
+                    {(standardTasksMap[project.id] || []).join(", ") || "-"}
                   </TableCell>
                 </TableRow>
               );
