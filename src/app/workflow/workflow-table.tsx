@@ -41,11 +41,11 @@ const getStatusIcon = (status: StandardTaskStatus) => {
     case "完了":
       return "✓";
     case "進行中":
-      return "●";
+      return "▷";
     case "不要":
       return "−";
     default:
-      return "○";
+      return "□";
   }
 };
 
@@ -55,11 +55,11 @@ const getStatusCellClass = (status: StandardTaskStatus) => {
     case "完了":
       return "bg-green-100 text-green-700";
     case "進行中":
-      return "bg-blue-100 text-blue-700";
+      return "bg-yellow-100 text-yellow-700";
     case "不要":
       return "bg-gray-100 text-gray-400 line-through";
     default:
-      return "bg-gray-50 text-gray-500";
+      return "bg-blue-100 text-blue-700";
   }
 };
 
@@ -237,11 +237,11 @@ export function WorkflowTable({
         {selectedTemplateId && projects.length > 0 && (
           <div className="flex items-center gap-4 mt-4 text-sm text-muted-foreground">
             <span className="flex items-center gap-1">
-              <span className="inline-block w-5 h-5 bg-gray-50 text-gray-500 text-center rounded">○</span>
+              <span className="inline-block w-5 h-5 bg-blue-100 text-blue-700 text-center rounded">□</span>
               未着手
             </span>
             <span className="flex items-center gap-1">
-              <span className="inline-block w-5 h-5 bg-blue-100 text-blue-700 text-center rounded">●</span>
+              <span className="inline-block w-5 h-5 bg-yellow-100 text-yellow-700 text-center rounded">▷</span>
               進行中
             </span>
             <span className="flex items-center gap-1">

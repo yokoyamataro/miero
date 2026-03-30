@@ -58,11 +58,11 @@ const getStatusIcon = (status: StandardTaskStatus) => {
     case "完了":
       return "✓";
     case "進行中":
-      return "●";
+      return "▷";
     case "不要":
       return "−";
     default:
-      return "○";
+      return "□";
   }
 };
 
@@ -72,11 +72,11 @@ const getStatusColor = (status: StandardTaskStatus) => {
     case "完了":
       return "bg-green-100 text-green-700 border-green-300 hover:bg-green-200";
     case "進行中":
-      return "bg-blue-100 text-blue-700 border-blue-300 hover:bg-blue-200";
+      return "bg-yellow-100 text-yellow-700 border-yellow-300 hover:bg-yellow-200";
     case "不要":
       return "bg-gray-100 text-gray-400 border-gray-200 line-through hover:bg-gray-200";
     default:
-      return "bg-gray-50 text-gray-600 border-gray-200 hover:bg-gray-100";
+      return "bg-blue-100 text-blue-700 border-blue-300 hover:bg-blue-200";
   }
 };
 
