@@ -296,7 +296,7 @@ export function StandardTaskManager({ templates: initialTemplates }: StandardTas
                     )}
                     <CardTitle className="text-lg">{template.name}</CardTitle>
                     <span className="text-sm text-muted-foreground">
-                      ({template.items.length}項目)
+                      ({(template.items || []).length}項目)
                     </span>
                   </div>
                   <div className="flex items-center gap-1">
@@ -340,7 +340,7 @@ export function StandardTaskManager({ templates: initialTemplates }: StandardTas
               {isExpanded && (
                 <CardContent className="pt-0">
                   <div className="space-y-2">
-                    {template.items.map((item, index) => (
+                    {(template.items || []).map((item, index) => (
                       <div
                         key={item.id}
                         className="flex items-center gap-2 p-2 bg-muted/50 rounded-lg"
@@ -360,7 +360,7 @@ export function StandardTaskManager({ templates: initialTemplates }: StandardTas
                             variant="ghost"
                             className="h-5 w-5"
                             onClick={() => moveItemDown(template.id, index)}
-                            disabled={index === template.items.length - 1}
+                            disabled={index === (template.items || []).length - 1}
                           >
                             <ChevronDown className="h-3 w-3" />
                           </Button>

@@ -133,7 +133,7 @@ export function StandardTaskSection({
         if (pt.id !== projectStandardTaskId) return pt;
         return {
           ...pt,
-          progress: pt.progress.map((p) =>
+          progress: (pt.progress || []).map((p) =>
             p.item.id === itemId
               ? { ...p, status, updated_at: new Date().toISOString() }
               : p
