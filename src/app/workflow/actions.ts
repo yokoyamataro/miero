@@ -107,7 +107,7 @@ export async function getWorkflowProjects(templateId: string): Promise<WorkflowP
     .from("projects")
     .select("id, project_number, name, status, manager_id")
     .in("id", projectIds)
-    .in("status", ["受注", "進行中"])
+    .eq("status", "進行中")
     .is("deleted_at", null);
 
   if (!projects || projects.length === 0) {
