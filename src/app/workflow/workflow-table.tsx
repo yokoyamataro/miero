@@ -172,9 +172,9 @@ export function WorkflowTable({
                         className="text-primary hover:underline"
                       >
                         <div className="font-medium">{project.name}</div>
-                        {project.project_number && (
+                        {project.code && (
                           <div className="text-xs text-muted-foreground">
-                            {project.project_number}
+                            {project.code}
                           </div>
                         )}
                       </Link>

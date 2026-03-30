@@ -14,7 +14,7 @@ import type {
 // 工程表用のプロジェクト型
 export interface WorkflowProject {
   id: string;
-  project_number: string | null;
+  code: string | null;
   name: string;
   status: string;
   manager_id: string | null;
@@ -209,7 +209,7 @@ async function getWorkflowProjectsWithDebug(templateId: string): Promise<{ proje
   // プロジェクト情報を取得（進行中のみ）- RLSバイパスのため管理者クライアント使用
   const { data: projects, error: projectsError } = await adminClient
     .from("projects")
-    .select("id, project_number, name, status, manager_id")
+    .select("id, code, name, status, manager_id")
     .in("id", projectIds)
     .eq("status", "進行中");
 
@@ -225,7 +225,7 @@ async function getWorkflowProjectsWithDebug(templateId: string): Promise<{ proje
   // 以下、結果組み立て（getWorkflowProjectsと同じ）
   type ProjectType = {
     id: string;
-    project_number: string | null;
+    code: string | null;
     name: string;
     status: string;
     manager_id: string | null;
@@ -275,7 +275,7 @@ async function getWorkflowProjectsWithDebug(templateId: string): Promise<{ proje
 
     result.push({
       id: project.id,
-      project_number: project.project_number,
+      code: project.code,
       name: project.name,
       status: project.status,
       manager_id: project.manager_id,
@@ -296,10 +296,10 @@ async function getWorkflowProjectsWithDebug(templateId: string): Promise<{ proje
   }
 
   result.sort((a, b) => {
-    if (!a.project_number && !b.project_number) return 0;
-    if (!a.project_number) return 1;
-    if (!b.project_number) return -1;
-    return a.project_number.localeCompare(b.project_number);
+    if (!a.code && !b.code) return 0;
+    if (!a.code) return 1;
+    if (!b.code) return -1;
+    return a.code.localeCompare(b.code);
   });
 
   debugSteps.push(`result:${result.length}`);
