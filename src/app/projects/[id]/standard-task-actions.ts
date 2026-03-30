@@ -118,25 +118,27 @@ export async function getProjectStandardTasks(
     progressMap.get(p.project_standard_task_id)!.set(p.item_id, p);
   });
 
-  // 結果を組み立て
-  return typedProjectTasks.map((pt) => {
-    const template = templateMap.get(pt.template_id)!;
-    const templateItems = itemsByTemplate.get(pt.template_id) || [];
-    const taskProgress = progressMap.get(pt.id) || new Map();
+  // 結果を組み立て（テンプレートが存在するもののみ）
+  return typedProjectTasks
+    .filter((pt) => templateMap.has(pt.template_id))
+    .map((pt) => {
+      const template = templateMap.get(pt.template_id)!;
+      const templateItems = itemsByTemplate.get(pt.template_id) || [];
+      const taskProgress = progressMap.get(pt.id) || new Map();
 
-    return {
-      ...pt,
-      template,
-      progress: templateItems.map((item) => {
-        const p = taskProgress.get(item.id);
-        return {
-          item,
-          status: (p?.status as StandardTaskStatus) || "未着手",
-          updated_at: p?.updated_at || null,
-        };
-      }),
-    };
-  });
+      return {
+        ...pt,
+        template,
+        progress: templateItems.map((item) => {
+          const p = taskProgress.get(item.id);
+          return {
+            item,
+            status: (p?.status as StandardTaskStatus) || "未着手",
+            updated_at: p?.updated_at || null,
+          };
+        }),
+      };
+    });
 }
 
 // ============================================

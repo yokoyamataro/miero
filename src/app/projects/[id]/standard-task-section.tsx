@@ -157,9 +157,10 @@ export function StandardTaskSection({
 
   // 進捗サマリーを計算
   const getProgressSummary = (task: ProjectStandardTaskWithDetails) => {
-    const total = task.progress.length;
-    const completed = task.progress.filter((p) => p.status === "完了").length;
-    const notNeeded = task.progress.filter((p) => p.status === "不要").length;
+    const progress = task.progress || [];
+    const total = progress.length;
+    const completed = progress.filter((p) => p.status === "完了").length;
+    const notNeeded = progress.filter((p) => p.status === "不要").length;
     return { total, completed, notNeeded };
   };
 
@@ -230,7 +231,7 @@ export function StandardTaskSection({
 
                 {/* バッジ一覧 */}
                 <div className="flex flex-wrap gap-1.5">
-                  {task.progress.map((p) => (
+                  {(task.progress || []).map((p) => (
                     <DropdownMenu key={p.item.id}>
                       <DropdownMenuTrigger asChild>
                         <button
