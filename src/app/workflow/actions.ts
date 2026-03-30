@@ -78,7 +78,6 @@ export async function getDebugInfo(templateId: string): Promise<{
         .from("projects")
         .select("id, status")
         .in("id", projectIds)
-        .is("deleted_at", null)
     : { data: [], error: null };
 
   // 進行中のみ
@@ -88,7 +87,6 @@ export async function getDebugInfo(templateId: string): Promise<{
         .select("id")
         .in("id", projectIds)
         .eq("status", "進行中")
-        .is("deleted_at", null)
     : { data: [], error: null };
 
   const errorMessages: string[] = [];
@@ -185,8 +183,7 @@ export async function getWorkflowProjects(templateId: string): Promise<WorkflowP
     .from("projects")
     .select("id, project_number, name, status, manager_id")
     .in("id", projectIds)
-    .eq("status", "進行中")
-    .is("deleted_at", null);
+    .eq("status", "進行中");
 
   if (!projects || projects.length === 0) {
     return [];
