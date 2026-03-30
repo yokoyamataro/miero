@@ -38,9 +38,24 @@ export async function getDebugInfo(templateId: string): Promise<{
   projectIds: string[];
   activeProjectsCount: number;
   projectStatuses: string[];
+  error: string | null;
 }> {
   const supabase = await createClient();
-  const adminClient = createAdminClient();
+
+  let adminClient;
+  try {
+    adminClient = createAdminClient();
+  } catch (e) {
+    return {
+      templateId,
+      templateName: null,
+      projectTasksCount: 0,
+      projectIds: [],
+      activeProjectsCount: 0,
+      projectStatuses: [],
+      error: `adminClient作成失敗: ${e instanceof Error ? e.message : String(e)}`,
+    };
+  }
 
   // テンプレート情報
   const { data: template } = await supabase
@@ -58,23 +73,27 @@ export async function getDebugInfo(templateId: string): Promise<{
   const projectIds = (projectTasks as { id: string; project_id: string }[] || []).map(pt => pt.project_id);
 
   // プロジェクト情報（全ステータス）- RLSバイパスのため管理者クライアント使用
-  const { data: allProjects } = projectIds.length > 0
+  const { data: allProjects, error: allProjectsError } = projectIds.length > 0
     ? await adminClient
         .from("projects")
         .select("id, status")
         .in("id", projectIds)
         .is("deleted_at", null)
-    : { data: [] };
+    : { data: [], error: null };
 
   // 進行中のみ
-  const { data: activeProjects } = projectIds.length > 0
+  const { data: activeProjects, error: activeProjectsError } = projectIds.length > 0
     ? await adminClient
         .from("projects")
         .select("id")
         .in("id", projectIds)
         .eq("status", "進行中")
         .is("deleted_at", null)
-    : { data: [] };
+    : { data: [], error: null };
+
+  const errorMessages: string[] = [];
+  if (allProjectsError) errorMessages.push(`allProjects: ${allProjectsError.message}`);
+  if (activeProjectsError) errorMessages.push(`activeProjects: ${activeProjectsError.message}`);
 
   return {
     templateId,
@@ -83,6 +102,7 @@ export async function getDebugInfo(templateId: string): Promise<{
     projectIds,
     activeProjectsCount: (activeProjects as unknown[] || []).length,
     projectStatuses: (allProjects as { id: string; status: string }[] || []).map(p => p.status),
+    error: errorMessages.length > 0 ? errorMessages.join("; ") : null,
   };
 }
 
