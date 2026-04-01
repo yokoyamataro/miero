@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +13,7 @@ import {
 } from "@/components/ui/table";
 import { Plus, Pencil } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { EmployeeRole } from "@/types/database";
 
 const ROLE_LABELS: Record<EmployeeRole, string> = {
@@ -28,6 +30,23 @@ const ROLE_COLORS: Record<EmployeeRole, string> = {
 
 export default async function EmployeesPage() {
   const supabase = await createClient();
+
+  // ログインユーザーが管理者かチェック
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    redirect("/login");
+  }
+
+  const adminClient = createAdminClient();
+  const { data: currentEmployee } = await adminClient
+    .from("employees")
+    .select("role")
+    .eq("auth_id", user.id)
+    .single();
+
+  if (currentEmployee?.role !== "admin") {
+    redirect("/");
+  }
 
   const { data: employees, error } = await supabase
     .from("employees")

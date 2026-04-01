@@ -15,6 +15,7 @@ export interface WorkflowProject {
   id: string;
   code: string | null;
   name: string;
+  location: string | null;
   status: string;
   manager_id: string | null;
   manager_name: string | null;
@@ -105,7 +106,7 @@ export async function getWorkflowProjects(templateId: string): Promise<WorkflowP
   // プロジェクト情報を取得（進行中のみ）- RLSバイパスのため管理者クライアント使用
   const { data: projects } = await adminClient
     .from("projects")
-    .select("id, code, name, status, manager_id")
+    .select("id, code, name, location, status, manager_id")
     .in("id", projectIds)
     .eq("status", "進行中");
 
@@ -117,6 +118,7 @@ export async function getWorkflowProjects(templateId: string): Promise<WorkflowP
     id: string;
     code: string | null;
     name: string;
+    location: string | null;
     status: string;
     manager_id: string | null;
   };
@@ -170,6 +172,7 @@ export async function getWorkflowProjects(templateId: string): Promise<WorkflowP
       id: project.id,
       code: project.code,
       name: project.name,
+      location: project.location,
       status: project.status,
       manager_id: project.manager_id,
       manager_name: project.manager_id ? managerMap.get(project.manager_id) || null : null,

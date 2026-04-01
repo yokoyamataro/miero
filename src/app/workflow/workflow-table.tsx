@@ -66,6 +66,26 @@ const getStatusCellClass = (status: StandardTaskStatus) => {
 // localStorage キー
 const getStorageKey = (templateId: string) => `workflowProjectOrder_${templateId}`;
 
+// 所在地から地番を除く（最後のスペース以降を削除）
+const getLocationWithoutLotNumber = (location: string | null): string => {
+  if (!location) return "";
+  // 最後のスペースで分割し、前の部分を返す
+  const lastSpaceIndex = location.lastIndexOf(" ");
+  if (lastSpaceIndex === -1) return location;
+  return location.substring(0, lastSpaceIndex);
+};
+
+// 進捗率を計算（不要は除外）
+const calculateProgress = (progress: { status: StandardTaskStatus }[]): number => {
+  const validItems = progress.filter(p => p.status !== "不要");
+  if (validItems.length === 0) return 0;
+  const completedItems = validItems.filter(p => p.status === "完了");
+  return Math.round((completedItems.length / validItems.length) * 100);
+};
+
+// ソート種別
+type SortType = "manual" | "location" | "progress";
+
 export function WorkflowTable({
   templates,
   initialTemplateId,
@@ -78,6 +98,7 @@ export function WorkflowTable({
   const [projects, setProjects] = useState(initialProjects);
   const [projectOrder, setProjectOrder] = useState<string[]>([]);
   const [draggingProjectId, setDraggingProjectId] = useState<string | null>(null);
+  const [sortType, setSortType] = useState<SortType>("manual");
 
   // localStorageから順序を読み込み
   useEffect(() => {
@@ -103,6 +124,21 @@ export function WorkflowTable({
 
   // ソートされた業務リスト
   const sortedProjects = useMemo(() => {
+    if (sortType === "location") {
+      return [...projects].sort((a, b) => {
+        const locA = getLocationWithoutLotNumber(a.location);
+        const locB = getLocationWithoutLotNumber(b.location);
+        return locA.localeCompare(locB, "ja");
+      });
+    }
+    if (sortType === "progress") {
+      return [...projects].sort((a, b) => {
+        const progA = calculateProgress(a.progress || []);
+        const progB = calculateProgress(b.progress || []);
+        return progB - progA; // 進捗率の降順
+      });
+    }
+    // manual: 手動順序
     if (projectOrder.length === 0) return projects;
     return [...projects].sort((a, b) => {
       const indexA = projectOrder.indexOf(a.id);
@@ -113,7 +149,7 @@ export function WorkflowTable({
       if (indexB === -1) return -1;
       return indexA - indexB;
     });
-  }, [projects, projectOrder]);
+  }, [projects, projectOrder, sortType]);
 
   // ドラッグ開始
   const handleDragStart = useCallback((projectId: string) => {
@@ -192,20 +228,34 @@ export function WorkflowTable({
   return (
     <div className="space-y-4">
       {/* ヘッダー：タイトルとプルダウン */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <h1 className="text-2xl font-bold">工程表</h1>
-        <Select value={selectedTemplateId} onValueChange={handleTemplateChange}>
-          <SelectTrigger className="w-[200px]">
-            <SelectValue placeholder="標準業務を選択" />
-          </SelectTrigger>
-          <SelectContent>
-            {templates.map((template) => (
-              <SelectItem key={template.id} value={template.id}>
-                {template.name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        <div className="flex items-center gap-2">
+          {selectedTemplateId && projects.length > 0 && (
+            <Select value={sortType} onValueChange={(v) => setSortType(v as SortType)}>
+              <SelectTrigger className="w-[140px] h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="manual">手動順</SelectItem>
+                <SelectItem value="location">所在地順</SelectItem>
+                <SelectItem value="progress">進捗率順</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+          <Select value={selectedTemplateId} onValueChange={handleTemplateChange}>
+            <SelectTrigger className="w-[200px]">
+              <SelectValue placeholder="標準業務を選択" />
+            </SelectTrigger>
+            <SelectContent>
+              {templates.map((template) => (
+                <SelectItem key={template.id} value={template.id}>
+                  {template.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       {/* テーブル */}
@@ -222,8 +272,14 @@ export function WorkflowTable({
           <Table>
             <TableHeader className="sticky top-0 bg-muted z-20">
               <TableRow className="h-8">
-                <TableHead className="sticky left-0 bg-muted z-30 min-w-[200px] py-1 text-xs whitespace-nowrap">
+                <TableHead className="sticky left-0 bg-muted z-30 min-w-[180px] py-1 text-xs whitespace-nowrap">
                   業務
+                </TableHead>
+                <TableHead className="bg-muted py-1 text-xs whitespace-nowrap min-w-[120px]">
+                  所在地
+                </TableHead>
+                <TableHead className="bg-muted py-1 text-xs whitespace-nowrap text-center min-w-[50px]">
+                  進捗
                 </TableHead>
                 {items.map((item) => (
                   <TableHead
@@ -239,15 +295,17 @@ export function WorkflowTable({
               {sortedProjects.map((project) => (
                 <TableRow
                   key={project.id}
-                  draggable
-                  onDragStart={() => handleDragStart(project.id)}
-                  onDragOver={(e) => e.preventDefault()}
-                  onDrop={() => handleDrop(project.id)}
+                  draggable={sortType === "manual"}
+                  onDragStart={sortType === "manual" ? () => handleDragStart(project.id) : undefined}
+                  onDragOver={sortType === "manual" ? (e) => e.preventDefault() : undefined}
+                  onDrop={sortType === "manual" ? () => handleDrop(project.id) : undefined}
                   className={`h-7 ${draggingProjectId === project.id ? "opacity-50 bg-primary/10" : ""}`}
                 >
                   <TableCell className="sticky left-0 bg-background z-10 py-0 px-1 whitespace-nowrap">
                     <div className="flex items-center gap-1">
-                      <GripVertical className="h-3 w-3 text-muted-foreground cursor-grab flex-shrink-0" />
+                      {sortType === "manual" && (
+                        <GripVertical className="h-3 w-3 text-muted-foreground cursor-grab flex-shrink-0" />
+                      )}
                       <Link
                         href={`/projects/${project.id}`}
                         className="text-primary hover:underline text-xs"
@@ -257,6 +315,12 @@ export function WorkflowTable({
                         {project.name}
                       </Link>
                     </div>
+                  </TableCell>
+                  <TableCell className="py-0 px-1 text-xs text-muted-foreground whitespace-nowrap">
+                    {getLocationWithoutLotNumber(project.location)}
+                  </TableCell>
+                  <TableCell className="py-0 px-1 text-xs text-center whitespace-nowrap">
+                    {calculateProgress(project.progress || [])}%
                   </TableCell>
                   {items.map((item) => {
                     const progressItem = (project.progress || []).find(
