@@ -975,3 +975,57 @@ export interface ProjectStandardTaskWithDetails extends ProjectStandardTask {
     updated_at: string | null;
   }[];
 }
+
+// ============================================
+// InvoiceItemCategory (請求項目種別マスタ)
+// ============================================
+export interface InvoiceItemCategory {
+  id: string;
+  name: string;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InvoiceItemCategoryInsert {
+  id?: string;
+  name: string;
+  sort_order?: number;
+}
+
+// ============================================
+// InvoiceItemTemplate (請求項目テンプレートマスタ)
+// ============================================
+export interface InvoiceItemTemplate {
+  id: string;
+  category_id: string;
+  name: string;
+  description: string | null;       // 社内向け説明
+  default_note: string | null;      // 請求相手向け備考
+  default_unit: string | null;      // デフォルト単位（式、筆、件など）
+  default_unit_price: number | null; // デフォルト単価
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InvoiceItemTemplateInsert {
+  id?: string;
+  category_id: string;
+  name: string;
+  description?: string | null;
+  default_note?: string | null;
+  default_unit?: string | null;
+  default_unit_price?: number | null;
+  sort_order?: number;
+}
+
+// テンプレートとカテゴリ情報を含む型
+export interface InvoiceItemTemplateWithCategory extends InvoiceItemTemplate {
+  category: InvoiceItemCategory;
+}
+
+// カテゴリとテンプレート一覧を含む型
+export interface InvoiceItemCategoryWithTemplates extends InvoiceItemCategory {
+  templates: InvoiceItemTemplate[];
+}

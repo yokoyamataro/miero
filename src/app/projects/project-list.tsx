@@ -132,12 +132,19 @@ export function ProjectList({ projects, contactDisplayMap, accountDisplayMap, em
 
   const filtered = useMemo(() => {
     return projects.filter((p) => {
-      // 検索フィルタ
+      // 検索フィルタ（業務名、コード、顧客名）
       if (filters.search) {
         const q = filters.search.toLowerCase();
         const matchName = p.name.toLowerCase().includes(q);
         const matchCode = p.code.toLowerCase().includes(q);
-        if (!matchName && !matchCode) return false;
+        // 顧客名で検索
+        const customerName = p.account_id
+          ? accountDisplayMap[p.account_id] || ""
+          : p.contact_id
+            ? contactDisplayMap[p.contact_id] || ""
+            : "";
+        const matchCustomer = customerName.toLowerCase().includes(q);
+        if (!matchName && !matchCode && !matchCustomer) return false;
       }
 
       // カテゴリフィルタ（単一選択、ALL_MARKERなら全表示）

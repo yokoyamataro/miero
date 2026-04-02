@@ -639,9 +639,10 @@ export type ProjectForLink = {
   code: string;
   name: string;
   location: string | null;
+  customer_name: string | null;
 };
 
-// 業務をフリーワード検索（全業務対象）
+// 業務をフリーワード検索（全業務対象、顧客名も検索対象）
 export async function searchProjects(query: string): Promise<ProjectForLink[]> {
   const supabase = await createClient();
 
@@ -652,17 +653,104 @@ export async function searchProjects(query: string): Promise<ProjectForLink[]> {
   // 業務名またはコードでフリーワード検索（全業務対象）
   const { data: projects, error } = await supabase
     .from("projects")
-    .select("id, code, name, location")
+    .select("id, code, name, location, account_id, contact_id")
     .or(`name.ilike.%${query}%,code.ilike.%${query}%`)
     .order("code", { ascending: false })
-    .limit(20);
+    .limit(50); // 顧客名フィルタ後に絞るので多めに取得
 
   if (error) {
     console.error("Error searching projects:", error);
     return [];
   }
 
-  return (projects as ProjectForLink[]) || [];
+  if (!projects || projects.length === 0) {
+    return [];
+  }
+
+  // 顧客情報を取得
+  const accountIds = projects.map(p => p.account_id).filter(Boolean) as string[];
+  const contactIds = projects.map(p => p.contact_id).filter(Boolean) as string[];
+
+  const accountMap = new Map<string, string>();
+  const contactMap = new Map<string, string>();
+
+  if (accountIds.length > 0) {
+    const { data: accounts } = await supabase
+      .from("accounts")
+      .select("id, name")
+      .in("id", accountIds);
+    accounts?.forEach(a => accountMap.set(a.id, a.name));
+  }
+
+  if (contactIds.length > 0) {
+    const { data: contacts } = await supabase
+      .from("contacts")
+      .select("id, last_name, first_name")
+      .in("id", contactIds);
+    contacts?.forEach(c => contactMap.set(c.id, `${c.last_name}${c.first_name || ""}`));
+  }
+
+  // 顧客名で追加検索（業務名・コードでヒットしなかった場合に顧客名でも検索）
+  const { data: projectsByCustomer } = await supabase
+    .from("projects")
+    .select("id, code, name, location, account_id, contact_id")
+    .order("code", { ascending: false })
+    .limit(50);
+
+  // 顧客名でフィルタリング
+  const additionalProjects = (projectsByCustomer || []).filter(p => {
+    const customerName = p.account_id
+      ? accountMap.get(p.account_id) || ""
+      : p.contact_id
+        ? contactMap.get(p.contact_id) || ""
+        : "";
+    return customerName.toLowerCase().includes(query.toLowerCase());
+  });
+
+  // マージしてユニーク化
+  const allProjectsMap = new Map<string, typeof projects[0]>();
+  [...projects, ...additionalProjects].forEach(p => {
+    if (!allProjectsMap.has(p.id)) {
+      allProjectsMap.set(p.id, p);
+    }
+  });
+
+  // 顧客名マップを更新（追加分）
+  const additionalAccountIds = additionalProjects.map(p => p.account_id).filter(Boolean) as string[];
+  const additionalContactIds = additionalProjects.map(p => p.contact_id).filter(Boolean) as string[];
+
+  if (additionalAccountIds.length > 0) {
+    const { data: accounts } = await supabase
+      .from("accounts")
+      .select("id, name")
+      .in("id", additionalAccountIds);
+    accounts?.forEach(a => accountMap.set(a.id, a.name));
+  }
+
+  if (additionalContactIds.length > 0) {
+    const { data: contacts } = await supabase
+      .from("contacts")
+      .select("id, last_name, first_name")
+      .in("id", additionalContactIds);
+    contacts?.forEach(c => contactMap.set(c.id, `${c.last_name}${c.first_name || ""}`));
+  }
+
+  // 結果を整形
+  const result: ProjectForLink[] = Array.from(allProjectsMap.values())
+    .slice(0, 20)
+    .map(p => ({
+      id: p.id,
+      code: p.code,
+      name: p.name,
+      location: p.location,
+      customer_name: p.account_id
+        ? accountMap.get(p.account_id) || null
+        : p.contact_id
+          ? contactMap.get(p.contact_id) || null
+          : null,
+    }));
+
+  return result;
 }
 
 export async function getActiveProjects(): Promise<ProjectForLink[]> {
@@ -671,7 +759,7 @@ export async function getActiveProjects(): Promise<ProjectForLink[]> {
   // 進行中の業務を取得
   const { data: projects, error: projectsError } = await supabase
     .from("projects")
-    .select("id, code, name, location")
+    .select("id, code, name, location, account_id, contact_id")
     .eq("status", "進行中")
     .order("code", { ascending: false });
 
@@ -682,6 +770,29 @@ export async function getActiveProjects(): Promise<ProjectForLink[]> {
 
   if (!projects || projects.length === 0) {
     return [];
+  }
+
+  // 顧客情報を取得
+  const accountIds = projects.map(p => p.account_id).filter(Boolean) as string[];
+  const contactIds = projects.map(p => p.contact_id).filter(Boolean) as string[];
+
+  const accountMap = new Map<string, string>();
+  const contactMap = new Map<string, string>();
+
+  if (accountIds.length > 0) {
+    const { data: accounts } = await supabase
+      .from("accounts")
+      .select("id, name")
+      .in("id", accountIds);
+    accounts?.forEach(a => accountMap.set(a.id, a.name));
+  }
+
+  if (contactIds.length > 0) {
+    const { data: contacts } = await supabase
+      .from("contacts")
+      .select("id, last_name, first_name")
+      .in("id", contactIds);
+    contacts?.forEach(c => contactMap.set(c.id, `${c.last_name}${c.first_name || ""}`));
   }
 
   // 閲覧履歴を取得（全ユーザーの履歴を考慮）
@@ -703,8 +814,21 @@ export async function getActiveProjects(): Promise<ProjectForLink[]> {
     }
   }
 
+  // ProjectForLink形式に変換
+  const projectsWithCustomer: ProjectForLink[] = projects.map(p => ({
+    id: p.id,
+    code: p.code,
+    name: p.name,
+    location: p.location,
+    customer_name: p.account_id
+      ? accountMap.get(p.account_id) || null
+      : p.contact_id
+        ? contactMap.get(p.contact_id) || null
+        : null,
+  }));
+
   // 閲覧履歴順にソート（履歴がないものは最後）
-  const sortedProjects = [...(projects as ProjectForLink[])].sort((a, b) => {
+  const sortedProjects = [...projectsWithCustomer].sort((a, b) => {
     const aViewed = viewedAtMap.get(a.id);
     const bViewed = viewedAtMap.get(b.id);
     if (aViewed && bViewed) {

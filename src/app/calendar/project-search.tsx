@@ -132,7 +132,7 @@ export function ProjectSearch({
               <Search className="absolute left-2 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
                 type="text"
-                placeholder="業務名で検索..."
+                placeholder="業務名・顧客名で検索..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-8 h-8"
@@ -162,6 +162,11 @@ export function ProjectSearch({
                       {project.code}
                     </span>
                     <span className="truncate flex-1">{project.name}</span>
+                    {project.customer_name && (
+                      <span className="text-xs text-muted-foreground truncate max-w-[100px]">
+                        ({project.customer_name})
+                      </span>
+                    )}
                   </div>
                 ))}
               </div>
