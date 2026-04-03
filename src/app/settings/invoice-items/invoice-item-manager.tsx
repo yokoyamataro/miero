@@ -6,6 +6,14 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -30,27 +38,35 @@ import {
   ChevronDown,
   ChevronUp,
   Loader2,
+  FileText,
+  Receipt,
 } from "lucide-react";
 import type {
-  InvoiceItemCategoryWithTemplates,
+  InvoiceTemplateWithCategories,
+  InvoiceItemCategoryWithItems,
   InvoiceItemTemplate,
+  InvoiceDocumentType,
 } from "@/types/database";
+import { INVOICE_DOCUMENT_TYPE_LABELS } from "@/types/database";
 import {
+  createInvoiceTemplate,
+  updateInvoiceTemplate,
+  deleteInvoiceTemplate,
   createCategory,
   updateCategory,
   deleteCategory,
   reorderCategories,
-  createTemplate,
-  updateTemplate,
-  deleteTemplate,
-  reorderTemplates,
+  createItem,
+  updateItem,
+  deleteItem,
+  reorderItems,
 } from "./actions";
 
 interface InvoiceItemManagerProps {
-  categories: InvoiceItemCategoryWithTemplates[];
+  templates: InvoiceTemplateWithCategories[];
 }
 
-interface TemplateFormData {
+interface ItemFormData {
   name: string;
   description: string;
   default_note: string;
@@ -58,7 +74,7 @@ interface TemplateFormData {
   default_unit_price: string;
 }
 
-const emptyTemplateForm: TemplateFormData = {
+const emptyItemForm: ItemFormData = {
   name: "",
   description: "",
   default_note: "",
@@ -66,31 +82,58 @@ const emptyTemplateForm: TemplateFormData = {
   default_unit_price: "",
 };
 
-export function InvoiceItemManager({ categories: initialCategories }: InvoiceItemManagerProps) {
+export function InvoiceItemManager({ templates: initialTemplates }: InvoiceItemManagerProps) {
   const [isPending, startTransition] = useTransition();
-  const [categories, setCategories] = useState(initialCategories);
+  const [templates, setTemplates] = useState(initialTemplates);
+  const [expandedTemplates, setExpandedTemplates] = useState<Set<string>>(
+    new Set(initialTemplates.map((t) => t.id))
+  );
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(
-    new Set(initialCategories.map((c) => c.id))
+    new Set(initialTemplates.flatMap((t) => t.categories.map((c) => c.id)))
   );
 
+  // テンプレート追加ダイアログ
+  const [showAddTemplate, setShowAddTemplate] = useState(false);
+  const [newTemplateName, setNewTemplateName] = useState("");
+  const [newTemplateType, setNewTemplateType] = useState<InvoiceDocumentType>("estimate");
+
+  // テンプレート編集ダイアログ
+  const [editingTemplate, setEditingTemplate] = useState<{
+    id: string;
+    name: string;
+    document_type: InvoiceDocumentType;
+  } | null>(null);
+
   // カテゴリ追加ダイアログ
-  const [showAddCategory, setShowAddCategory] = useState(false);
+  const [addingCategoryTo, setAddingCategoryTo] = useState<string | null>(null);
   const [newCategoryName, setNewCategoryName] = useState("");
 
   // カテゴリ編集ダイアログ
   const [editingCategory, setEditingCategory] = useState<{ id: string; name: string } | null>(null);
 
-  // テンプレート追加ダイアログ
-  const [addingTemplateTo, setAddingTemplateTo] = useState<string | null>(null);
-  const [templateForm, setTemplateForm] = useState<TemplateFormData>(emptyTemplateForm);
+  // 項目追加ダイアログ
+  const [addingItemTo, setAddingItemTo] = useState<string | null>(null);
+  const [itemForm, setItemForm] = useState<ItemFormData>(emptyItemForm);
 
-  // テンプレート編集ダイアログ
-  const [editingTemplate, setEditingTemplate] = useState<{
+  // 項目編集ダイアログ
+  const [editingItem, setEditingItem] = useState<{
     id: string;
-    form: TemplateFormData;
+    form: ItemFormData;
   } | null>(null);
 
-  const toggleExpand = (categoryId: string) => {
+  const toggleTemplateExpand = (templateId: string) => {
+    setExpandedTemplates((prev) => {
+      const next = new Set(prev);
+      if (next.has(templateId)) {
+        next.delete(templateId);
+      } else {
+        next.add(templateId);
+      }
+      return next;
+    });
+  };
+
+  const toggleCategoryExpand = (categoryId: string) => {
     setExpandedCategories((prev) => {
       const next = new Set(prev);
       if (next.has(categoryId)) {
@@ -102,31 +145,110 @@ export function InvoiceItemManager({ categories: initialCategories }: InvoiceIte
     });
   };
 
-  // カテゴリ追加
-  const handleAddCategory = () => {
-    if (!newCategoryName.trim()) return;
+  // テンプレート追加
+  const handleAddTemplate = () => {
+    if (!newTemplateName.trim()) return;
 
     startTransition(async () => {
-      const result = await createCategory(newCategoryName.trim());
+      const result = await createInvoiceTemplate(newTemplateName.trim(), newTemplateType);
       if (result.success && result.id) {
-        setCategories((prev) => [
+        setTemplates((prev) => [
           ...prev,
           {
             id: result.id!,
-            name: newCategoryName.trim(),
+            name: newTemplateName.trim(),
+            document_type: newTemplateType,
             sort_order: prev.length + 1,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
-            templates: [],
+            categories: [],
           },
         ]);
+        setExpandedTemplates((prev) => {
+          const next = new Set(prev);
+          next.add(result.id!);
+          return next;
+        });
+        setNewTemplateName("");
+        setNewTemplateType("estimate");
+        setShowAddTemplate(false);
+      } else {
+        alert(result.error || "エラーが発生しました");
+      }
+    });
+  };
+
+  // テンプレート更新
+  const handleUpdateTemplate = () => {
+    if (!editingTemplate || !editingTemplate.name.trim()) return;
+
+    startTransition(async () => {
+      const result = await updateInvoiceTemplate(
+        editingTemplate.id,
+        editingTemplate.name.trim(),
+        editingTemplate.document_type
+      );
+      if (result.success) {
+        setTemplates((prev) =>
+          prev.map((t) =>
+            t.id === editingTemplate.id
+              ? { ...t, name: editingTemplate.name.trim(), document_type: editingTemplate.document_type }
+              : t
+          )
+        );
+        setEditingTemplate(null);
+      } else {
+        alert(result.error || "エラーが発生しました");
+      }
+    });
+  };
+
+  // テンプレート削除
+  const handleDeleteTemplate = (id: string) => {
+    startTransition(async () => {
+      const result = await deleteInvoiceTemplate(id);
+      if (result.success) {
+        setTemplates((prev) => prev.filter((t) => t.id !== id));
+      } else {
+        alert(result.error || "エラーが発生しました");
+      }
+    });
+  };
+
+  // カテゴリ追加
+  const handleAddCategory = () => {
+    if (!addingCategoryTo || !newCategoryName.trim()) return;
+
+    startTransition(async () => {
+      const result = await createCategory(addingCategoryTo, newCategoryName.trim());
+      if (result.success && result.id) {
+        setTemplates((prev) =>
+          prev.map((t) => {
+            if (t.id !== addingCategoryTo) return t;
+            return {
+              ...t,
+              categories: [
+                ...t.categories,
+                {
+                  id: result.id!,
+                  template_id: addingCategoryTo,
+                  name: newCategoryName.trim(),
+                  sort_order: t.categories.length + 1,
+                  created_at: new Date().toISOString(),
+                  updated_at: new Date().toISOString(),
+                  items: [],
+                },
+              ],
+            };
+          })
+        );
         setExpandedCategories((prev) => {
           const next = new Set(prev);
           next.add(result.id!);
           return next;
         });
         setNewCategoryName("");
-        setShowAddCategory(false);
+        setAddingCategoryTo(null);
       } else {
         alert(result.error || "エラーが発生しました");
       }
@@ -140,10 +262,13 @@ export function InvoiceItemManager({ categories: initialCategories }: InvoiceIte
     startTransition(async () => {
       const result = await updateCategory(editingCategory.id, editingCategory.name.trim());
       if (result.success) {
-        setCategories((prev) =>
-          prev.map((c) =>
-            c.id === editingCategory.id ? { ...c, name: editingCategory.name.trim() } : c
-          )
+        setTemplates((prev) =>
+          prev.map((t) => ({
+            ...t,
+            categories: t.categories.map((c) =>
+              c.id === editingCategory.id ? { ...c, name: editingCategory.name.trim() } : c
+            ),
+          }))
         );
         setEditingCategory(null);
       } else {
@@ -157,159 +282,180 @@ export function InvoiceItemManager({ categories: initialCategories }: InvoiceIte
     startTransition(async () => {
       const result = await deleteCategory(id);
       if (result.success) {
-        setCategories((prev) => prev.filter((c) => c.id !== id));
+        setTemplates((prev) =>
+          prev.map((t) => ({
+            ...t,
+            categories: t.categories.filter((c) => c.id !== id),
+          }))
+        );
       } else {
         alert(result.error || "エラーが発生しました");
       }
     });
   };
 
-  // カテゴリの並び替え（上へ）
-  const moveCategoryUp = (index: number) => {
+  // カテゴリの並び替え
+  const moveCategoryUp = (templateId: string, index: number) => {
     if (index === 0) return;
 
-    const newCategories = [...categories];
+    const template = templates.find((t) => t.id === templateId);
+    if (!template) return;
+
+    const newCategories = [...template.categories];
     [newCategories[index - 1], newCategories[index]] = [newCategories[index], newCategories[index - 1]];
 
-    const updatedCategories = newCategories.map((cat, idx) => ({
-      ...cat,
+    const updatedCategories = newCategories.map((c, idx) => ({
+      ...c,
       sort_order: idx + 1,
     }));
 
-    setCategories(updatedCategories);
+    setTemplates((prev) =>
+      prev.map((t) => (t.id === templateId ? { ...t, categories: updatedCategories } : t))
+    );
 
     startTransition(async () => {
       await reorderCategories(updatedCategories.map((c) => ({ id: c.id, sort_order: c.sort_order })));
     });
   };
 
-  // カテゴリの並び替え（下へ）
-  const moveCategoryDown = (index: number) => {
-    if (index === categories.length - 1) return;
+  const moveCategoryDown = (templateId: string, index: number) => {
+    const template = templates.find((t) => t.id === templateId);
+    if (!template || index === template.categories.length - 1) return;
 
-    const newCategories = [...categories];
+    const newCategories = [...template.categories];
     [newCategories[index], newCategories[index + 1]] = [newCategories[index + 1], newCategories[index]];
 
-    const updatedCategories = newCategories.map((cat, idx) => ({
-      ...cat,
+    const updatedCategories = newCategories.map((c, idx) => ({
+      ...c,
       sort_order: idx + 1,
     }));
 
-    setCategories(updatedCategories);
+    setTemplates((prev) =>
+      prev.map((t) => (t.id === templateId ? { ...t, categories: updatedCategories } : t))
+    );
 
     startTransition(async () => {
       await reorderCategories(updatedCategories.map((c) => ({ id: c.id, sort_order: c.sort_order })));
     });
   };
 
-  // テンプレート追加
-  const handleAddTemplate = () => {
-    if (!addingTemplateTo || !templateForm.name.trim()) return;
+  // 項目追加
+  const handleAddItem = () => {
+    if (!addingItemTo || !itemForm.name.trim()) return;
 
     startTransition(async () => {
-      const result = await createTemplate(addingTemplateTo, {
-        name: templateForm.name.trim(),
-        description: templateForm.description.trim() || null,
-        default_note: templateForm.default_note.trim() || null,
-        default_unit: templateForm.default_unit.trim() || null,
-        default_unit_price: templateForm.default_unit_price ? Number(templateForm.default_unit_price) : null,
+      const result = await createItem(addingItemTo, {
+        name: itemForm.name.trim(),
+        description: itemForm.description.trim() || null,
+        default_note: itemForm.default_note.trim() || null,
+        default_unit: itemForm.default_unit.trim() || null,
+        default_unit_price: itemForm.default_unit_price ? Number(itemForm.default_unit_price) : null,
       });
       if (result.success && result.id) {
-        setCategories((prev) =>
-          prev.map((c) => {
-            if (c.id !== addingTemplateTo) return c;
-            return {
-              ...c,
-              templates: [
-                ...c.templates,
-                {
-                  id: result.id!,
-                  category_id: addingTemplateTo,
-                  name: templateForm.name.trim(),
-                  description: templateForm.description.trim() || null,
-                  default_note: templateForm.default_note.trim() || null,
-                  default_unit: templateForm.default_unit.trim() || null,
-                  default_unit_price: templateForm.default_unit_price ? Number(templateForm.default_unit_price) : null,
-                  sort_order: c.templates.length + 1,
-                  created_at: new Date().toISOString(),
-                  updated_at: new Date().toISOString(),
-                },
-              ],
-            };
-          })
+        setTemplates((prev) =>
+          prev.map((t) => ({
+            ...t,
+            categories: t.categories.map((c) => {
+              if (c.id !== addingItemTo) return c;
+              return {
+                ...c,
+                items: [
+                  ...c.items,
+                  {
+                    id: result.id!,
+                    category_id: addingItemTo,
+                    name: itemForm.name.trim(),
+                    description: itemForm.description.trim() || null,
+                    default_note: itemForm.default_note.trim() || null,
+                    default_unit: itemForm.default_unit.trim() || null,
+                    default_unit_price: itemForm.default_unit_price ? Number(itemForm.default_unit_price) : null,
+                    sort_order: c.items.length + 1,
+                    created_at: new Date().toISOString(),
+                    updated_at: new Date().toISOString(),
+                  },
+                ],
+              };
+            }),
+          }))
         );
-        setTemplateForm(emptyTemplateForm);
-        setAddingTemplateTo(null);
+        setItemForm(emptyItemForm);
+        setAddingItemTo(null);
       } else {
         alert(result.error || "エラーが発生しました");
       }
     });
   };
 
-  // テンプレート編集を開始
-  const startEditTemplate = (template: InvoiceItemTemplate) => {
-    setEditingTemplate({
-      id: template.id,
+  // 項目編集開始
+  const startEditItem = (item: InvoiceItemTemplate) => {
+    setEditingItem({
+      id: item.id,
       form: {
-        name: template.name,
-        description: template.description || "",
-        default_note: template.default_note || "",
-        default_unit: template.default_unit || "",
-        default_unit_price: template.default_unit_price?.toString() || "",
+        name: item.name,
+        description: item.description || "",
+        default_note: item.default_note || "",
+        default_unit: item.default_unit || "",
+        default_unit_price: item.default_unit_price?.toString() || "",
       },
     });
   };
 
-  // テンプレート更新
-  const handleUpdateTemplate = () => {
-    if (!editingTemplate || !editingTemplate.form.name.trim()) return;
+  // 項目更新
+  const handleUpdateItem = () => {
+    if (!editingItem || !editingItem.form.name.trim()) return;
 
     startTransition(async () => {
-      const result = await updateTemplate(editingTemplate.id, {
-        name: editingTemplate.form.name.trim(),
-        description: editingTemplate.form.description.trim() || null,
-        default_note: editingTemplate.form.default_note.trim() || null,
-        default_unit: editingTemplate.form.default_unit.trim() || null,
-        default_unit_price: editingTemplate.form.default_unit_price
-          ? Number(editingTemplate.form.default_unit_price)
+      const result = await updateItem(editingItem.id, {
+        name: editingItem.form.name.trim(),
+        description: editingItem.form.description.trim() || null,
+        default_note: editingItem.form.default_note.trim() || null,
+        default_unit: editingItem.form.default_unit.trim() || null,
+        default_unit_price: editingItem.form.default_unit_price
+          ? Number(editingItem.form.default_unit_price)
           : null,
       });
       if (result.success) {
-        setCategories((prev) =>
-          prev.map((c) => ({
-            ...c,
-            templates: c.templates.map((t) =>
-              t.id === editingTemplate.id
-                ? {
-                    ...t,
-                    name: editingTemplate.form.name.trim(),
-                    description: editingTemplate.form.description.trim() || null,
-                    default_note: editingTemplate.form.default_note.trim() || null,
-                    default_unit: editingTemplate.form.default_unit.trim() || null,
-                    default_unit_price: editingTemplate.form.default_unit_price
-                      ? Number(editingTemplate.form.default_unit_price)
-                      : null,
-                  }
-                : t
-            ),
+        setTemplates((prev) =>
+          prev.map((t) => ({
+            ...t,
+            categories: t.categories.map((c) => ({
+              ...c,
+              items: c.items.map((item) =>
+                item.id === editingItem.id
+                  ? {
+                      ...item,
+                      name: editingItem.form.name.trim(),
+                      description: editingItem.form.description.trim() || null,
+                      default_note: editingItem.form.default_note.trim() || null,
+                      default_unit: editingItem.form.default_unit.trim() || null,
+                      default_unit_price: editingItem.form.default_unit_price
+                        ? Number(editingItem.form.default_unit_price)
+                        : null,
+                    }
+                  : item
+              ),
+            })),
           }))
         );
-        setEditingTemplate(null);
+        setEditingItem(null);
       } else {
         alert(result.error || "エラーが発生しました");
       }
     });
   };
 
-  // テンプレート削除
-  const handleDeleteTemplate = (templateId: string) => {
+  // 項目削除
+  const handleDeleteItem = (itemId: string) => {
     startTransition(async () => {
-      const result = await deleteTemplate(templateId);
+      const result = await deleteItem(itemId);
       if (result.success) {
-        setCategories((prev) =>
-          prev.map((c) => ({
-            ...c,
-            templates: c.templates.filter((t) => t.id !== templateId),
+        setTemplates((prev) =>
+          prev.map((t) => ({
+            ...t,
+            categories: t.categories.map((c) => ({
+              ...c,
+              items: c.items.filter((item) => item.id !== itemId),
+            })),
           }))
         );
       } else {
@@ -318,49 +464,66 @@ export function InvoiceItemManager({ categories: initialCategories }: InvoiceIte
     });
   };
 
-  // テンプレートの並び替え（上へ）
-  const moveTemplateUp = (categoryId: string, index: number) => {
+  // 項目の並び替え
+  const moveItemUp = (categoryId: string, index: number) => {
     if (index === 0) return;
 
-    const category = categories.find((c) => c.id === categoryId);
+    let category: InvoiceItemCategoryWithItems | undefined;
+    for (const t of templates) {
+      category = t.categories.find((c) => c.id === categoryId);
+      if (category) break;
+    }
     if (!category) return;
 
-    const newTemplates = [...category.templates];
-    [newTemplates[index - 1], newTemplates[index]] = [newTemplates[index], newTemplates[index - 1]];
+    const newItems = [...category.items];
+    [newItems[index - 1], newItems[index]] = [newItems[index], newItems[index - 1]];
 
-    const updatedTemplates = newTemplates.map((t, idx) => ({
-      ...t,
+    const updatedItems = newItems.map((item, idx) => ({
+      ...item,
       sort_order: idx + 1,
     }));
 
-    setCategories((prev) =>
-      prev.map((c) => (c.id === categoryId ? { ...c, templates: updatedTemplates } : c))
+    setTemplates((prev) =>
+      prev.map((t) => ({
+        ...t,
+        categories: t.categories.map((c) =>
+          c.id === categoryId ? { ...c, items: updatedItems } : c
+        ),
+      }))
     );
 
     startTransition(async () => {
-      await reorderTemplates(updatedTemplates.map((t) => ({ id: t.id, sort_order: t.sort_order })));
+      await reorderItems(updatedItems.map((item) => ({ id: item.id, sort_order: item.sort_order })));
     });
   };
 
-  // テンプレートの並び替え（下へ）
-  const moveTemplateDown = (categoryId: string, index: number) => {
-    const category = categories.find((c) => c.id === categoryId);
-    if (!category || index === category.templates.length - 1) return;
+  const moveItemDown = (categoryId: string, index: number) => {
+    let category: InvoiceItemCategoryWithItems | undefined;
+    for (const t of templates) {
+      category = t.categories.find((c) => c.id === categoryId);
+      if (category) break;
+    }
+    if (!category || index === category.items.length - 1) return;
 
-    const newTemplates = [...category.templates];
-    [newTemplates[index], newTemplates[index + 1]] = [newTemplates[index + 1], newTemplates[index]];
+    const newItems = [...category.items];
+    [newItems[index], newItems[index + 1]] = [newItems[index + 1], newItems[index]];
 
-    const updatedTemplates = newTemplates.map((t, idx) => ({
-      ...t,
+    const updatedItems = newItems.map((item, idx) => ({
+      ...item,
       sort_order: idx + 1,
     }));
 
-    setCategories((prev) =>
-      prev.map((c) => (c.id === categoryId ? { ...c, templates: updatedTemplates } : c))
+    setTemplates((prev) =>
+      prev.map((t) => ({
+        ...t,
+        categories: t.categories.map((c) =>
+          c.id === categoryId ? { ...c, items: updatedItems } : c
+        ),
+      }))
     );
 
     startTransition(async () => {
-      await reorderTemplates(updatedTemplates.map((t) => ({ id: t.id, sort_order: t.sort_order })));
+      await reorderItems(updatedItems.map((item) => ({ id: item.id, sort_order: item.sort_order })));
     });
   };
 
@@ -372,69 +535,68 @@ export function InvoiceItemManager({ categories: initialCategories }: InvoiceIte
 
   return (
     <div className="space-y-4">
-      {/* カテゴリ追加ボタン */}
+      {/* テンプレート追加ボタン */}
       <div className="flex justify-end">
-        <Button onClick={() => setShowAddCategory(true)}>
+        <Button onClick={() => setShowAddTemplate(true)}>
           <Plus className="h-4 w-4 mr-2" />
-          新規種別
+          新規テンプレート
         </Button>
       </div>
 
-      {/* カテゴリ一覧 */}
-      {categories.length === 0 ? (
+      {/* テンプレート一覧 */}
+      {templates.length === 0 ? (
         <Card>
           <CardContent className="py-8 text-center text-muted-foreground">
-            種別がありません。新規種別を追加してください。
+            テンプレートがありません。新規テンプレートを追加してください。
           </CardContent>
         </Card>
       ) : (
-        categories.map((category, categoryIndex) => {
-          const isExpanded = expandedCategories.has(category.id);
+        templates.map((template) => {
+          const isTemplateExpanded = expandedTemplates.has(template.id);
+          const totalCategories = template.categories.length;
+          const totalItems = template.categories.reduce((sum, c) => sum + c.items.length, 0);
 
           return (
-            <Card key={category.id}>
+            <Card key={template.id} className="border-2">
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
                   <div
                     className="flex items-center gap-2 cursor-pointer flex-1"
-                    onClick={() => toggleExpand(category.id)}
+                    onClick={() => toggleTemplateExpand(template.id)}
                   >
-                    {isExpanded ? (
+                    {isTemplateExpanded ? (
                       <ChevronUp className="h-5 w-5 text-muted-foreground" />
                     ) : (
                       <ChevronDown className="h-5 w-5 text-muted-foreground" />
                     )}
-                    <CardTitle className="text-lg">{category.name}</CardTitle>
+                    {template.document_type === "estimate" ? (
+                      <FileText className="h-5 w-5 text-blue-500" />
+                    ) : (
+                      <Receipt className="h-5 w-5 text-green-500" />
+                    )}
+                    <CardTitle className="text-lg">{template.name}</CardTitle>
+                    <Badge variant={template.document_type === "estimate" ? "secondary" : "default"}>
+                      {INVOICE_DOCUMENT_TYPE_LABELS[template.document_type]}
+                    </Badge>
                     <span className="text-sm text-muted-foreground">
-                      ({(category.templates || []).length}項目)
+                      ({totalCategories}種別 / {totalItems}項目)
                     </span>
                   </div>
                   <div className="flex items-center gap-1">
-                    {/* カテゴリの並び替え */}
                     <Button
                       size="icon"
                       variant="ghost"
-                      onClick={() => moveCategoryUp(categoryIndex)}
-                      disabled={categoryIndex === 0}
-                    >
-                      <ChevronUp className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => moveCategoryDown(categoryIndex)}
-                      disabled={categoryIndex === categories.length - 1}
-                    >
-                      <ChevronDown className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => setEditingCategory({ id: category.id, name: category.name })}
+                      onClick={() =>
+                        setEditingTemplate({
+                          id: template.id,
+                          name: template.name,
+                          document_type: template.document_type,
+                        })
+                      }
                     >
                       <Pencil className="h-4 w-4" />
                     </Button>
-                    {(category.templates || []).length === 0 ? (
+                    {totalCategories === 0 ? (
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <Button size="icon" variant="ghost">
@@ -443,15 +605,15 @@ export function InvoiceItemManager({ categories: initialCategories }: InvoiceIte
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
-                            <AlertDialogTitle>種別の削除</AlertDialogTitle>
+                            <AlertDialogTitle>テンプレートの削除</AlertDialogTitle>
                             <AlertDialogDescription>
-                              「{category.name}」を削除しますか？
+                              「{template.name}」を削除しますか？
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
                             <AlertDialogCancel>キャンセル</AlertDialogCancel>
                             <AlertDialogAction
-                              onClick={() => handleDeleteCategory(category.id)}
+                              onClick={() => handleDeleteTemplate(template.id)}
                               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                             >
                               削除
@@ -464,7 +626,7 @@ export function InvoiceItemManager({ categories: initialCategories }: InvoiceIte
                         size="icon"
                         variant="ghost"
                         disabled
-                        title="全ての項目を削除してから種別を削除してください"
+                        title="全ての種別を削除してからテンプレートを削除してください"
                       >
                         <Trash2 className="h-4 w-4 text-muted-foreground" />
                       </Button>
@@ -473,100 +635,210 @@ export function InvoiceItemManager({ categories: initialCategories }: InvoiceIte
                 </div>
               </CardHeader>
 
-              {isExpanded && (
-                <CardContent className="pt-0">
-                  <div className="space-y-2">
-                    {(category.templates || []).map((template, index) => (
-                      <div
-                        key={template.id}
-                        className="flex items-start gap-2 p-3 bg-muted/50 rounded-lg"
-                      >
-                        <div className="flex flex-col">
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-5 w-5"
-                            onClick={() => moveTemplateUp(category.id, index)}
-                            disabled={index === 0}
-                          >
-                            <ChevronUp className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            size="icon"
-                            variant="ghost"
-                            className="h-5 w-5"
-                            onClick={() => moveTemplateDown(category.id, index)}
-                            disabled={index === (category.templates || []).length - 1}
-                          >
-                            <ChevronDown className="h-3 w-3" />
-                          </Button>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <span className="font-medium">{template.name}</span>
-                            <span className="text-sm text-muted-foreground">
-                              {formatPrice(template.default_unit_price)}
-                              {template.default_unit && ` / ${template.default_unit}`}
-                            </span>
-                          </div>
-                          {template.description && (
-                            <p className="text-sm text-muted-foreground mt-1">
-                              説明: {template.description}
-                            </p>
-                          )}
-                          {template.default_note && (
-                            <p className="text-sm text-blue-600 mt-1">
-                              備考: {template.default_note}
-                            </p>
-                          )}
-                        </div>
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="h-8 w-8 flex-shrink-0"
-                          onClick={() => startEditTemplate(template)}
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <Button size="icon" variant="ghost" className="h-8 w-8 flex-shrink-0">
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                            </Button>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>項目の削除</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                「{template.name}」を削除しますか？
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>キャンセル</AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={() => handleDeleteTemplate(template.id)}
-                                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                              >
-                                削除
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </div>
-                    ))}
+              {isTemplateExpanded && (
+                <CardContent className="pt-0 pl-8">
+                  <div className="space-y-3">
+                    {/* カテゴリ一覧 */}
+                    {template.categories.map((category, categoryIndex) => {
+                      const isCategoryExpanded = expandedCategories.has(category.id);
 
-                    {/* 項目追加ボタン */}
+                      return (
+                        <div key={category.id} className="border rounded-lg bg-muted/30">
+                          <div className="flex items-center justify-between p-2">
+                            <div
+                              className="flex items-center gap-2 cursor-pointer flex-1"
+                              onClick={() => toggleCategoryExpand(category.id)}
+                            >
+                              {isCategoryExpanded ? (
+                                <ChevronUp className="h-4 w-4 text-muted-foreground" />
+                              ) : (
+                                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                              )}
+                              <span className="font-medium">{category.name}</span>
+                              <span className="text-sm text-muted-foreground">
+                                ({category.items.length}項目)
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7"
+                                onClick={() => moveCategoryUp(template.id, categoryIndex)}
+                                disabled={categoryIndex === 0}
+                              >
+                                <ChevronUp className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7"
+                                onClick={() => moveCategoryDown(template.id, categoryIndex)}
+                                disabled={categoryIndex === template.categories.length - 1}
+                              >
+                                <ChevronDown className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7"
+                                onClick={() =>
+                                  setEditingCategory({ id: category.id, name: category.name })
+                                }
+                              >
+                                <Pencil className="h-3 w-3" />
+                              </Button>
+                              {category.items.length === 0 ? (
+                                <AlertDialog>
+                                  <AlertDialogTrigger asChild>
+                                    <Button size="icon" variant="ghost" className="h-7 w-7">
+                                      <Trash2 className="h-3 w-3 text-destructive" />
+                                    </Button>
+                                  </AlertDialogTrigger>
+                                  <AlertDialogContent>
+                                    <AlertDialogHeader>
+                                      <AlertDialogTitle>種別の削除</AlertDialogTitle>
+                                      <AlertDialogDescription>
+                                        「{category.name}」を削除しますか？
+                                      </AlertDialogDescription>
+                                    </AlertDialogHeader>
+                                    <AlertDialogFooter>
+                                      <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                                      <AlertDialogAction
+                                        onClick={() => handleDeleteCategory(category.id)}
+                                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                      >
+                                        削除
+                                      </AlertDialogAction>
+                                    </AlertDialogFooter>
+                                  </AlertDialogContent>
+                                </AlertDialog>
+                              ) : (
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-7 w-7"
+                                  disabled
+                                  title="全ての項目を削除してから種別を削除してください"
+                                >
+                                  <Trash2 className="h-3 w-3 text-muted-foreground" />
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+
+                          {isCategoryExpanded && (
+                            <div className="px-3 pb-3 space-y-2">
+                              {category.items.map((item, itemIndex) => (
+                                <div
+                                  key={item.id}
+                                  className="flex items-start gap-2 p-2 bg-background rounded border"
+                                >
+                                  <div className="flex flex-col">
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-5 w-5"
+                                      onClick={() => moveItemUp(category.id, itemIndex)}
+                                      disabled={itemIndex === 0}
+                                    >
+                                      <ChevronUp className="h-3 w-3" />
+                                    </Button>
+                                    <Button
+                                      size="icon"
+                                      variant="ghost"
+                                      className="h-5 w-5"
+                                      onClick={() => moveItemDown(category.id, itemIndex)}
+                                      disabled={itemIndex === category.items.length - 1}
+                                    >
+                                      <ChevronDown className="h-3 w-3" />
+                                    </Button>
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2">
+                                      <span className="font-medium text-sm">{item.name}</span>
+                                      <span className="text-xs text-muted-foreground">
+                                        {formatPrice(item.default_unit_price)}
+                                        {item.default_unit && ` / ${item.default_unit}`}
+                                      </span>
+                                    </div>
+                                    {item.description && (
+                                      <p className="text-xs text-muted-foreground mt-0.5">
+                                        説明: {item.description}
+                                      </p>
+                                    )}
+                                    {item.default_note && (
+                                      <p className="text-xs text-blue-600 mt-0.5">
+                                        備考: {item.default_note}
+                                      </p>
+                                    )}
+                                  </div>
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-7 w-7 flex-shrink-0"
+                                    onClick={() => startEditItem(item)}
+                                  >
+                                    <Pencil className="h-3 w-3" />
+                                  </Button>
+                                  <AlertDialog>
+                                    <AlertDialogTrigger asChild>
+                                      <Button size="icon" variant="ghost" className="h-7 w-7 flex-shrink-0">
+                                        <Trash2 className="h-3 w-3 text-destructive" />
+                                      </Button>
+                                    </AlertDialogTrigger>
+                                    <AlertDialogContent>
+                                      <AlertDialogHeader>
+                                        <AlertDialogTitle>項目の削除</AlertDialogTitle>
+                                        <AlertDialogDescription>
+                                          「{item.name}」を削除しますか？
+                                        </AlertDialogDescription>
+                                      </AlertDialogHeader>
+                                      <AlertDialogFooter>
+                                        <AlertDialogCancel>キャンセル</AlertDialogCancel>
+                                        <AlertDialogAction
+                                          onClick={() => handleDeleteItem(item.id)}
+                                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                        >
+                                          削除
+                                        </AlertDialogAction>
+                                      </AlertDialogFooter>
+                                    </AlertDialogContent>
+                                  </AlertDialog>
+                                </div>
+                              ))}
+
+                              {/* 項目追加ボタン */}
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="w-full"
+                                onClick={() => {
+                                  setItemForm(emptyItemForm);
+                                  setAddingItemTo(category.id);
+                                }}
+                              >
+                                <Plus className="h-3 w-3 mr-1" />
+                                項目を追加
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {/* 種別追加ボタン */}
                     <Button
                       variant="outline"
                       size="sm"
-                      className="w-full mt-2"
+                      className="w-full"
                       onClick={() => {
-                        setTemplateForm(emptyTemplateForm);
-                        setAddingTemplateTo(category.id);
+                        setNewCategoryName("");
+                        setAddingCategoryTo(template.id);
                       }}
                     >
                       <Plus className="h-4 w-4 mr-2" />
-                      項目を追加
+                      種別を追加
                     </Button>
                   </div>
                 </CardContent>
@@ -576,11 +848,104 @@ export function InvoiceItemManager({ categories: initialCategories }: InvoiceIte
         })
       )}
 
-      {/* カテゴリ追加ダイアログ */}
-      <Dialog open={showAddCategory} onOpenChange={setShowAddCategory}>
+      {/* テンプレート追加ダイアログ */}
+      <Dialog open={showAddTemplate} onOpenChange={setShowAddTemplate}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>新規種別</DialogTitle>
+            <DialogTitle>新規テンプレート</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>テンプレート名</Label>
+              <Input
+                placeholder="例: 土地測量用、登記用、建設業者用"
+                value={newTemplateName}
+                onChange={(e) => setNewTemplateName(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>書類種別</Label>
+              <Select
+                value={newTemplateType}
+                onValueChange={(value) => setNewTemplateType(value as InvoiceDocumentType)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="estimate">見積書</SelectItem>
+                  <SelectItem value="invoice">請求書</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowAddTemplate(false)}>
+                キャンセル
+              </Button>
+              <Button onClick={handleAddTemplate} disabled={!newTemplateName.trim() || isPending}>
+                {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "作成"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* テンプレート編集ダイアログ */}
+      <Dialog open={!!editingTemplate} onOpenChange={() => setEditingTemplate(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>テンプレートの編集</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label>テンプレート名</Label>
+              <Input
+                placeholder="テンプレート名"
+                value={editingTemplate?.name || ""}
+                onChange={(e) =>
+                  setEditingTemplate((prev) => (prev ? { ...prev, name: e.target.value } : null))
+                }
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>書類種別</Label>
+              <Select
+                value={editingTemplate?.document_type || "estimate"}
+                onValueChange={(value) =>
+                  setEditingTemplate((prev) =>
+                    prev ? { ...prev, document_type: value as InvoiceDocumentType } : null
+                  )
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="estimate">見積書</SelectItem>
+                  <SelectItem value="invoice">請求書</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setEditingTemplate(null)}>
+                キャンセル
+              </Button>
+              <Button
+                onClick={handleUpdateTemplate}
+                disabled={!editingTemplate?.name.trim() || isPending}
+              >
+                {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "更新"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* カテゴリ追加ダイアログ */}
+      <Dialog open={!!addingCategoryTo} onOpenChange={() => setAddingCategoryTo(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>種別を追加</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <Input
@@ -592,11 +957,11 @@ export function InvoiceItemManager({ categories: initialCategories }: InvoiceIte
               }}
             />
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setShowAddCategory(false)}>
+              <Button variant="outline" onClick={() => setAddingCategoryTo(null)}>
                 キャンセル
               </Button>
               <Button onClick={handleAddCategory} disabled={!newCategoryName.trim() || isPending}>
-                {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "作成"}
+                {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "追加"}
               </Button>
             </div>
           </div>
@@ -635,8 +1000,8 @@ export function InvoiceItemManager({ categories: initialCategories }: InvoiceIte
         </DialogContent>
       </Dialog>
 
-      {/* テンプレート追加ダイアログ */}
-      <Dialog open={!!addingTemplateTo} onOpenChange={() => setAddingTemplateTo(null)}>
+      {/* 項目追加ダイアログ */}
+      <Dialog open={!!addingItemTo} onOpenChange={() => setAddingItemTo(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>項目を追加</DialogTitle>
@@ -646,8 +1011,8 @@ export function InvoiceItemManager({ categories: initialCategories }: InvoiceIte
               <Label>項目名 *</Label>
               <Input
                 placeholder="例: 分筆登記申請"
-                value={templateForm.name}
-                onChange={(e) => setTemplateForm((prev) => ({ ...prev, name: e.target.value }))}
+                value={itemForm.name}
+                onChange={(e) => setItemForm((prev) => ({ ...prev, name: e.target.value }))}
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -655,8 +1020,8 @@ export function InvoiceItemManager({ categories: initialCategories }: InvoiceIte
                 <Label>単位</Label>
                 <Input
                   placeholder="例: 式、筆、件"
-                  value={templateForm.default_unit}
-                  onChange={(e) => setTemplateForm((prev) => ({ ...prev, default_unit: e.target.value }))}
+                  value={itemForm.default_unit}
+                  onChange={(e) => setItemForm((prev) => ({ ...prev, default_unit: e.target.value }))}
                 />
               </div>
               <div className="space-y-2">
@@ -664,8 +1029,8 @@ export function InvoiceItemManager({ categories: initialCategories }: InvoiceIte
                 <Input
                   type="number"
                   placeholder="例: 30000"
-                  value={templateForm.default_unit_price}
-                  onChange={(e) => setTemplateForm((prev) => ({ ...prev, default_unit_price: e.target.value }))}
+                  value={itemForm.default_unit_price}
+                  onChange={(e) => setItemForm((prev) => ({ ...prev, default_unit_price: e.target.value }))}
                 />
               </div>
             </div>
@@ -673,8 +1038,8 @@ export function InvoiceItemManager({ categories: initialCategories }: InvoiceIte
               <Label>説明（社内向け）</Label>
               <Textarea
                 placeholder="項目の意味や使い方の説明"
-                value={templateForm.description}
-                onChange={(e) => setTemplateForm((prev) => ({ ...prev, description: e.target.value }))}
+                value={itemForm.description}
+                onChange={(e) => setItemForm((prev) => ({ ...prev, description: e.target.value }))}
                 rows={2}
               />
             </div>
@@ -682,16 +1047,16 @@ export function InvoiceItemManager({ categories: initialCategories }: InvoiceIte
               <Label>備考（顧客向け）</Label>
               <Textarea
                 placeholder="請求書に表示する備考"
-                value={templateForm.default_note}
-                onChange={(e) => setTemplateForm((prev) => ({ ...prev, default_note: e.target.value }))}
+                value={itemForm.default_note}
+                onChange={(e) => setItemForm((prev) => ({ ...prev, default_note: e.target.value }))}
                 rows={2}
               />
             </div>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setAddingTemplateTo(null)}>
+              <Button variant="outline" onClick={() => setAddingItemTo(null)}>
                 キャンセル
               </Button>
-              <Button onClick={handleAddTemplate} disabled={!templateForm.name.trim() || isPending}>
+              <Button onClick={handleAddItem} disabled={!itemForm.name.trim() || isPending}>
                 {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "追加"}
               </Button>
             </div>
@@ -699,8 +1064,8 @@ export function InvoiceItemManager({ categories: initialCategories }: InvoiceIte
         </DialogContent>
       </Dialog>
 
-      {/* テンプレート編集ダイアログ */}
-      <Dialog open={!!editingTemplate} onOpenChange={() => setEditingTemplate(null)}>
+      {/* 項目編集ダイアログ */}
+      <Dialog open={!!editingItem} onOpenChange={() => setEditingItem(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>項目の編集</DialogTitle>
@@ -710,9 +1075,9 @@ export function InvoiceItemManager({ categories: initialCategories }: InvoiceIte
               <Label>項目名 *</Label>
               <Input
                 placeholder="例: 分筆登記申請"
-                value={editingTemplate?.form.name || ""}
+                value={editingItem?.form.name || ""}
                 onChange={(e) =>
-                  setEditingTemplate((prev) =>
+                  setEditingItem((prev) =>
                     prev ? { ...prev, form: { ...prev.form, name: e.target.value } } : null
                   )
                 }
@@ -723,9 +1088,9 @@ export function InvoiceItemManager({ categories: initialCategories }: InvoiceIte
                 <Label>単位</Label>
                 <Input
                   placeholder="例: 式、筆、件"
-                  value={editingTemplate?.form.default_unit || ""}
+                  value={editingItem?.form.default_unit || ""}
                   onChange={(e) =>
-                    setEditingTemplate((prev) =>
+                    setEditingItem((prev) =>
                       prev ? { ...prev, form: { ...prev.form, default_unit: e.target.value } } : null
                     )
                   }
@@ -736,9 +1101,9 @@ export function InvoiceItemManager({ categories: initialCategories }: InvoiceIte
                 <Input
                   type="number"
                   placeholder="例: 30000"
-                  value={editingTemplate?.form.default_unit_price || ""}
+                  value={editingItem?.form.default_unit_price || ""}
                   onChange={(e) =>
-                    setEditingTemplate((prev) =>
+                    setEditingItem((prev) =>
                       prev ? { ...prev, form: { ...prev.form, default_unit_price: e.target.value } } : null
                     )
                   }
@@ -749,9 +1114,9 @@ export function InvoiceItemManager({ categories: initialCategories }: InvoiceIte
               <Label>説明（社内向け）</Label>
               <Textarea
                 placeholder="項目の意味や使い方の説明"
-                value={editingTemplate?.form.description || ""}
+                value={editingItem?.form.description || ""}
                 onChange={(e) =>
-                  setEditingTemplate((prev) =>
+                  setEditingItem((prev) =>
                     prev ? { ...prev, form: { ...prev.form, description: e.target.value } } : null
                   )
                 }
@@ -762,9 +1127,9 @@ export function InvoiceItemManager({ categories: initialCategories }: InvoiceIte
               <Label>備考（顧客向け）</Label>
               <Textarea
                 placeholder="請求書に表示する備考"
-                value={editingTemplate?.form.default_note || ""}
+                value={editingItem?.form.default_note || ""}
                 onChange={(e) =>
-                  setEditingTemplate((prev) =>
+                  setEditingItem((prev) =>
                     prev ? { ...prev, form: { ...prev.form, default_note: e.target.value } } : null
                   )
                 }
@@ -772,12 +1137,12 @@ export function InvoiceItemManager({ categories: initialCategories }: InvoiceIte
               />
             </div>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setEditingTemplate(null)}>
+              <Button variant="outline" onClick={() => setEditingItem(null)}>
                 キャンセル
               </Button>
               <Button
-                onClick={handleUpdateTemplate}
-                disabled={!editingTemplate?.form.name.trim() || isPending}
+                onClick={handleUpdateItem}
+                disabled={!editingItem?.form.name.trim() || isPending}
               >
                 {isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "更新"}
               </Button>

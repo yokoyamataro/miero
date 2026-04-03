@@ -977,10 +977,37 @@ export interface ProjectStandardTaskWithDetails extends ProjectStandardTask {
 }
 
 // ============================================
+// InvoiceTemplate (請求書テンプレート - 業種別ひな形)
+// ============================================
+export type InvoiceDocumentType = "estimate" | "invoice"; // 見積書 / 請求書
+
+export const INVOICE_DOCUMENT_TYPE_LABELS: Record<InvoiceDocumentType, string> = {
+  estimate: "見積書",
+  invoice: "請求書",
+};
+
+export interface InvoiceTemplate {
+  id: string;
+  name: string;                      // テンプレート名（例：土地測量用、登記用）
+  document_type: InvoiceDocumentType; // 見積書 or 請求書
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InvoiceTemplateInsert {
+  id?: string;
+  name: string;
+  document_type: InvoiceDocumentType;
+  sort_order?: number;
+}
+
+// ============================================
 // InvoiceItemCategory (請求項目種別マスタ)
 // ============================================
 export interface InvoiceItemCategory {
   id: string;
+  template_id: string;               // 所属するテンプレート
   name: string;
   sort_order: number;
   created_at: string;
@@ -989,6 +1016,7 @@ export interface InvoiceItemCategory {
 
 export interface InvoiceItemCategoryInsert {
   id?: string;
+  template_id: string;
   name: string;
   sort_order?: number;
 }
@@ -1025,7 +1053,12 @@ export interface InvoiceItemTemplateWithCategory extends InvoiceItemTemplate {
   category: InvoiceItemCategory;
 }
 
-// カテゴリとテンプレート一覧を含む型
-export interface InvoiceItemCategoryWithTemplates extends InvoiceItemCategory {
-  templates: InvoiceItemTemplate[];
+// カテゴリとアイテム一覧を含む型
+export interface InvoiceItemCategoryWithItems extends InvoiceItemCategory {
+  items: InvoiceItemTemplate[];
+}
+
+// 請求書テンプレートとカテゴリ・アイテムを含む型
+export interface InvoiceTemplateWithCategories extends InvoiceTemplate {
+  categories: InvoiceItemCategoryWithItems[];
 }
