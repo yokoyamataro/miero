@@ -2,13 +2,12 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import type { InvoiceDocumentType } from "@/types/database";
 
 // ============================================
 // 請求書テンプレート（ひな形）操作
 // ============================================
 
-export async function createInvoiceTemplate(name: string, documentType: InvoiceDocumentType) {
+export async function createInvoiceTemplate(name: string) {
   const supabase = await createClient();
 
   // 最大sort_orderを取得
@@ -23,7 +22,7 @@ export async function createInvoiceTemplate(name: string, documentType: InvoiceD
 
   const { data, error } = await supabase
     .from("invoice_templates")
-    .insert({ name, document_type: documentType, sort_order: nextOrder })
+    .insert({ name, sort_order: nextOrder })
     .select("id")
     .single();
 
@@ -35,12 +34,12 @@ export async function createInvoiceTemplate(name: string, documentType: InvoiceD
   return { success: true, id: data.id };
 }
 
-export async function updateInvoiceTemplate(id: string, name: string, documentType: InvoiceDocumentType) {
+export async function updateInvoiceTemplate(id: string, name: string) {
   const supabase = await createClient();
 
   const { error } = await supabase
     .from("invoice_templates")
-    .update({ name, document_type: documentType, updated_at: new Date().toISOString() })
+    .update({ name, updated_at: new Date().toISOString() })
     .eq("id", id);
 
   if (error) {
@@ -174,7 +173,6 @@ export async function createItem(
   data: {
     name: string;
     description?: string | null;
-    default_note?: string | null;
     default_unit?: string | null;
     default_unit_price?: number | null;
   }
@@ -198,7 +196,6 @@ export async function createItem(
       category_id: categoryId,
       name: data.name,
       description: data.description || null,
-      default_note: data.default_note || null,
       default_unit: data.default_unit || null,
       default_unit_price: data.default_unit_price ?? null,
       sort_order: nextOrder,
@@ -219,7 +216,6 @@ export async function updateItem(
   data: {
     name: string;
     description?: string | null;
-    default_note?: string | null;
     default_unit?: string | null;
     default_unit_price?: number | null;
   }
@@ -231,7 +227,6 @@ export async function updateItem(
     .update({
       name: data.name,
       description: data.description || null,
-      default_note: data.default_note || null,
       default_unit: data.default_unit || null,
       default_unit_price: data.default_unit_price ?? null,
       updated_at: new Date().toISOString(),

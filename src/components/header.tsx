@@ -40,6 +40,7 @@ const navItems = [
 const adminNavItems = [
   { href: "/employees", label: "社員", icon: Users },
   { href: "/settings/standard-tasks", label: "標準業務", icon: Settings },
+  { href: "/settings/invoice-items", label: "見積請求", icon: Receipt },
 ];
 
 export async function Header() {

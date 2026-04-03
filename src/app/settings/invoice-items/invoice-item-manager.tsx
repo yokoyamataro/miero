@@ -6,14 +6,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -39,15 +31,12 @@ import {
   ChevronUp,
   Loader2,
   FileText,
-  Receipt,
 } from "lucide-react";
 import type {
   InvoiceTemplateWithCategories,
   InvoiceItemCategoryWithItems,
   InvoiceItemTemplate,
-  InvoiceDocumentType,
 } from "@/types/database";
-import { INVOICE_DOCUMENT_TYPE_LABELS } from "@/types/database";
 import {
   createInvoiceTemplate,
   updateInvoiceTemplate,
@@ -69,7 +58,6 @@ interface InvoiceItemManagerProps {
 interface ItemFormData {
   name: string;
   description: string;
-  default_note: string;
   default_unit: string;
   default_unit_price: string;
 }
@@ -77,7 +65,6 @@ interface ItemFormData {
 const emptyItemForm: ItemFormData = {
   name: "",
   description: "",
-  default_note: "",
   default_unit: "",
   default_unit_price: "",
 };
@@ -95,13 +82,11 @@ export function InvoiceItemManager({ templates: initialTemplates }: InvoiceItemM
   // テンプレート追加ダイアログ
   const [showAddTemplate, setShowAddTemplate] = useState(false);
   const [newTemplateName, setNewTemplateName] = useState("");
-  const [newTemplateType, setNewTemplateType] = useState<InvoiceDocumentType>("estimate");
 
   // テンプレート編集ダイアログ
   const [editingTemplate, setEditingTemplate] = useState<{
     id: string;
     name: string;
-    document_type: InvoiceDocumentType;
   } | null>(null);
 
   // カテゴリ追加ダイアログ
@@ -150,14 +135,13 @@ export function InvoiceItemManager({ templates: initialTemplates }: InvoiceItemM
     if (!newTemplateName.trim()) return;
 
     startTransition(async () => {
-      const result = await createInvoiceTemplate(newTemplateName.trim(), newTemplateType);
+      const result = await createInvoiceTemplate(newTemplateName.trim());
       if (result.success && result.id) {
         setTemplates((prev) => [
           ...prev,
           {
             id: result.id!,
             name: newTemplateName.trim(),
-            document_type: newTemplateType,
             sort_order: prev.length + 1,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
@@ -170,7 +154,6 @@ export function InvoiceItemManager({ templates: initialTemplates }: InvoiceItemM
           return next;
         });
         setNewTemplateName("");
-        setNewTemplateType("estimate");
         setShowAddTemplate(false);
       } else {
         alert(result.error || "エラーが発生しました");
@@ -185,14 +168,13 @@ export function InvoiceItemManager({ templates: initialTemplates }: InvoiceItemM
     startTransition(async () => {
       const result = await updateInvoiceTemplate(
         editingTemplate.id,
-        editingTemplate.name.trim(),
-        editingTemplate.document_type
+        editingTemplate.name.trim()
       );
       if (result.success) {
         setTemplates((prev) =>
           prev.map((t) =>
             t.id === editingTemplate.id
-              ? { ...t, name: editingTemplate.name.trim(), document_type: editingTemplate.document_type }
+              ? { ...t, name: editingTemplate.name.trim() }
               : t
           )
         );
@@ -347,7 +329,6 @@ export function InvoiceItemManager({ templates: initialTemplates }: InvoiceItemM
       const result = await createItem(addingItemTo, {
         name: itemForm.name.trim(),
         description: itemForm.description.trim() || null,
-        default_note: itemForm.default_note.trim() || null,
         default_unit: itemForm.default_unit.trim() || null,
         default_unit_price: itemForm.default_unit_price ? Number(itemForm.default_unit_price) : null,
       });
@@ -366,7 +347,6 @@ export function InvoiceItemManager({ templates: initialTemplates }: InvoiceItemM
                     category_id: addingItemTo,
                     name: itemForm.name.trim(),
                     description: itemForm.description.trim() || null,
-                    default_note: itemForm.default_note.trim() || null,
                     default_unit: itemForm.default_unit.trim() || null,
                     default_unit_price: itemForm.default_unit_price ? Number(itemForm.default_unit_price) : null,
                     sort_order: c.items.length + 1,
@@ -393,7 +373,6 @@ export function InvoiceItemManager({ templates: initialTemplates }: InvoiceItemM
       form: {
         name: item.name,
         description: item.description || "",
-        default_note: item.default_note || "",
         default_unit: item.default_unit || "",
         default_unit_price: item.default_unit_price?.toString() || "",
       },
@@ -408,7 +387,6 @@ export function InvoiceItemManager({ templates: initialTemplates }: InvoiceItemM
       const result = await updateItem(editingItem.id, {
         name: editingItem.form.name.trim(),
         description: editingItem.form.description.trim() || null,
-        default_note: editingItem.form.default_note.trim() || null,
         default_unit: editingItem.form.default_unit.trim() || null,
         default_unit_price: editingItem.form.default_unit_price
           ? Number(editingItem.form.default_unit_price)
@@ -426,7 +404,6 @@ export function InvoiceItemManager({ templates: initialTemplates }: InvoiceItemM
                       ...item,
                       name: editingItem.form.name.trim(),
                       description: editingItem.form.description.trim() || null,
-                      default_note: editingItem.form.default_note.trim() || null,
                       default_unit: editingItem.form.default_unit.trim() || null,
                       default_unit_price: editingItem.form.default_unit_price
                         ? Number(editingItem.form.default_unit_price)
@@ -569,15 +546,8 @@ export function InvoiceItemManager({ templates: initialTemplates }: InvoiceItemM
                     ) : (
                       <ChevronDown className="h-5 w-5 text-muted-foreground" />
                     )}
-                    {template.document_type === "estimate" ? (
-                      <FileText className="h-5 w-5 text-blue-500" />
-                    ) : (
-                      <Receipt className="h-5 w-5 text-green-500" />
-                    )}
+                    <FileText className="h-5 w-5 text-blue-500" />
                     <CardTitle className="text-lg">{template.name}</CardTitle>
-                    <Badge variant={template.document_type === "estimate" ? "secondary" : "default"}>
-                      {INVOICE_DOCUMENT_TYPE_LABELS[template.document_type]}
-                    </Badge>
                     <span className="text-sm text-muted-foreground">
                       ({totalCategories}種別 / {totalItems}項目)
                     </span>
@@ -590,7 +560,6 @@ export function InvoiceItemManager({ templates: initialTemplates }: InvoiceItemM
                         setEditingTemplate({
                           id: template.id,
                           name: template.name,
-                          document_type: template.document_type,
                         })
                       }
                     >
@@ -767,11 +736,6 @@ export function InvoiceItemManager({ templates: initialTemplates }: InvoiceItemM
                                         説明: {item.description}
                                       </p>
                                     )}
-                                    {item.default_note && (
-                                      <p className="text-xs text-blue-600 mt-0.5">
-                                        備考: {item.default_note}
-                                      </p>
-                                    )}
                                   </div>
                                   <Button
                                     size="icon"
@@ -863,21 +827,6 @@ export function InvoiceItemManager({ templates: initialTemplates }: InvoiceItemM
                 onChange={(e) => setNewTemplateName(e.target.value)}
               />
             </div>
-            <div className="space-y-2">
-              <Label>書類種別</Label>
-              <Select
-                value={newTemplateType}
-                onValueChange={(value) => setNewTemplateType(value as InvoiceDocumentType)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="estimate">見積書</SelectItem>
-                  <SelectItem value="invoice">請求書</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setShowAddTemplate(false)}>
                 キャンセル
@@ -906,25 +855,6 @@ export function InvoiceItemManager({ templates: initialTemplates }: InvoiceItemM
                   setEditingTemplate((prev) => (prev ? { ...prev, name: e.target.value } : null))
                 }
               />
-            </div>
-            <div className="space-y-2">
-              <Label>書類種別</Label>
-              <Select
-                value={editingTemplate?.document_type || "estimate"}
-                onValueChange={(value) =>
-                  setEditingTemplate((prev) =>
-                    prev ? { ...prev, document_type: value as InvoiceDocumentType } : null
-                  )
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="estimate">見積書</SelectItem>
-                  <SelectItem value="invoice">請求書</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setEditingTemplate(null)}>
@@ -1043,15 +973,6 @@ export function InvoiceItemManager({ templates: initialTemplates }: InvoiceItemM
                 rows={2}
               />
             </div>
-            <div className="space-y-2">
-              <Label>備考（顧客向け）</Label>
-              <Textarea
-                placeholder="請求書に表示する備考"
-                value={itemForm.default_note}
-                onChange={(e) => setItemForm((prev) => ({ ...prev, default_note: e.target.value }))}
-                rows={2}
-              />
-            </div>
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setAddingItemTo(null)}>
                 キャンセル
@@ -1118,19 +1039,6 @@ export function InvoiceItemManager({ templates: initialTemplates }: InvoiceItemM
                 onChange={(e) =>
                   setEditingItem((prev) =>
                     prev ? { ...prev, form: { ...prev.form, description: e.target.value } } : null
-                  )
-                }
-                rows={2}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label>備考（顧客向け）</Label>
-              <Textarea
-                placeholder="請求書に表示する備考"
-                value={editingItem?.form.default_note || ""}
-                onChange={(e) =>
-                  setEditingItem((prev) =>
-                    prev ? { ...prev, form: { ...prev.form, default_note: e.target.value } } : null
                   )
                 }
                 rows={2}

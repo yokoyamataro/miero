@@ -979,17 +979,9 @@ export interface ProjectStandardTaskWithDetails extends ProjectStandardTask {
 // ============================================
 // InvoiceTemplate (請求書テンプレート - 業種別ひな形)
 // ============================================
-export type InvoiceDocumentType = "estimate" | "invoice"; // 見積書 / 請求書
-
-export const INVOICE_DOCUMENT_TYPE_LABELS: Record<InvoiceDocumentType, string> = {
-  estimate: "見積書",
-  invoice: "請求書",
-};
-
 export interface InvoiceTemplate {
   id: string;
   name: string;                      // テンプレート名（例：土地測量用、登記用）
-  document_type: InvoiceDocumentType; // 見積書 or 請求書
   sort_order: number;
   created_at: string;
   updated_at: string;
@@ -998,7 +990,6 @@ export interface InvoiceTemplate {
 export interface InvoiceTemplateInsert {
   id?: string;
   name: string;
-  document_type: InvoiceDocumentType;
   sort_order?: number;
 }
 
@@ -1029,7 +1020,6 @@ export interface InvoiceItemTemplate {
   category_id: string;
   name: string;
   description: string | null;       // 社内向け説明
-  default_note: string | null;      // 請求相手向け備考
   default_unit: string | null;      // デフォルト単位（式、筆、件など）
   default_unit_price: number | null; // デフォルト単価
   sort_order: number;
@@ -1042,7 +1032,6 @@ export interface InvoiceItemTemplateInsert {
   category_id: string;
   name: string;
   description?: string | null;
-  default_note?: string | null;
   default_unit?: string | null;
   default_unit_price?: number | null;
   sort_order?: number;

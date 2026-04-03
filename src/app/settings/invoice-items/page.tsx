@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirect } from "next/navigation";
 import { InvoiceItemManager } from "./invoice-item-manager";
-import type { InvoiceTemplateWithCategories, InvoiceDocumentType } from "@/types/database";
+import type { InvoiceTemplateWithCategories } from "@/types/database";
 
 export default async function InvoiceItemsPage() {
   const supabase = await createClient();
@@ -60,7 +60,6 @@ export default async function InvoiceItemsPage() {
   type TemplateType = {
     id: string;
     name: string;
-    document_type: InvoiceDocumentType;
     sort_order: number;
     created_at: string;
     updated_at: string;
@@ -78,7 +77,6 @@ export default async function InvoiceItemsPage() {
     category_id: string;
     name: string;
     description: string | null;
-    default_note: string | null;
     default_unit: string | null;
     default_unit_price: number | null;
     sort_order: number;
