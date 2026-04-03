@@ -27,7 +27,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Plus, Trash2, GripVertical } from "lucide-react";
+import { Plus, Trash2, GripVertical, Download } from "lucide-react";
+import * as XLSX from "xlsx";
 import {
   type InvoiceDocumentType,
   type InvoiceTemplateWithCategories,
@@ -265,6 +266,75 @@ export function InvoiceCreateDialog({
     return new Intl.NumberFormat("ja-JP").format(amount);
   };
 
+  // Excel出力
+  const handleExportExcel = () => {
+    const project = projects.find((p) => p.id === projectId);
+    const entity = businessEntities.find((e) => e.id === businessEntityId);
+
+    // ヘッダー情報
+    const headerRows = [
+      [documentType === "invoice" ? "請求書" : "見積書"],
+      [],
+      ["業務", project ? `${project.code} - ${project.name}` : ""],
+      ["事業主体", entity?.name || ""],
+      [documentType === "invoice" ? "請求日" : "見積日", invoiceDate],
+      [],
+    ];
+
+    // 明細ヘッダー
+    const itemHeader = ["項目名", "数量", "単位", "単価", "金額"];
+
+    // 明細データ
+    const itemRows = items.map((item) => [
+      item.name,
+      item.quantity,
+      item.unit || "",
+      item.unit_price,
+      item.amount,
+    ]);
+
+    // 合計行
+    const summaryRows = [
+      [],
+      ["", "", "", "小計（税抜）", subtotal],
+      ["", "", "", `消費税（${Math.round(taxRate * 100)}%）`, taxAmount],
+      ["", "", "", "立替金", expenses],
+      ["", "", "", "合計金額", totalAmount],
+    ];
+
+    // ワークシートデータを組み立て
+    const wsData = [
+      ...headerRows,
+      itemHeader,
+      ...itemRows,
+      ...summaryRows,
+    ];
+
+    // ワークシート作成
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+    // 列幅設定
+    ws["!cols"] = [
+      { wch: 30 }, // 項目名
+      { wch: 10 }, // 数量
+      { wch: 8 },  // 単位
+      { wch: 12 }, // 単価
+      { wch: 12 }, // 金額
+    ];
+
+    // ワークブック作成
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, documentType === "invoice" ? "請求書" : "見積書");
+
+    // ファイル名生成
+    const fileName = project
+      ? `${documentType === "invoice" ? "請求書" : "見積書"}_${project.code}_${invoiceDate}.xlsx`
+      : `${documentType === "invoice" ? "請求書" : "見積書"}_${invoiceDate}.xlsx`;
+
+    // ダウンロード
+    XLSX.writeFile(wb, fileName);
+  };
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -407,8 +477,8 @@ export function InvoiceCreateDialog({
                     <TableRow>
                       <TableHead className="w-[30px]"></TableHead>
                       <TableHead>項目名</TableHead>
-                      <TableHead className="w-[80px]">数量</TableHead>
-                      <TableHead className="w-[70px]">単位</TableHead>
+                      <TableHead className="w-[100px]">数量</TableHead>
+                      <TableHead className="w-[90px]">単位</TableHead>
                       <TableHead className="w-[120px]">単価</TableHead>
                       <TableHead className="w-[120px] text-right">金額</TableHead>
                       <TableHead className="w-[40px]"></TableHead>
@@ -557,16 +627,27 @@ export function InvoiceCreateDialog({
           </div>
 
           {/* ボタン */}
-          <div className="flex justify-end gap-2 pt-4 border-t">
-            <Button variant="outline" onClick={handleClose} disabled={isPending}>
-              キャンセル
-            </Button>
+          <div className="flex justify-between pt-4 border-t">
             <Button
-              onClick={handleSubmit}
-              disabled={isPending || !projectId || !businessEntityId}
+              type="button"
+              variant="outline"
+              onClick={handleExportExcel}
+              disabled={items.length === 0}
             >
-              作成
+              <Download className="h-4 w-4 mr-1" />
+              Excel出力
             </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={handleClose} disabled={isPending}>
+                キャンセル
+              </Button>
+              <Button
+                onClick={handleSubmit}
+                disabled={isPending || !projectId || !businessEntityId}
+              >
+                作成
+              </Button>
+            </div>
           </div>
         </div>
       </DialogContent>
