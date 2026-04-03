@@ -6,8 +6,6 @@ import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -25,12 +23,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -58,10 +50,8 @@ import {
   updatePaymentDate,
   getInvoicePdfUrl,
   deleteInvoice,
-  createInvoice,
-  uploadInvoicePdf,
-  getProjectCustomerInfo,
 } from "./actions";
+import { InvoiceCreateDialog } from "./invoice-create-dialog";
 
 interface ProjectForInvoice {
   id: string;
@@ -130,21 +120,6 @@ export function InvoiceList({
 
   // 請求書追加モーダル
   const [showAddModal, setShowAddModal] = useState(false);
-  const [formData, setFormData] = useState({
-    project_id: "",
-    business_entity_id: "",
-    invoice_date: new Date().toISOString().split("T")[0],
-    recipient_contact_id: "",
-    person_in_charge_id: "",
-    fee_tax_excluded: 0,
-    expenses: 0,
-    total_amount: 0,
-    notes: "",
-  });
-  const [pdfFile, setPdfFile] = useState<File | null>(null);
-  const [customerInfo, setCustomerInfo] = useState<{
-    contacts: { id: string; name: string; accountName: string | null }[];
-  } | null>(null);
 
   // 年の選択肢
   const yearOptions = useMemo(() => generateYearOptions(), []);
@@ -271,106 +246,6 @@ export function InvoiceList({
 
   const months = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
-  // 請求書追加関連
-  const resetForm = () => {
-    setFormData({
-      project_id: "",
-      business_entity_id: "",
-      invoice_date: new Date().toISOString().split("T")[0],
-      recipient_contact_id: "",
-      person_in_charge_id: "",
-      fee_tax_excluded: 0,
-      expenses: 0,
-      total_amount: 0,
-      notes: "",
-    });
-    setPdfFile(null);
-    setCustomerInfo(null);
-  };
-
-  const handleOpenAddModal = () => {
-    resetForm();
-    setShowAddModal(true);
-  };
-
-  const handleCloseAddModal = () => {
-    setShowAddModal(false);
-    resetForm();
-  };
-
-  const handleProjectChange = async (projectId: string) => {
-    setFormData({ ...formData, project_id: projectId, recipient_contact_id: "" });
-    if (projectId) {
-      const info = await getProjectCustomerInfo(projectId);
-      setCustomerInfo(info);
-      // 自動で最初の連絡先を選択
-      if (info?.contacts?.length === 1) {
-        setFormData((prev) => ({ ...prev, project_id: projectId, recipient_contact_id: info.contacts[0].id }));
-      }
-    } else {
-      setCustomerInfo(null);
-    }
-  };
-
-  // 請求金額を自動計算（税抜報酬 × 1.1 + 立替金）
-  const calculateTotal = (feeTaxExcluded: number, expenses: number) => {
-    const taxIncluded = Math.floor(feeTaxExcluded * 1.1);
-    return taxIncluded + expenses;
-  };
-
-  const handleFeeChange = (value: number) => {
-    const total = calculateTotal(value, formData.expenses);
-    setFormData({ ...formData, fee_tax_excluded: value, total_amount: total });
-  };
-
-  const handleExpensesChange = (value: number) => {
-    const total = calculateTotal(formData.fee_tax_excluded, value);
-    setFormData({ ...formData, expenses: value, total_amount: total });
-  };
-
-  const handleSubmit = async () => {
-    if (!formData.project_id || !formData.business_entity_id) return;
-
-    const project = projects.find((p) => p.id === formData.project_id);
-    const entity = businessEntities.find((e) => e.id === formData.business_entity_id);
-    if (!project || !entity) return;
-
-    startTransition(async () => {
-      const result = await createInvoice({
-        project_id: formData.project_id,
-        project_code: project.code,
-        business_entity_id: formData.business_entity_id,
-        business_entity_code: entity.code,
-        invoice_date: formData.invoice_date,
-        recipient_contact_id: formData.recipient_contact_id || null,
-        person_in_charge_id: formData.person_in_charge_id || null,
-        fee_tax_excluded: formData.fee_tax_excluded,
-        expenses: formData.expenses,
-        total_amount: formData.total_amount,
-        pdf_path: null,
-        notes: formData.notes || null,
-      });
-
-      if (result.error) {
-        alert(result.error);
-        return;
-      }
-
-      // PDFがあればアップロード
-      if (pdfFile && result.invoice) {
-        const pdfFormData = new FormData();
-        pdfFormData.append("file", pdfFile);
-        const uploadResult = await uploadInvoicePdf(result.invoice.id, pdfFormData);
-        if (uploadResult.error) {
-          alert(uploadResult.error);
-        }
-      }
-
-      handleCloseAddModal();
-      router.refresh();
-    });
-  };
-
   return (
     <div className="space-y-6">
       {/* フィルタ */}
@@ -390,7 +265,7 @@ export function InvoiceList({
             </div>
 
             {/* 請求書追加ボタン */}
-            <Button onClick={handleOpenAddModal} disabled={isPending}>
+            <Button onClick={() => setShowAddModal(true)} disabled={isPending}>
               <Plus className="h-4 w-4 mr-1" />
               請求書を追加
             </Button>
@@ -654,179 +529,13 @@ export function InvoiceList({
       </AlertDialog>
 
       {/* 請求書追加モーダル */}
-      <Dialog open={showAddModal} onOpenChange={handleCloseAddModal}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>請求書を追加</DialogTitle>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            {/* 業務選択 */}
-            <div className="space-y-2">
-              <Label>業務 *</Label>
-              <Select
-                value={formData.project_id}
-                onValueChange={handleProjectChange}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="業務を選択" />
-                </SelectTrigger>
-                <SelectContent>
-                  {projects.map((project) => (
-                    <SelectItem key={project.id} value={project.id}>
-                      {project.code} - {project.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* 事業主体 */}
-            <div className="space-y-2">
-              <Label>事業主体 *</Label>
-              <Select
-                value={formData.business_entity_id}
-                onValueChange={(v) => setFormData({ ...formData, business_entity_id: v })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="事業主体を選択" />
-                </SelectTrigger>
-                <SelectContent>
-                  {businessEntities.map((entity) => (
-                    <SelectItem key={entity.id} value={entity.id}>
-                      {entity.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* 請求日 */}
-            <div className="space-y-2">
-              <Label>請求日 *</Label>
-              <Input
-                type="date"
-                value={formData.invoice_date}
-                onChange={(e) => setFormData({ ...formData, invoice_date: e.target.value })}
-              />
-            </div>
-
-            {/* 相手先 */}
-            {customerInfo && customerInfo.contacts.length > 0 && (
-              <div className="space-y-2">
-                <Label>相手先</Label>
-                <Select
-                  value={formData.recipient_contact_id || "__none__"}
-                  onValueChange={(v) => setFormData({ ...formData, recipient_contact_id: v === "__none__" ? "" : v })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="相手先を選択" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">未選択</SelectItem>
-                    {customerInfo.contacts.map((contact) => (
-                      <SelectItem key={contact.id} value={contact.id}>
-                        {contact.accountName || contact.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            {/* 請求担当者 */}
-            <div className="space-y-2">
-              <Label>請求担当者</Label>
-              <Select
-                value={formData.person_in_charge_id || "__none__"}
-                onValueChange={(v) => setFormData({ ...formData, person_in_charge_id: v === "__none__" ? "" : v })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="担当者を選択" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">未選択</SelectItem>
-                  {employees.map((emp) => (
-                    <SelectItem key={emp.id} value={emp.id}>
-                      {emp.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* 金額入力 */}
-            <div className="grid grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label>税抜報酬</Label>
-                <Input
-                  type="number"
-                  value={formData.fee_tax_excluded || ""}
-                  onChange={(e) => handleFeeChange(Number(e.target.value) || 0)}
-                  placeholder="0"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>立替金</Label>
-                <Input
-                  type="number"
-                  value={formData.expenses || ""}
-                  onChange={(e) => handleExpensesChange(Number(e.target.value) || 0)}
-                  placeholder="0"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label>請求金額</Label>
-                <Input
-                  type="number"
-                  value={formData.total_amount || ""}
-                  onChange={(e) => setFormData({ ...formData, total_amount: Number(e.target.value) || 0 })}
-                  placeholder="0"
-                />
-                <p className="text-xs text-muted-foreground">
-                  自動計算: 税抜×1.1+立替
-                </p>
-              </div>
-            </div>
-
-            {/* PDFアップロード */}
-            <div className="space-y-2">
-              <Label>PDF</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="file"
-                  accept=".pdf"
-                  onChange={(e) => setPdfFile(e.target.files?.[0] || null)}
-                  className="flex-1"
-                />
-              </div>
-            </div>
-
-            {/* 備考 */}
-            <div className="space-y-2">
-              <Label>備考</Label>
-              <Textarea
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                rows={2}
-              />
-            </div>
-
-            {/* ボタン */}
-            <div className="flex justify-end gap-2 pt-4">
-              <Button variant="outline" onClick={handleCloseAddModal} disabled={isPending}>
-                キャンセル
-              </Button>
-              <Button
-                onClick={handleSubmit}
-                disabled={isPending || !formData.project_id || !formData.business_entity_id}
-              >
-                追加
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
+      <InvoiceCreateDialog
+        open={showAddModal}
+        onOpenChange={setShowAddModal}
+        businessEntities={businessEntities}
+        employees={employees}
+        projects={projects}
+      />
     </div>
   );
 }

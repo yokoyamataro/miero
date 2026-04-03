@@ -1051,3 +1051,52 @@ export interface InvoiceItemCategoryWithItems extends InvoiceItemCategory {
 export interface InvoiceTemplateWithCategories extends InvoiceTemplate {
   categories: InvoiceItemCategoryWithItems[];
 }
+
+// ============================================
+// InvoiceItem (請求書明細項目)
+// ============================================
+export type InvoiceDocumentType = "invoice" | "estimate";
+
+export const INVOICE_DOCUMENT_TYPE_LABELS: Record<InvoiceDocumentType, string> = {
+  invoice: "請求書",
+  estimate: "見積書",
+};
+
+export interface InvoiceItem {
+  id: string;
+  invoice_id: string;
+  item_template_id: string | null;    // テンプレートから追加した場合
+  category_name: string | null;       // カテゴリ名（スナップショット）
+  name: string;                       // 項目名
+  description: string | null;         // 説明・備考
+  unit: string | null;                // 単位
+  quantity: number;                   // 数量
+  unit_price: number;                 // 単価
+  amount: number;                     // 金額（quantity × unit_price）
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InvoiceItemInsert {
+  id?: string;
+  invoice_id: string;
+  item_template_id?: string | null;
+  category_name?: string | null;
+  name: string;
+  description?: string | null;
+  unit?: string | null;
+  quantity?: number;
+  unit_price?: number;
+  amount?: number;
+  sort_order?: number;
+}
+
+// 請求書（明細付き）
+export interface InvoiceWithItems extends InvoiceWithDetails {
+  items: InvoiceItem[];
+  document_type: InvoiceDocumentType;
+  subtotal: number;
+  tax_amount: number;
+  tax_rate: number;
+}

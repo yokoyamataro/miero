@@ -9,6 +9,12 @@ import {
   type Contact,
   type Account,
   type Employee,
+  type InvoiceDocumentType,
+  type InvoiceItem,
+  type InvoiceTemplateWithCategories,
+  type InvoiceItemTemplate,
+  type InvoiceItemCategory,
+  type InvoiceTemplate,
 } from "@/types/database";
 
 // ============================================
@@ -533,4 +539,273 @@ export async function getProjectCustomerInfo(projectId: string): Promise<{
       },
     ],
   };
+}
+
+// ============================================
+// 請求書テンプレート一覧取得（項目選択用）
+// ============================================
+export async function getInvoiceTemplates(): Promise<InvoiceTemplateWithCategories[]> {
+  const supabase = await createClient();
+
+  // テンプレート一覧取得
+  const { data: templates, error: templatesError } = await supabase
+    .from("invoice_templates" as never)
+    .select("*")
+    .order("sort_order");
+
+  if (templatesError || !templates) {
+    console.error("Error fetching invoice templates:", templatesError);
+    return [];
+  }
+
+  const typedTemplates = templates as InvoiceTemplate[];
+  const templateIds = typedTemplates.map((t) => t.id);
+
+  if (templateIds.length === 0) {
+    return [];
+  }
+
+  // カテゴリ一覧取得
+  const { data: categories, error: categoriesError } = await supabase
+    .from("invoice_item_categories" as never)
+    .select("*")
+    .in("template_id", templateIds)
+    .order("sort_order");
+
+  if (categoriesError) {
+    console.error("Error fetching invoice item categories:", categoriesError);
+    return typedTemplates.map((t) => ({ ...t, categories: [] }));
+  }
+
+  const typedCategories = (categories as InvoiceItemCategory[]) || [];
+  const categoryIds = typedCategories.map((c) => c.id);
+
+  // 項目一覧取得
+  const { data: items, error: itemsError } = categoryIds.length > 0
+    ? await supabase
+        .from("invoice_item_templates" as never)
+        .select("*")
+        .in("category_id", categoryIds)
+        .order("sort_order")
+    : { data: [], error: null };
+
+  if (itemsError) {
+    console.error("Error fetching invoice item templates:", itemsError);
+  }
+
+  const typedItems = (items as InvoiceItemTemplate[]) || [];
+
+  // 階層構造に組み立て
+  return typedTemplates.map((template) => ({
+    ...template,
+    categories: typedCategories
+      .filter((category) => category.template_id === template.id)
+      .map((category) => ({
+        ...category,
+        items: typedItems.filter((item) => item.category_id === category.id),
+      })),
+  }));
+}
+
+// ============================================
+// 請求書作成（明細付き）
+// ============================================
+export async function createInvoiceWithItems(data: {
+  project_id: string;
+  project_code: string;
+  business_entity_id: string;
+  business_entity_code: string;
+  invoice_date: string;
+  recipient_contact_id: string | null;
+  person_in_charge_id: string | null;
+  document_type: InvoiceDocumentType;
+  expenses: number;
+  notes: string | null;
+  tax_rate: number;
+  items: {
+    item_template_id: string | null;
+    category_name: string | null;
+    name: string;
+    description: string | null;
+    unit: string | null;
+    quantity: number;
+    unit_price: number;
+    amount: number;
+    sort_order: number;
+  }[];
+}): Promise<{ error?: string; invoice?: Invoice }> {
+  const supabase = await createClient();
+
+  // 計算
+  const subtotal = data.items.reduce((sum, item) => sum + item.amount, 0);
+  const taxAmount = Math.floor(subtotal * data.tax_rate);
+  const totalAmount = subtotal + taxAmount + data.expenses;
+
+  // 請求書番号を生成
+  const { invoiceNumber, sequenceNumber } = await generateInvoiceNumber(
+    data.project_code,
+    data.business_entity_code
+  );
+
+  // 請求書を作成
+  const { data: invoice, error: invoiceError } = await supabase
+    .from("invoices" as never)
+    .insert({
+      invoice_number: invoiceNumber,
+      project_id: data.project_id,
+      business_entity_id: data.business_entity_id,
+      sequence_number: sequenceNumber,
+      invoice_date: data.invoice_date,
+      recipient_contact_id: data.recipient_contact_id,
+      person_in_charge_id: data.person_in_charge_id,
+      document_type: data.document_type,
+      fee_tax_excluded: subtotal,
+      expenses: data.expenses,
+      total_amount: totalAmount,
+      subtotal: subtotal,
+      tax_amount: taxAmount,
+      tax_rate: data.tax_rate,
+      notes: data.notes,
+    } as never)
+    .select("*")
+    .single();
+
+  if (invoiceError || !invoice) {
+    console.error("Error creating invoice:", invoiceError);
+    return { error: "請求書の作成に失敗しました" };
+  }
+
+  const typedInvoice = invoice as Invoice;
+
+  // 明細項目を作成
+  if (data.items.length > 0) {
+    const itemsToInsert = data.items.map((item) => ({
+      invoice_id: typedInvoice.id,
+      item_template_id: item.item_template_id,
+      category_name: item.category_name,
+      name: item.name,
+      description: item.description,
+      unit: item.unit,
+      quantity: item.quantity,
+      unit_price: item.unit_price,
+      amount: item.amount,
+      sort_order: item.sort_order,
+    }));
+
+    const { error: itemsError } = await supabase
+      .from("invoice_items" as never)
+      .insert(itemsToInsert as never);
+
+    if (itemsError) {
+      console.error("Error creating invoice items:", itemsError);
+      // 請求書は作成されているので、ロールバックせずにエラーを返す
+      return { error: "明細項目の作成に失敗しました" };
+    }
+  }
+
+  return { invoice: typedInvoice };
+}
+
+// ============================================
+// 請求書の明細取得
+// ============================================
+export async function getInvoiceItems(invoiceId: string): Promise<InvoiceItem[]> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("invoice_items" as never)
+    .select("*")
+    .eq("invoice_id", invoiceId)
+    .order("sort_order");
+
+  if (error) {
+    console.error("Error fetching invoice items:", error);
+    return [];
+  }
+
+  return (data as InvoiceItem[]) || [];
+}
+
+// ============================================
+// 明細項目の更新
+// ============================================
+export async function updateInvoiceItems(
+  invoiceId: string,
+  items: {
+    id?: string;
+    item_template_id: string | null;
+    category_name: string | null;
+    name: string;
+    description: string | null;
+    unit: string | null;
+    quantity: number;
+    unit_price: number;
+    amount: number;
+    sort_order: number;
+  }[],
+  taxRate: number,
+  expenses: number
+): Promise<{ error?: string }> {
+  const supabase = await createClient();
+
+  // 既存の明細を削除
+  const { error: deleteError } = await supabase
+    .from("invoice_items" as never)
+    .delete()
+    .eq("invoice_id", invoiceId);
+
+  if (deleteError) {
+    console.error("Error deleting invoice items:", deleteError);
+    return { error: "明細の更新に失敗しました" };
+  }
+
+  // 新しい明細を挿入
+  if (items.length > 0) {
+    const itemsToInsert = items.map((item) => ({
+      invoice_id: invoiceId,
+      item_template_id: item.item_template_id,
+      category_name: item.category_name,
+      name: item.name,
+      description: item.description,
+      unit: item.unit,
+      quantity: item.quantity,
+      unit_price: item.unit_price,
+      amount: item.amount,
+      sort_order: item.sort_order,
+    }));
+
+    const { error: insertError } = await supabase
+      .from("invoice_items" as never)
+      .insert(itemsToInsert as never);
+
+    if (insertError) {
+      console.error("Error inserting invoice items:", insertError);
+      return { error: "明細の更新に失敗しました" };
+    }
+  }
+
+  // 請求書の金額を再計算
+  const subtotal = items.reduce((sum, item) => sum + item.amount, 0);
+  const taxAmount = Math.floor(subtotal * taxRate);
+  const totalAmount = subtotal + taxAmount + expenses;
+
+  const { error: updateError } = await supabase
+    .from("invoices" as never)
+    .update({
+      fee_tax_excluded: subtotal,
+      subtotal: subtotal,
+      tax_amount: taxAmount,
+      tax_rate: taxRate,
+      expenses: expenses,
+      total_amount: totalAmount,
+      updated_at: new Date().toISOString(),
+    } as never)
+    .eq("id", invoiceId);
+
+  if (updateError) {
+    console.error("Error updating invoice totals:", updateError);
+    return { error: "請求書金額の更新に失敗しました" };
+  }
+
+  return {};
 }
