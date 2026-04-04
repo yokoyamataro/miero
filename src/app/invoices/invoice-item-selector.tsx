@@ -3,7 +3,6 @@
 import { useState } from "react";
 import {
   type InvoiceTemplateWithCategories,
-  type InvoiceItemTemplate,
 } from "@/types/database";
 import {
   Select,
@@ -13,8 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 
 export interface SelectedItem {
   item_template_id: string;
@@ -27,6 +25,17 @@ export interface SelectedItem {
   amount: number;
 }
 
+interface ItemInput {
+  id: string;
+  category_name: string;
+  name: string;
+  description: string | null;
+  default_unit: string | null;
+  default_unit_price: number | null;
+  quantity: number;
+  note: string;
+}
+
 interface InvoiceItemSelectorProps {
   templates: InvoiceTemplateWithCategories[];
   onAddItems: (items: SelectedItem[]) => void;
@@ -37,63 +46,75 @@ export function InvoiceItemSelector({
   onAddItems,
 }: InvoiceItemSelectorProps) {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
-  const [selectedItemIds, setSelectedItemIds] = useState<Set<string>>(new Set());
+  const [itemInputs, setItemInputs] = useState<ItemInput[]>([]);
 
   const selectedTemplate = templates.find((t) => t.id === selectedTemplateId);
 
   const handleTemplateChange = (templateId: string) => {
     setSelectedTemplateId(templateId);
-    setSelectedItemIds(new Set());
-  };
 
-  const handleItemToggle = (itemId: string, checked: boolean) => {
-    const newSet = new Set(selectedItemIds);
-    if (checked) {
-      newSet.add(itemId);
-    } else {
-      newSet.delete(itemId);
-    }
-    setSelectedItemIds(newSet);
-  };
-
-  const handleAddSelected = () => {
-    if (!selectedTemplate || selectedItemIds.size === 0) return;
-
-    const items: SelectedItem[] = [];
-
-    for (const category of selectedTemplate.categories) {
-      for (const item of category.items) {
-        if (selectedItemIds.has(item.id)) {
-          items.push({
-            item_template_id: item.id,
+    const template = templates.find((t) => t.id === templateId);
+    if (template) {
+      // 全項目を初期化（数量1、備考なし）
+      const inputs: ItemInput[] = [];
+      for (const category of template.categories) {
+        for (const item of category.items) {
+          inputs.push({
+            id: item.id,
             category_name: category.name,
             name: item.name,
             description: item.description,
-            unit: item.default_unit,
+            default_unit: item.default_unit,
+            default_unit_price: item.default_unit_price,
             quantity: 1,
-            unit_price: item.default_unit_price || 0,
-            amount: item.default_unit_price || 0,
+            note: "",
           });
         }
       }
+      setItemInputs(inputs);
+    } else {
+      setItemInputs([]);
     }
+  };
+
+  const handleQuantityChange = (itemId: string, quantity: number) => {
+    setItemInputs((prev) =>
+      prev.map((item) =>
+        item.id === itemId ? { ...item, quantity } : item
+      )
+    );
+  };
+
+  const handleNoteChange = (itemId: string, note: string) => {
+    setItemInputs((prev) =>
+      prev.map((item) =>
+        item.id === itemId ? { ...item, note } : item
+      )
+    );
+  };
+
+  const handleAddAll = () => {
+    if (itemInputs.length === 0) return;
+
+    const items: SelectedItem[] = itemInputs.map((input) => {
+      const unitPrice = input.default_unit_price || 0;
+      const quantity = input.quantity;
+      return {
+        item_template_id: input.id,
+        category_name: input.category_name,
+        name: input.name,
+        description: input.note || input.description,
+        unit: input.default_unit,
+        quantity,
+        unit_price: unitPrice,
+        amount: Math.floor(quantity * unitPrice),
+      };
+    });
 
     onAddItems(items);
-    setSelectedItemIds(new Set());
-  };
-
-  const getAllItemsInTemplate = (): InvoiceItemTemplate[] => {
-    if (!selectedTemplate) return [];
-    return selectedTemplate.categories.flatMap((c) => c.items);
-  };
-
-  const handleSelectAll = () => {
-    const allItems = getAllItemsInTemplate();
-    setSelectedItemIds(new Set(allItems.map((item) => item.id)));
-  };
-
-  const handleDeselectAll = () => {
-    setSelectedItemIds(new Set());
+    // リセット
+    setSelectedTemplateId("");
+    setItemInputs([]);
   };
 
   if (templates.length === 0) {
@@ -103,6 +124,17 @@ export function InvoiceItemSelector({
         設定画面から見積・請求テンプレートを作成してください。
       </div>
     );
+  }
+
+  // カテゴリ別にグループ化
+  const groupedInputs: { category: string; items: ItemInput[] }[] = [];
+  for (const input of itemInputs) {
+    const existing = groupedInputs.find((g) => g.category === input.category_name);
+    if (existing) {
+      existing.items.push(input);
+    } else {
+      groupedInputs.push({ category: input.category_name, items: [input] });
+    }
   }
 
   return (
@@ -120,66 +152,57 @@ export function InvoiceItemSelector({
             ))}
           </SelectContent>
         </Select>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={handleAddSelected}
-          disabled={selectedItemIds.size === 0}
-        >
-          選択項目を追加
-        </Button>
+        {itemInputs.length > 0 && (
+          <Button
+            type="button"
+            variant="default"
+            size="sm"
+            onClick={handleAddAll}
+          >
+            全{itemInputs.length}項目を追加
+          </Button>
+        )}
       </div>
 
-      {selectedTemplate && (
-        <div className="border rounded-md p-4 space-y-4 max-h-[300px] overflow-y-auto">
-          <div className="flex items-center gap-2 pb-2 border-b">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={handleSelectAll}
-            >
-              すべて選択
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={handleDeselectAll}
-            >
-              選択解除
-            </Button>
-          </div>
-
-          {selectedTemplate.categories.map((category) => (
-            <div key={category.id} className="space-y-2">
-              <h4 className="font-medium text-sm text-muted-foreground">
-                {category.name}
+      {selectedTemplate && itemInputs.length > 0 && (
+        <div className="border rounded-md p-4 space-y-4 max-h-[400px] overflow-y-auto">
+          {groupedInputs.map((group) => (
+            <div key={group.category} className="space-y-2">
+              <h4 className="font-medium text-sm text-muted-foreground border-b pb-1">
+                {group.category}
               </h4>
-              <div className="space-y-1 pl-2">
-                {category.items.map((item) => (
+              <div className="space-y-2">
+                {group.items.map((item) => (
                   <div
                     key={item.id}
-                    className="flex items-center gap-3 py-1"
+                    className="grid grid-cols-[1fr_80px_1fr] gap-2 items-center py-1"
                   >
-                    <Checkbox
-                      id={`item-${item.id}`}
-                      checked={selectedItemIds.has(item.id)}
-                      onCheckedChange={(checked) =>
-                        handleItemToggle(item.id, checked as boolean)
+                    <div className="text-sm">
+                      <span>{item.name}</span>
+                      <span className="text-muted-foreground ml-2">
+                        {item.default_unit && `(${item.default_unit})`}
+                        {item.default_unit_price
+                          ? ` ×${item.default_unit_price.toLocaleString()}円`
+                          : ""}
+                      </span>
+                    </div>
+                    <Input
+                      type="number"
+                      value={item.quantity}
+                      onChange={(e) =>
+                        handleQuantityChange(item.id, parseFloat(e.target.value) || 0)
                       }
+                      className="h-8 text-right"
+                      min={0}
+                      step={0.01}
+                      placeholder="数量"
                     />
-                    <Label
-                      htmlFor={`item-${item.id}`}
-                      className="flex-1 cursor-pointer text-sm"
-                    >
-                      {item.name}
-                    </Label>
-                    <span className="text-sm text-muted-foreground">
-                      {item.default_unit && `${item.default_unit} × `}
-                      {item.default_unit_price?.toLocaleString() || 0}円
-                    </span>
+                    <Input
+                      value={item.note}
+                      onChange={(e) => handleNoteChange(item.id, e.target.value)}
+                      className="h-8"
+                      placeholder="備考"
+                    />
                   </div>
                 ))}
               </div>
