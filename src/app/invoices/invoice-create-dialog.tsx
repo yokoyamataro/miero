@@ -165,6 +165,9 @@ export function InvoiceCreateDialog({
         }));
         setItems(loadedItems);
       });
+    } else if (open && !editingInvoice) {
+      // 新規作成モードの場合はフォームをリセット
+      resetForm();
     }
   }, [open, editingInvoice, projects]);
 
@@ -209,7 +212,7 @@ export function InvoiceCreateDialog({
   // ダイアログを閉じる
   const handleClose = () => {
     onOpenChange(false);
-    resetForm();
+    // リセットは次回openするときのuseEffectで行う
   };
 
   // 業務変更時
