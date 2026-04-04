@@ -236,15 +236,14 @@ export function InvoiceItemSelector({
                         )}
                       </div>
                       <Input
-                        type="text"
-                        inputMode="decimal"
-                        value={item.quantity || ""}
+                        type="number"
+                        value={item.quantity}
                         onChange={(e) => {
-                          const val = e.target.value;
-                          handleQuantityChange(item.id, val === "" ? 0 : parseFloat(val) || 0);
+                          handleQuantityChange(item.id, parseInt(e.target.value) || 0);
                         }}
                         className="h-7 text-right text-sm"
-                        placeholder="0"
+                        min={0}
+                        step={1}
                       />
                       <Input
                         type="text"
