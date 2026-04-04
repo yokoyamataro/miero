@@ -115,6 +115,7 @@ export function InvoiceItemSelector({
   const totalAfterDiscount = subtotal - discountAmount;
 
   const handleAddAll = () => {
+    console.log("handleAddAll called, itemInputs:", itemInputs.length);
     if (itemInputs.length === 0) return;
 
     // 数量が0より大きい項目のみを追加
@@ -147,10 +148,13 @@ export function InvoiceItemSelector({
       });
     }
 
+    console.log("handleAddAll - items to add:", items.length, items);
+
     // 追加する項目がない場合は何もしない
     if (items.length === 0) return;
 
     onAddItems(items);
+    console.log("handleAddAll - onAddItems called");
     // リセット
     setSelectedTemplateId("");
     setItemInputs([]);

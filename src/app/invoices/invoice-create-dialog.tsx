@@ -252,6 +252,9 @@ export function InvoiceCreateDialog({
 
   // テンプレートから項目追加
   const handleAddItemsFromTemplate = (selectedItems: SelectedItem[]) => {
+    console.log("handleAddItemsFromTemplate called with:", selectedItems.length, "items");
+    console.log("handleAddItemsFromTemplate - selectedItems:", selectedItems);
+
     const newItems: InvoiceLineItem[] = selectedItems.map((item, index) => ({
       id: crypto.randomUUID(),
       item_template_id: item.item_template_id,
@@ -263,7 +266,15 @@ export function InvoiceCreateDialog({
       unit_price: item.unit_price,
       amount: item.amount,
     }));
-    setItems([...items, ...newItems]);
+    console.log("handleAddItemsFromTemplate - newItems created:", newItems.length);
+
+    // コールバック形式で更新して、最新のitemsを参照する
+    setItems((prevItems) => {
+      console.log("handleAddItemsFromTemplate - prevItems:", prevItems.length);
+      const updated = [...prevItems, ...newItems];
+      console.log("handleAddItemsFromTemplate - updated items:", updated.length);
+      return updated;
+    });
   };
 
   // 手動で項目追加
