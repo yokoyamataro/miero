@@ -81,6 +81,29 @@ export async function deleteTemplate(id: string): Promise<{ success?: boolean; e
   return { success: true };
 }
 
+export async function reorderTemplates(
+  templates: { id: string; sort_order: number }[]
+): Promise<{ success?: boolean; error?: string }> {
+  const supabase = await createClient();
+
+  // 各テンプレートのsort_orderを更新
+  for (const template of templates) {
+    const { error } = await supabase
+      .from("standard_task_templates" as never)
+      .update({ sort_order: template.sort_order } as never)
+      .eq("id", template.id);
+
+    if (error) {
+      console.error("Error reordering templates:", error);
+      return { error: "テンプレートの並び替えに失敗しました" };
+    }
+  }
+
+  revalidatePath("/settings/standard-tasks");
+  revalidatePath("/projects");
+  return { success: true };
+}
+
 // ============================================
 // 項目操作
 // ============================================

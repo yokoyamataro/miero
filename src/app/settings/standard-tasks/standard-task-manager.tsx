@@ -39,6 +39,7 @@ import {
   updateItem,
   deleteItem,
   reorderItems,
+  reorderTemplates,
 } from "./actions";
 
 interface StandardTaskManagerProps {
@@ -212,6 +213,56 @@ export function StandardTaskManager({ templates: initialTemplates }: StandardTas
     });
   };
 
+  // テンプレートの並び替え（上へ）
+  const moveTemplateUp = (templateIndex: number) => {
+    if (templateIndex === 0) return;
+
+    const newTemplates = [...templates];
+    [newTemplates[templateIndex - 1], newTemplates[templateIndex]] = [
+      newTemplates[templateIndex],
+      newTemplates[templateIndex - 1],
+    ];
+
+    // sort_orderを更新
+    const updatedTemplates = newTemplates.map((t, idx) => ({
+      ...t,
+      sort_order: idx + 1,
+    }));
+
+    setTemplates(updatedTemplates);
+
+    startTransition(async () => {
+      await reorderTemplates(
+        updatedTemplates.map((t) => ({ id: t.id, sort_order: t.sort_order }))
+      );
+    });
+  };
+
+  // テンプレートの並び替え（下へ）
+  const moveTemplateDown = (templateIndex: number) => {
+    if (templateIndex === templates.length - 1) return;
+
+    const newTemplates = [...templates];
+    [newTemplates[templateIndex], newTemplates[templateIndex + 1]] = [
+      newTemplates[templateIndex + 1],
+      newTemplates[templateIndex],
+    ];
+
+    // sort_orderを更新
+    const updatedTemplates = newTemplates.map((t, idx) => ({
+      ...t,
+      sort_order: idx + 1,
+    }));
+
+    setTemplates(updatedTemplates);
+
+    startTransition(async () => {
+      await reorderTemplates(
+        updatedTemplates.map((t) => ({ id: t.id, sort_order: t.sort_order }))
+      );
+    });
+  };
+
   // 項目の並び替え（上へ）
   const moveItemUp = (templateId: string, itemIndex: number) => {
     if (itemIndex === 0) return;
@@ -278,26 +329,49 @@ export function StandardTaskManager({ templates: initialTemplates }: StandardTas
           </CardContent>
         </Card>
       ) : (
-        templates.map((template) => {
+        templates.map((template, templateIndex) => {
           const isExpanded = expandedTemplates.has(template.id);
 
           return (
             <Card key={template.id}>
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
-                  <div
-                    className="flex items-center gap-2 cursor-pointer flex-1"
-                    onClick={() => toggleExpand(template.id)}
-                  >
-                    {isExpanded ? (
-                      <ChevronUp className="h-5 w-5 text-muted-foreground" />
-                    ) : (
-                      <ChevronDown className="h-5 w-5 text-muted-foreground" />
-                    )}
-                    <CardTitle className="text-lg">{template.name}</CardTitle>
-                    <span className="text-sm text-muted-foreground">
-                      ({(template.items || []).length}項目)
-                    </span>
+                  <div className="flex items-center gap-2">
+                    {/* テンプレート並べ替えボタン */}
+                    <div className="flex flex-col">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-5 w-5"
+                        onClick={() => moveTemplateUp(templateIndex)}
+                        disabled={templateIndex === 0}
+                      >
+                        <ChevronUp className="h-3 w-3" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-5 w-5"
+                        onClick={() => moveTemplateDown(templateIndex)}
+                        disabled={templateIndex === templates.length - 1}
+                      >
+                        <ChevronDown className="h-3 w-3" />
+                      </Button>
+                    </div>
+                    <div
+                      className="flex items-center gap-2 cursor-pointer flex-1"
+                      onClick={() => toggleExpand(template.id)}
+                    >
+                      {isExpanded ? (
+                        <ChevronUp className="h-5 w-5 text-muted-foreground" />
+                      ) : (
+                        <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                      )}
+                      <CardTitle className="text-lg">{template.name}</CardTitle>
+                      <span className="text-sm text-muted-foreground">
+                        ({(template.items || []).length}項目)
+                      </span>
+                    </div>
                   </div>
                   <div className="flex items-center gap-1">
                     <Button
