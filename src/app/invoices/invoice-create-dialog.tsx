@@ -326,6 +326,10 @@ export function InvoiceCreateDialog({
     const entity = businessEntities.find((e) => e.id === businessEntityId);
     if (!project || !entity) return;
 
+    // デバッグ: 送信される明細項目数
+    console.log("handleSubmit - items count:", items.length);
+    console.log("handleSubmit - items:", items);
+
     startTransition(async () => {
       if (isEditMode && editingInvoice) {
         // 編集モード: 明細と基本情報を更新

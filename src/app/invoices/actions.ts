@@ -678,6 +678,7 @@ export async function createInvoiceWithItems(data: {
   const typedInvoice = invoice as Invoice;
 
   // 明細項目を作成
+  console.log("Creating invoice items, count:", data.items.length);
   if (data.items.length > 0) {
     const itemsToInsert = data.items.map((item) => ({
       invoice_id: typedInvoice.id,
@@ -692,6 +693,8 @@ export async function createInvoiceWithItems(data: {
       sort_order: item.sort_order,
     }));
 
+    console.log("Items to insert:", JSON.stringify(itemsToInsert, null, 2));
+
     const { error: itemsError } = await supabase
       .from("invoice_items" as never)
       .insert(itemsToInsert as never);
@@ -699,8 +702,11 @@ export async function createInvoiceWithItems(data: {
     if (itemsError) {
       console.error("Error creating invoice items:", itemsError);
       // 請求書は作成されているので、ロールバックせずにエラーを返す
-      return { error: "明細項目の作成に失敗しました" };
+      return { error: "明細項目の作成に失敗しました: " + itemsError.message };
     }
+    console.log("Invoice items created successfully");
+  } else {
+    console.log("No items to insert");
   }
 
   return { invoice: typedInvoice };
