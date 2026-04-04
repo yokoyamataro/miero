@@ -117,18 +117,21 @@ export function InvoiceItemSelector({
   const handleAddAll = () => {
     if (itemInputs.length === 0) return;
 
-    const items: SelectedItem[] = itemInputs.map((input) => {
-      return {
-        item_template_id: input.id,
-        category_name: input.category_name,
-        name: input.name,
-        description: input.note || input.description,
-        unit: input.default_unit,
-        quantity: input.quantity,
-        unit_price: input.unit_price,
-        amount: Math.floor(input.quantity * input.unit_price),
-      };
-    });
+    // 数量が0より大きい項目のみを追加
+    const items: SelectedItem[] = itemInputs
+      .filter((input) => input.quantity > 0)
+      .map((input) => {
+        return {
+          item_template_id: input.id,
+          category_name: input.category_name,
+          name: input.name,
+          description: input.note || input.description,
+          unit: input.default_unit,
+          quantity: input.quantity,
+          unit_price: input.unit_price,
+          amount: Math.floor(input.quantity * input.unit_price),
+        };
+      });
 
     // 値引きがある場合は値引き項目を追加
     if (discountAmount > 0) {
@@ -143,6 +146,9 @@ export function InvoiceItemSelector({
         amount: -discountAmount,
       });
     }
+
+    // 追加する項目がない場合は何もしない
+    if (items.length === 0) return;
 
     onAddItems(items);
     // リセット
@@ -191,16 +197,20 @@ export function InvoiceItemSelector({
             ))}
           </SelectContent>
         </Select>
-        {itemInputs.length > 0 && (
-          <Button
-            type="button"
-            variant="default"
-            size="sm"
-            onClick={handleAddAll}
-          >
-            {discountAmount > 0 ? `全${itemInputs.length + 1}項目を追加` : `全${itemInputs.length}項目を追加`}
-          </Button>
-        )}
+        {itemInputs.length > 0 && (() => {
+          const selectedCount = itemInputs.filter((i) => i.quantity > 0).length + (discountAmount > 0 ? 1 : 0);
+          return (
+            <Button
+              type="button"
+              variant="default"
+              size="sm"
+              onClick={handleAddAll}
+              disabled={selectedCount === 0}
+            >
+              {selectedCount > 0 ? `${selectedCount}項目を追加` : "項目を選択してください"}
+            </Button>
+          );
+        })()}
       </div>
 
       {selectedTemplate && itemInputs.length > 0 && (
