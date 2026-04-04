@@ -34,12 +34,16 @@ import {
   type InvoiceTemplateWithCategories,
   type BusinessEntity,
   type Employee,
+  type InvoiceWithDetails,
   INVOICE_DOCUMENT_TYPE_LABELS,
 } from "@/types/database";
 import {
   createInvoiceWithItems,
   getProjectCustomerInfo,
   getInvoiceTemplates,
+  getInvoiceItems,
+  updateInvoiceItems,
+  updateInvoice,
 } from "./actions";
 import { InvoiceItemSelector, type SelectedItem } from "./invoice-item-selector";
 
@@ -68,6 +72,7 @@ interface InvoiceCreateDialogProps {
   businessEntities: BusinessEntity[];
   employees: Employee[];
   projects: ProjectForInvoice[];
+  editingInvoice?: InvoiceWithDetails | null;
 }
 
 export function InvoiceCreateDialog({
@@ -76,9 +81,11 @@ export function InvoiceCreateDialog({
   businessEntities,
   employees,
   projects,
+  editingInvoice,
 }: InvoiceCreateDialogProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const isEditMode = !!editingInvoice;
 
   // テンプレート
   const [templates, setTemplates] = useState<InvoiceTemplateWithCategories[]>([]);
@@ -117,6 +124,49 @@ export function InvoiceCreateDialog({
       });
     }
   }, [open, templatesLoaded]);
+
+  // 編集モード時に既存データを読み込み
+  useEffect(() => {
+    if (open && editingInvoice) {
+      // 基本情報をセット
+      setDocumentType((editingInvoice.document_type as InvoiceDocumentType) || "invoice");
+      setProjectId(editingInvoice.project_id);
+      setBusinessEntityId(editingInvoice.business_entity_id);
+      setInvoiceDate(editingInvoice.invoice_date);
+      setRecipientContactId(editingInvoice.recipient_contact_id || "");
+      setPersonInChargeId(editingInvoice.person_in_charge_id || "");
+      setExpenses(editingInvoice.expenses || 0);
+      setTaxRate(editingInvoice.tax_rate || 0.1);
+      setNotes(editingInvoice.notes || "");
+
+      // 業務検索フィールドにセット
+      const project = projects.find((p) => p.id === editingInvoice.project_id);
+      if (project) {
+        setProjectSearchQuery(`${project.code} - ${project.name}`);
+      }
+
+      // 顧客情報を取得
+      getProjectCustomerInfo(editingInvoice.project_id).then((info) => {
+        setCustomerInfo(info);
+      });
+
+      // 明細項目を取得
+      getInvoiceItems(editingInvoice.id).then((invoiceItems) => {
+        const loadedItems: InvoiceLineItem[] = invoiceItems.map((item) => ({
+          id: item.id,
+          item_template_id: item.item_template_id,
+          category_name: item.category_name,
+          name: item.name,
+          description: item.description,
+          unit: item.unit,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          amount: item.amount,
+        }));
+        setItems(loadedItems);
+      });
+    }
+  }, [open, editingInvoice, projects]);
 
   // フォームリセット
   const resetForm = () => {
@@ -274,34 +324,74 @@ export function InvoiceCreateDialog({
     if (!project || !entity) return;
 
     startTransition(async () => {
-      const result = await createInvoiceWithItems({
-        project_id: projectId,
-        project_code: project.code,
-        business_entity_id: businessEntityId,
-        business_entity_code: entity.code,
-        invoice_date: invoiceDate,
-        recipient_contact_id: recipientContactId || null,
-        person_in_charge_id: personInChargeId || null,
-        document_type: documentType,
-        expenses,
-        notes: notes || null,
-        tax_rate: taxRate,
-        items: items.map((item, index) => ({
-          item_template_id: item.item_template_id,
-          category_name: item.category_name,
-          name: item.name,
-          description: item.description,
-          unit: item.unit,
-          quantity: item.quantity,
-          unit_price: item.unit_price,
-          amount: item.amount,
-          sort_order: index,
-        })),
-      });
+      if (isEditMode && editingInvoice) {
+        // 編集モード: 明細と基本情報を更新
+        const itemsResult = await updateInvoiceItems(
+          editingInvoice.id,
+          items.map((item, index) => ({
+            id: item.id,
+            item_template_id: item.item_template_id,
+            category_name: item.category_name,
+            name: item.name,
+            description: item.description,
+            unit: item.unit,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            amount: item.amount,
+            sort_order: index,
+          })),
+          taxRate,
+          expenses
+        );
 
-      if (result.error) {
-        alert(result.error);
-        return;
+        if (itemsResult.error) {
+          alert(itemsResult.error);
+          return;
+        }
+
+        // 基本情報も更新
+        const updateResult = await updateInvoice(editingInvoice.id, {
+          invoice_date: invoiceDate,
+          recipient_contact_id: recipientContactId || null,
+          person_in_charge_id: personInChargeId || null,
+          notes: notes || null,
+        });
+
+        if (updateResult.error) {
+          alert(updateResult.error);
+          return;
+        }
+      } else {
+        // 新規作成モード
+        const result = await createInvoiceWithItems({
+          project_id: projectId,
+          project_code: project.code,
+          business_entity_id: businessEntityId,
+          business_entity_code: entity.code,
+          invoice_date: invoiceDate,
+          recipient_contact_id: recipientContactId || null,
+          person_in_charge_id: personInChargeId || null,
+          document_type: documentType,
+          expenses,
+          notes: notes || null,
+          tax_rate: taxRate,
+          items: items.map((item, index) => ({
+            item_template_id: item.item_template_id,
+            category_name: item.category_name,
+            name: item.name,
+            description: item.description,
+            unit: item.unit,
+            quantity: item.quantity,
+            unit_price: item.unit_price,
+            amount: item.amount,
+            sort_order: index,
+          })),
+        });
+
+        if (result.error) {
+          alert(result.error);
+          return;
+        }
       }
 
       handleClose();
@@ -388,7 +478,7 @@ export function InvoiceCreateDialog({
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>
-            {documentType === "invoice" ? "請求書" : "見積書"}を作成
+            {documentType === "invoice" ? "請求書" : "見積書"}を{isEditMode ? "編集" : "作成"}
           </DialogTitle>
         </DialogHeader>
 
@@ -402,6 +492,7 @@ export function InvoiceCreateDialog({
                 variant={documentType === "invoice" ? "default" : "outline"}
                 size="sm"
                 onClick={() => setDocumentType("invoice")}
+                disabled={isEditMode}
               >
                 {INVOICE_DOCUMENT_TYPE_LABELS.invoice}
               </Button>
@@ -410,6 +501,7 @@ export function InvoiceCreateDialog({
                 variant={documentType === "estimate" ? "default" : "outline"}
                 size="sm"
                 onClick={() => setDocumentType("estimate")}
+                disabled={isEditMode}
               >
                 {INVOICE_DOCUMENT_TYPE_LABELS.estimate}
               </Button>
@@ -437,6 +529,7 @@ export function InvoiceCreateDialog({
                       }
                     }}
                     onFocus={() => setShowProjectDropdown(true)}
+                    disabled={isEditMode}
                   />
                   {projectId && (
                     <button
@@ -480,6 +573,7 @@ export function InvoiceCreateDialog({
               <Select
                 value={businessEntityId}
                 onValueChange={setBusinessEntityId}
+                disabled={isEditMode}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="事業主体を選択" />
@@ -732,7 +826,7 @@ export function InvoiceCreateDialog({
                 onClick={handleSubmit}
                 disabled={isPending || !projectId || !businessEntityId}
               >
-                作成
+                {isEditMode ? "保存" : "作成"}
               </Button>
             </div>
           </div>

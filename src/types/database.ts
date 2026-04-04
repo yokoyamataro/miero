@@ -763,9 +763,13 @@ export interface Invoice {
   invoice_date: string;
   recipient_contact_id: string | null;
   person_in_charge_id: string | null;
+  document_type: InvoiceDocumentType | null;
   fee_tax_excluded: number;
   expenses: number;
   total_amount: number;
+  subtotal: number | null;
+  tax_amount: number | null;
+  tax_rate: number | null;
   pdf_path: string | null;
   notes: string | null;
   is_accounting_registered: boolean;

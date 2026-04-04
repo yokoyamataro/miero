@@ -39,6 +39,7 @@ import {
   X,
   Trash2,
   Plus,
+  Pencil,
 } from "lucide-react";
 import {
   type InvoiceWithDetails,
@@ -120,6 +121,9 @@ export function InvoiceList({
 
   // 請求書追加モーダル
   const [showAddModal, setShowAddModal] = useState(false);
+
+  // 編集モーダル
+  const [editingInvoice, setEditingInvoice] = useState<InvoiceWithDetails | null>(null);
 
   // 年の選択肢
   const yearOptions = useMemo(() => generateYearOptions(), []);
@@ -409,7 +413,7 @@ export function InvoiceList({
                     <TableHead className="text-right">請求金額</TableHead>
                     <TableHead className="w-[80px]">事業主体</TableHead>
                     <TableHead className="text-center w-[60px]">会計</TableHead>
-                    <TableHead className="w-[50px]"></TableHead>
+                    <TableHead className="w-[80px]"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -487,16 +491,28 @@ export function InvoiceList({
                         />
                       </TableCell>
                       <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
-                          title="削除"
-                          onClick={() => handleDeleteClick(invoice)}
-                          disabled={isPending}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-primary"
+                            title="編集"
+                            onClick={() => setEditingInvoice(invoice)}
+                            disabled={isPending}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive"
+                            title="削除"
+                            onClick={() => handleDeleteClick(invoice)}
+                            disabled={isPending}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -535,6 +551,16 @@ export function InvoiceList({
         businessEntities={businessEntities}
         employees={employees}
         projects={projects}
+      />
+
+      {/* 請求書編集モーダル */}
+      <InvoiceCreateDialog
+        open={!!editingInvoice}
+        onOpenChange={(open) => !open && setEditingInvoice(null)}
+        businessEntities={businessEntities}
+        employees={employees}
+        projects={projects}
+        editingInvoice={editingInvoice}
       />
     </div>
   );
