@@ -31,8 +31,8 @@ interface ItemInput {
   name: string;
   description: string | null;
   default_unit: string | null;
-  default_unit_price: number | null;
   quantity: number;
+  unit_price: number;
   note: string;
 }
 
@@ -55,7 +55,7 @@ export function InvoiceItemSelector({
 
     const template = templates.find((t) => t.id === templateId);
     if (template) {
-      // 全項目を初期化（数量1、備考なし）
+      // 全項目を初期化（数量0、備考なし）
       const inputs: ItemInput[] = [];
       for (const category of template.categories) {
         for (const item of category.items) {
@@ -65,8 +65,8 @@ export function InvoiceItemSelector({
             name: item.name,
             description: item.description,
             default_unit: item.default_unit,
-            default_unit_price: item.default_unit_price,
-            quantity: 1,
+            quantity: 0,
+            unit_price: item.default_unit_price || 0,
             note: "",
           });
         }
@@ -85,6 +85,14 @@ export function InvoiceItemSelector({
     );
   };
 
+  const handleUnitPriceChange = (itemId: string, unitPrice: number) => {
+    setItemInputs((prev) =>
+      prev.map((item) =>
+        item.id === itemId ? { ...item, unit_price: unitPrice } : item
+      )
+    );
+  };
+
   const handleNoteChange = (itemId: string, note: string) => {
     setItemInputs((prev) =>
       prev.map((item) =>
@@ -97,17 +105,15 @@ export function InvoiceItemSelector({
     if (itemInputs.length === 0) return;
 
     const items: SelectedItem[] = itemInputs.map((input) => {
-      const unitPrice = input.default_unit_price || 0;
-      const quantity = input.quantity;
       return {
         item_template_id: input.id,
         category_name: input.category_name,
         name: input.name,
         description: input.note || input.description,
         unit: input.default_unit,
-        quantity,
-        unit_price: unitPrice,
-        amount: Math.floor(quantity * unitPrice),
+        quantity: input.quantity,
+        unit_price: input.unit_price,
+        amount: Math.floor(input.quantity * input.unit_price),
       };
     });
 
@@ -166,41 +172,59 @@ export function InvoiceItemSelector({
 
       {selectedTemplate && itemInputs.length > 0 && (
         <div className="border rounded-md p-4 space-y-4 max-h-[400px] overflow-y-auto">
+          {/* ヘッダー */}
+          <div className="grid grid-cols-[1fr_70px_100px_1fr] gap-2 text-xs text-muted-foreground border-b pb-2">
+            <span>項目名</span>
+            <span className="text-right">数量</span>
+            <span className="text-right">単価</span>
+            <span>備考</span>
+          </div>
+
           {groupedInputs.map((group) => (
             <div key={group.category} className="space-y-2">
-              <h4 className="font-medium text-sm text-muted-foreground border-b pb-1">
+              <h4 className="font-medium text-sm text-muted-foreground">
                 {group.category}
               </h4>
-              <div className="space-y-2">
+              <div className="space-y-1">
                 {group.items.map((item) => (
                   <div
                     key={item.id}
-                    className="grid grid-cols-[1fr_80px_1fr] gap-2 items-center py-1"
+                    className="grid grid-cols-[1fr_70px_100px_1fr] gap-2 items-center"
                   >
-                    <div className="text-sm">
-                      <span>{item.name}</span>
-                      <span className="text-muted-foreground ml-2">
-                        {item.default_unit && `(${item.default_unit})`}
-                        {item.default_unit_price
-                          ? ` ×${item.default_unit_price.toLocaleString()}円`
-                          : ""}
-                      </span>
+                    <div className="text-sm truncate" title={item.name}>
+                      {item.name}
+                      {item.default_unit && (
+                        <span className="text-muted-foreground ml-1">
+                          ({item.default_unit})
+                        </span>
+                      )}
                     </div>
                     <Input
-                      type="number"
-                      value={item.quantity}
-                      onChange={(e) =>
-                        handleQuantityChange(item.id, parseFloat(e.target.value) || 0)
-                      }
-                      className="h-8 text-right"
-                      min={0}
-                      step={0.01}
-                      placeholder="数量"
+                      type="text"
+                      inputMode="decimal"
+                      value={item.quantity || ""}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        handleQuantityChange(item.id, val === "" ? 0 : parseFloat(val) || 0);
+                      }}
+                      className="h-7 text-right text-sm"
+                      placeholder="0"
+                    />
+                    <Input
+                      type="text"
+                      inputMode="numeric"
+                      value={item.unit_price || ""}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        handleUnitPriceChange(item.id, val === "" ? 0 : parseInt(val) || 0);
+                      }}
+                      className="h-7 text-right text-sm"
+                      placeholder="0"
                     />
                     <Input
                       value={item.note}
                       onChange={(e) => handleNoteChange(item.id, e.target.value)}
-                      className="h-8"
+                      className="h-7 text-sm"
                       placeholder="備考"
                     />
                   </div>
