@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect } from "react";
+import { useState, useTransition, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -27,7 +27,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Plus, Trash2, GripVertical, Download } from "lucide-react";
+import { Plus, Trash2, GripVertical, Download, Search, X } from "lucide-react";
 import * as XLSX from "xlsx";
 import {
   type InvoiceDocumentType,
@@ -103,6 +103,11 @@ export function InvoiceCreateDialog({
   // 明細項目
   const [items, setItems] = useState<InvoiceLineItem[]>([]);
 
+  // 業務検索用
+  const [projectSearchQuery, setProjectSearchQuery] = useState("");
+  const [showProjectDropdown, setShowProjectDropdown] = useState(false);
+  const projectSearchRef = useRef<HTMLDivElement>(null);
+
   // テンプレートを読み込み
   useEffect(() => {
     if (open && !templatesLoaded) {
@@ -126,7 +131,30 @@ export function InvoiceCreateDialog({
     setNotes("");
     setCustomerInfo(null);
     setItems([]);
+    setProjectSearchQuery("");
+    setShowProjectDropdown(false);
   };
+
+  // クリック外で検索ドロップダウンを閉じる
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (projectSearchRef.current && !projectSearchRef.current.contains(event.target as Node)) {
+        setShowProjectDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // 業務検索結果のフィルタリング
+  const filteredProjects = projects.filter((project) => {
+    if (!projectSearchQuery) return true;
+    const q = projectSearchQuery.toLowerCase();
+    return (
+      project.name.toLowerCase().includes(q) ||
+      project.code.toLowerCase().includes(q)
+    );
+  }).slice(0, 10); // 最大10件表示
 
   // ダイアログを閉じる
   const handleClose = () => {
@@ -147,6 +175,26 @@ export function InvoiceCreateDialog({
     } else {
       setCustomerInfo(null);
     }
+  };
+
+  // 業務選択時
+  const handleProjectSelect = async (project: ProjectForInvoice) => {
+    setProjectId(project.id);
+    setProjectSearchQuery(`${project.code} - ${project.name}`);
+    setShowProjectDropdown(false);
+    const info = await getProjectCustomerInfo(project.id);
+    setCustomerInfo(info);
+    if (info?.contacts?.length === 1) {
+      setRecipientContactId(info.contacts[0].id);
+    }
+  };
+
+  // 業務選択クリア
+  const handleClearProject = () => {
+    setProjectId("");
+    setProjectSearchQuery("");
+    setCustomerInfo(null);
+    setRecipientContactId("");
   };
 
   // テンプレートから項目追加
@@ -373,18 +421,57 @@ export function InvoiceCreateDialog({
             {/* 業務 */}
             <div className="space-y-2">
               <Label>業務 *</Label>
-              <Select value={projectId} onValueChange={handleProjectChange}>
-                <SelectTrigger>
-                  <SelectValue placeholder="業務を選択" />
-                </SelectTrigger>
-                <SelectContent>
-                  {projects.map((project) => (
-                    <SelectItem key={project.id} value={project.id}>
-                      {project.code} - {project.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="relative" ref={projectSearchRef}>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="業務名・コードで検索..."
+                    className="pl-9 pr-8"
+                    value={projectSearchQuery}
+                    onChange={(e) => {
+                      setProjectSearchQuery(e.target.value);
+                      setShowProjectDropdown(true);
+                      if (!e.target.value) {
+                        setProjectId("");
+                        setCustomerInfo(null);
+                      }
+                    }}
+                    onFocus={() => setShowProjectDropdown(true)}
+                  />
+                  {projectId && (
+                    <button
+                      type="button"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      onClick={handleClearProject}
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+                {showProjectDropdown && filteredProjects.length > 0 && (
+                  <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-[200px] overflow-y-auto">
+                    {filteredProjects.map((project) => (
+                      <button
+                        key={project.id}
+                        type="button"
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors ${
+                          project.id === projectId ? "bg-muted" : ""
+                        }`}
+                        onClick={() => handleProjectSelect(project)}
+                      >
+                        <span className="text-muted-foreground">{project.code}</span>
+                        {" - "}
+                        {project.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {showProjectDropdown && projectSearchQuery && filteredProjects.length === 0 && (
+                  <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg p-3 text-sm text-muted-foreground">
+                    該当する業務がありません
+                  </div>
+                )}
+              </div>
             </div>
 
             {/* 事業主体 */}

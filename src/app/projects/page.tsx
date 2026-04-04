@@ -6,6 +6,7 @@ import { createClient } from "@/lib/supabase/server";
 import { getCurrentEmployeeId } from "@/app/calendar/actions";
 import { CSVActions } from "./csv-actions";
 import { ProjectList } from "./project-list";
+import { ProjectListWrapper } from "./project-list-wrapper";
 
 export const dynamic = "force-dynamic";
 
@@ -101,10 +102,11 @@ export default async function ProjectsPage() {
   // テンプレート情報を取得
   const { data: templates } = await supabase
     .from("standard_task_templates" as never)
-    .select("id, name");
+    .select("id, name, sort_order")
+    .order("sort_order");
 
   type ProjectStandardTaskType = { project_id: string; template_id: string };
-  type TemplateType = { id: string; name: string };
+  type TemplateType = { id: string; name: string; sort_order: number };
 
   const templateMap = ((templates as TemplateType[]) || []).reduce((acc, t) => {
     acc[t.id] = t.name;
@@ -122,6 +124,12 @@ export default async function ProjectsPage() {
       standardTasksMap[pst.project_id].push(templateName);
     }
   }
+
+  // 工程表用テンプレート一覧
+  const workflowTemplates = ((templates as TemplateType[]) || []).map((t) => ({
+    id: t.id,
+    name: t.name,
+  }));
 
   if (error) {
     console.error("Error fetching projects:", error);
@@ -153,13 +161,14 @@ export default async function ProjectsPage() {
         </Card>
       )}
 
-      <ProjectList
+      <ProjectListWrapper
         projects={projects || []}
         contactDisplayMap={contactDisplayMap}
         accountDisplayMap={accountDisplayMap}
         employeeMap={employeeNameMap}
         recentProjectIds={recentProjectIds}
         standardTasksMap={standardTasksMap}
+        workflowTemplates={workflowTemplates}
       />
     </main>
   );

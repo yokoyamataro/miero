@@ -2,49 +2,62 @@
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import { Search } from "lucide-react";
 import {
   PROJECT_CATEGORY_LABELS,
-  PROJECT_STATUS_COLORS,
   type ProjectCategory,
-  type ProjectStatus,
 } from "@/types/database";
 
 export const NULL_MARKER = "__null__";
 export const ALL_MARKER = "__all__";
+export const WORKFLOW_VIEW = "__workflow__";
 
 export interface FilterState {
   search: string;
   category: ProjectCategory | typeof NULL_MARKER | typeof ALL_MARKER;
-  status: ProjectStatus | typeof ALL_MARKER;
+  includeCompleted: boolean;
+  workflowTemplateId: string | null; // null = 業務一覧表示, string = 工程表表示
+}
+
+interface WorkflowTemplate {
+  id: string;
+  name: string;
 }
 
 interface ProjectFiltersProps {
   filters: FilterState;
   onFiltersChange: (filters: FilterState) => void;
+  workflowTemplates: WorkflowTemplate[];
 }
 
 const ALL_CATEGORIES = Object.keys(PROJECT_CATEGORY_LABELS) as ProjectCategory[];
-// ステータスの順番: 進行中、完了
-const ALL_STATUSES: ProjectStatus[] = ["進行中", "完了"];
 
 const BTN_ACTIVE = "bg-foreground text-background border-foreground";
 const BTN_INACTIVE = "bg-background text-muted-foreground border-border hover:border-foreground/30";
 
-export function ProjectFilters({ filters, onFiltersChange }: ProjectFiltersProps) {
+export function ProjectFilters({ filters, onFiltersChange, workflowTemplates }: ProjectFiltersProps) {
   // カテゴリ（単一選択）
   const selectCategory = (cat: ProjectCategory | typeof NULL_MARKER | typeof ALL_MARKER) => {
-    onFiltersChange({ ...filters, category: cat });
+    onFiltersChange({ ...filters, category: cat, workflowTemplateId: null });
   };
 
-  // ステータス（単一選択）
-  const selectStatus = (status: ProjectStatus | typeof ALL_MARKER) => {
-    onFiltersChange({ ...filters, status });
+  // 工程別選択
+  const selectWorkflow = (templateId: string) => {
+    onFiltersChange({ ...filters, workflowTemplateId: templateId });
+  };
+
+  // 完了を含める切り替え
+  const toggleIncludeCompleted = (checked: boolean) => {
+    onFiltersChange({ ...filters, includeCompleted: checked });
   };
 
   const setSearch = (search: string) => {
     onFiltersChange({ ...filters, search });
   };
+
+  const isWorkflowView = filters.workflowTemplateId !== null;
 
   return (
     <Card className="mb-6">
@@ -67,7 +80,7 @@ export function ProjectFilters({ filters, onFiltersChange }: ProjectFiltersProps
             type="button"
             onClick={() => selectCategory(ALL_MARKER)}
             className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-              filters.category === ALL_MARKER ? BTN_ACTIVE : BTN_INACTIVE
+              !isWorkflowView && filters.category === ALL_MARKER ? BTN_ACTIVE : BTN_INACTIVE
             }`}
           >
             全て
@@ -78,7 +91,7 @@ export function ProjectFilters({ filters, onFiltersChange }: ProjectFiltersProps
               type="button"
               onClick={() => selectCategory(cat)}
               className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                filters.category === cat ? BTN_ACTIVE : BTN_INACTIVE
+                !isWorkflowView && filters.category === cat ? BTN_ACTIVE : BTN_INACTIVE
               }`}
             >
               {PROJECT_CATEGORY_LABELS[cat]}
@@ -88,41 +101,42 @@ export function ProjectFilters({ filters, onFiltersChange }: ProjectFiltersProps
             type="button"
             onClick={() => selectCategory(NULL_MARKER)}
             className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-              filters.category === NULL_MARKER ? BTN_ACTIVE : BTN_INACTIVE
+              !isWorkflowView && filters.category === NULL_MARKER ? BTN_ACTIVE : BTN_INACTIVE
             }`}
           >
             指定なし
           </button>
         </div>
 
-        {/* ステータス */}
-        <div className="flex flex-wrap items-center gap-1.5">
-          <span className="text-xs text-muted-foreground mr-1">ステータス</span>
-          <button
-            type="button"
-            onClick={() => selectStatus(ALL_MARKER)}
-            className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-              filters.status === ALL_MARKER ? BTN_ACTIVE : BTN_INACTIVE
-            }`}
-          >
-            全て
-          </button>
-          {ALL_STATUSES.map((status) => {
-            const active = filters.status === status;
-            const statusColor = active ? PROJECT_STATUS_COLORS[status] : "";
-            return (
+        {/* 工程別 */}
+        {workflowTemplates.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span className="text-xs text-muted-foreground mr-1">工程別</span>
+            {workflowTemplates.map((template) => (
               <button
-                key={status}
+                key={template.id}
                 type="button"
-                onClick={() => selectStatus(status)}
+                onClick={() => selectWorkflow(template.id)}
                 className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${
-                  active ? `${statusColor} border-transparent` : BTN_INACTIVE
+                  filters.workflowTemplateId === template.id ? BTN_ACTIVE : BTN_INACTIVE
                 }`}
               >
-                {status}
+                {template.name}
               </button>
-            );
-          })}
+            ))}
+          </div>
+        )}
+
+        {/* ステータス（完了を含めるチェック） */}
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="include-completed"
+            checked={filters.includeCompleted}
+            onCheckedChange={(checked) => toggleIncludeCompleted(checked as boolean)}
+          />
+          <Label htmlFor="include-completed" className="text-sm cursor-pointer">
+            完了を含める
+          </Label>
         </div>
 
       </CardContent>
