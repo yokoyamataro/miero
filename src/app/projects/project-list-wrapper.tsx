@@ -38,10 +38,10 @@ interface ProjectListWrapperProps {
 }
 
 export function ProjectListWrapper(props: ProjectListWrapperProps) {
-  const handleLoadWorkflowData = async (templateId: string) => {
+  const handleLoadWorkflowData = async (templateId: string, includeCompleted: boolean = false) => {
     const [items, projects] = await Promise.all([
       getTemplateItems(templateId),
-      getWorkflowProjects(templateId),
+      getWorkflowProjects(templateId, includeCompleted),
     ]);
     return { items, projects };
   };

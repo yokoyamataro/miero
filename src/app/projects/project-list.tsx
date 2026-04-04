@@ -86,7 +86,7 @@ interface ProjectListProps {
   recentProjectIds: string[]; // 2週間以内の閲覧履歴（最新順）
   standardTasksMap: Record<string, string[]>; // project_id → テンプレート名の配列
   workflowTemplates: WorkflowTemplate[];
-  onLoadWorkflowData?: (templateId: string) => Promise<{
+  onLoadWorkflowData?: (templateId: string, includeCompleted: boolean) => Promise<{
     items: StandardTaskItem[];
     projects: WorkflowProject[];
   }>;
@@ -209,11 +209,11 @@ export function ProjectList({
     localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(toSave));
   }, [filters]);
 
-  // 工程表データの読み込み
+  // 工程表データの読み込み（テンプレートIDまたは完了を含めるの変更時）
   useEffect(() => {
     if (filters.workflowTemplateId && onLoadWorkflowData) {
       setWorkflowLoading(true);
-      onLoadWorkflowData(filters.workflowTemplateId).then((data) => {
+      onLoadWorkflowData(filters.workflowTemplateId, filters.includeCompleted).then((data) => {
         setWorkflowItems(data.items);
         setWorkflowProjects(data.projects);
         setWorkflowLoading(false);
@@ -231,7 +231,7 @@ export function ProjectList({
         setWorkflowProjectOrder([]);
       }
     }
-  }, [filters.workflowTemplateId, onLoadWorkflowData]);
+  }, [filters.workflowTemplateId, filters.includeCompleted, onLoadWorkflowData]);
 
   // 工程表の順序保存
   const saveWorkflowProjectOrder = useCallback((order: string[]) => {

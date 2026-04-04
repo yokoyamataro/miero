@@ -13,7 +13,6 @@ import {
   Receipt,
   CalendarDays,
   Settings,
-  ClipboardList,
 } from "lucide-react";
 import { format, addHours } from "date-fns";
 import { ja } from "date-fns/locale";
@@ -31,7 +30,6 @@ import {
 const navItems = [
   { href: "/", label: "ホーム", icon: Home },
   { href: "/projects", label: "業務", icon: FolderKanban },
-  { href: "/workflow", label: "工程表", icon: ClipboardList },
   { href: "/customers", label: "顧客", icon: UserCircle },
   { href: "/invoices", label: "請求", icon: Receipt },
   { href: "/leaves", label: "休暇", icon: CalendarDays },

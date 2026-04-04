@@ -66,7 +66,10 @@ export async function getTemplateItems(templateId: string): Promise<StandardTask
 }
 
 // 工程表データ取得
-export async function getWorkflowProjects(templateId: string): Promise<WorkflowProject[]> {
+export async function getWorkflowProjects(
+  templateId: string,
+  includeCompleted: boolean = false
+): Promise<WorkflowProject[]> {
   const supabase = await createClient();
   const adminClient = createAdminClient();
 
@@ -103,12 +106,18 @@ export async function getWorkflowProjects(templateId: string): Promise<WorkflowP
   const typedProjectTasks = projectTasks as ProjectStandardTask[];
   const projectIds = typedProjectTasks.map((pt) => pt.project_id);
 
-  // プロジェクト情報を取得（進行中のみ）- RLSバイパスのため管理者クライアント使用
-  const { data: projects } = await adminClient
+  // プロジェクト情報を取得 - RLSバイパスのため管理者クライアント使用
+  // includeCompleted が true の場合は全ステータス、false の場合は進行中のみ
+  let projectsQuery = adminClient
     .from("projects")
     .select("id, code, name, location, status, manager_id")
-    .in("id", projectIds)
-    .eq("status", "進行中");
+    .in("id", projectIds);
+
+  if (!includeCompleted) {
+    projectsQuery = projectsQuery.eq("status", "進行中");
+  }
+
+  const { data: projects } = await projectsQuery;
 
   if (!projects || projects.length === 0) {
     return [];
