@@ -868,7 +868,6 @@ export function InvoiceCreateDialog({
                                     )
                                   }
                                   className="h-7 text-sm text-right"
-                                  min={0}
                                 />
                               </TableCell>
                               <TableCell className="px-1 py-1 text-right font-medium">
