@@ -680,16 +680,17 @@ export function InvoiceCreateDialog({
               </div>
             ) : (
               <div className="border rounded-md overflow-hidden">
-                <Table>
+                <Table className="text-sm">
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[30px]"></TableHead>
-                      <TableHead>項目名</TableHead>
-                      <TableHead className="w-[100px]">数量</TableHead>
-                      <TableHead className="w-[90px]">単位</TableHead>
-                      <TableHead className="w-[120px]">単価</TableHead>
-                      <TableHead className="w-[120px] text-right">金額</TableHead>
-                      <TableHead className="w-[40px]"></TableHead>
+                      <TableHead className="w-[24px] px-1"></TableHead>
+                      <TableHead className="px-1">項目名</TableHead>
+                      <TableHead className="px-1">説明</TableHead>
+                      <TableHead className="w-[70px] px-1">数量</TableHead>
+                      <TableHead className="w-[60px] px-1">単位</TableHead>
+                      <TableHead className="w-[90px] px-1">単価</TableHead>
+                      <TableHead className="w-[90px] px-1 text-right">金額</TableHead>
+                      <TableHead className="w-[32px] px-1"></TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -711,7 +712,7 @@ export function InvoiceCreateDialog({
                           {/* カテゴリヘッダー行 */}
                           {group.category && (
                             <TableRow className="bg-cyan-100 hover:bg-cyan-100">
-                              <TableCell colSpan={7} className="py-2 font-medium text-sm">
+                              <TableCell colSpan={8} className="py-1 px-2 font-medium text-sm">
                                 {group.category}
                               </TableCell>
                             </TableRow>
@@ -719,20 +720,30 @@ export function InvoiceCreateDialog({
                           {/* カテゴリ内の項目 */}
                           {group.items.map((item) => (
                             <TableRow key={item.id}>
-                              <TableCell className="px-2">
+                              <TableCell className="px-1 py-1">
                                 <GripVertical className="h-4 w-4 text-muted-foreground" />
                               </TableCell>
-                              <TableCell>
+                              <TableCell className="px-1 py-1">
                                 <Input
                                   value={item.name}
                                   onChange={(e) =>
                                     handleUpdateItem(item.id, "name", e.target.value)
                                   }
                                   placeholder="項目名"
-                                  className="h-8"
+                                  className="h-7 text-sm"
                                 />
                               </TableCell>
-                              <TableCell>
+                              <TableCell className="px-1 py-1">
+                                <Input
+                                  value={item.description || ""}
+                                  onChange={(e) =>
+                                    handleUpdateItem(item.id, "description", e.target.value || null)
+                                  }
+                                  placeholder="説明"
+                                  className="h-7 text-sm"
+                                />
+                              </TableCell>
+                              <TableCell className="px-1 py-1">
                                 <Input
                                   type="number"
                                   value={item.quantity}
@@ -743,22 +754,22 @@ export function InvoiceCreateDialog({
                                       parseFloat(e.target.value) || 0
                                     )
                                   }
-                                  className="h-8 text-right"
+                                  className="h-7 text-sm text-right"
                                   min={0}
                                   step={1}
                                 />
                               </TableCell>
-                              <TableCell>
+                              <TableCell className="px-1 py-1">
                                 <Input
                                   value={item.unit || ""}
                                   onChange={(e) =>
                                     handleUpdateItem(item.id, "unit", e.target.value)
                                   }
-                                  className="h-8"
+                                  className="h-7 text-sm"
                                   placeholder="式"
                                 />
                               </TableCell>
-                              <TableCell>
+                              <TableCell className="px-1 py-1">
                                 <Input
                                   type="number"
                                   value={item.unit_price}
@@ -769,22 +780,22 @@ export function InvoiceCreateDialog({
                                       parseInt(e.target.value) || 0
                                     )
                                   }
-                                  className="h-8 text-right"
+                                  className="h-7 text-sm text-right"
                                   min={0}
                                 />
                               </TableCell>
-                              <TableCell className="text-right font-medium">
+                              <TableCell className="px-1 py-1 text-right font-medium">
                                 {formatCurrency(item.amount)}
                               </TableCell>
-                              <TableCell>
+                              <TableCell className="px-1 py-1">
                                 <Button
                                   type="button"
                                   variant="ghost"
                                   size="sm"
-                                  className="h-8 w-8 p-0"
+                                  className="h-6 w-6 p-0"
                                   onClick={() => handleRemoveItem(item.id)}
                                 >
-                                  <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                                  <Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-destructive" />
                                 </Button>
                               </TableCell>
                             </TableRow>
