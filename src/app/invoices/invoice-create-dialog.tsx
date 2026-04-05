@@ -3,6 +3,7 @@
 import React, { useState, useTransition, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -109,6 +110,9 @@ export function InvoiceCreateDialog({
 
   // 明細項目
   const [items, setItems] = useState<InvoiceLineItem[]>([]);
+
+  // Excel出力オプション
+  const [excludeZeroQuantity, setExcludeZeroQuantity] = useState(true);
 
   // 業務検索用
   const [projectSearchQuery, setProjectSearchQuery] = useState("");
@@ -440,8 +444,13 @@ export function InvoiceCreateDialog({
     // 明細ヘッダー
     const itemHeader = ["項目名", "数量", "単位", "単価", "金額"];
 
+    // 出力対象の項目（数量0を除外するオプションに対応）
+    const exportItems = excludeZeroQuantity
+      ? items.filter((item) => item.quantity > 0)
+      : items;
+
     // 明細データ
-    const itemRows = items.map((item) => [
+    const itemRows = exportItems.map((item) => [
       item.name,
       item.quantity,
       item.unit || "",
@@ -736,7 +745,7 @@ export function InvoiceCreateDialog({
                                   }
                                   className="h-8 text-right"
                                   min={0}
-                                  step={0.01}
+                                  step={1}
                                 />
                               </TableCell>
                               <TableCell>
@@ -849,15 +858,24 @@ export function InvoiceCreateDialog({
 
           {/* ボタン */}
           <div className="flex justify-between pt-4 border-t">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={handleExportExcel}
-              disabled={items.length === 0}
-            >
-              <Download className="h-4 w-4 mr-1" />
-              Excel出力
-            </Button>
+            <div className="flex items-center gap-4">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={handleExportExcel}
+                disabled={items.length === 0}
+              >
+                <Download className="h-4 w-4 mr-1" />
+                Excel出力
+              </Button>
+              <label className="flex items-center gap-2 text-sm cursor-pointer">
+                <Checkbox
+                  checked={excludeZeroQuantity}
+                  onCheckedChange={(checked) => setExcludeZeroQuantity(checked === true)}
+                />
+                数量0を除外
+              </label>
+            </div>
             <div className="flex gap-2">
               <Button variant="outline" onClick={handleClose} disabled={isPending}>
                 キャンセル
