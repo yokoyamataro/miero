@@ -28,7 +28,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Plus, Trash2, GripVertical, Download, Search, X } from "lucide-react";
+import { Plus, Minus, Trash2, GripVertical, Download, Search, X } from "lucide-react";
 import * as XLSX from "xlsx";
 import {
   type InvoiceDocumentType,
@@ -299,7 +299,25 @@ export function InvoiceCreateDialog({
     ]);
   };
 
-  // 項目削除
+  // 値引き項目を追加
+  const handleAddDiscountItem = () => {
+    setItems([
+      ...items,
+      {
+        id: crypto.randomUUID(),
+        item_template_id: null,
+        category_name: null,
+        name: "値引き",
+        description: null,
+        unit: "式",
+        quantity: 1,
+        unit_price: 0,
+        amount: 0,
+      },
+    ]);
+  };
+
+  // 項目��除
   const handleRemoveItem = (itemId: string) => {
     setItems(items.filter((item) => item.id !== itemId));
   };
@@ -685,7 +703,6 @@ export function InvoiceCreateDialog({
                     <TableRow>
                       <TableHead className="w-[24px] px-1"></TableHead>
                       <TableHead className="px-1">項目名</TableHead>
-                      <TableHead className="px-1">説明</TableHead>
                       <TableHead className="w-[70px] px-1">数量</TableHead>
                       <TableHead className="w-[60px] px-1">単位</TableHead>
                       <TableHead className="w-[90px] px-1">単価</TableHead>
@@ -712,7 +729,7 @@ export function InvoiceCreateDialog({
                           {/* カテゴリヘッダー行 */}
                           {group.category && (
                             <TableRow className="bg-cyan-100 hover:bg-cyan-100">
-                              <TableCell colSpan={8} className="py-1 px-2 font-medium text-sm">
+                              <TableCell colSpan={7} className="py-1 px-2 font-medium text-sm">
                                 {group.category}
                               </TableCell>
                             </TableRow>
@@ -731,16 +748,7 @@ export function InvoiceCreateDialog({
                                   }
                                   placeholder="項目名"
                                   className="h-7 text-sm"
-                                />
-                              </TableCell>
-                              <TableCell className="px-1 py-1">
-                                <Input
-                                  value={item.description || ""}
-                                  onChange={(e) =>
-                                    handleUpdateItem(item.id, "description", e.target.value || null)
-                                  }
-                                  placeholder="説明"
-                                  className="h-7 text-sm"
+                                  title={item.description || undefined}
                                 />
                               </TableCell>
                               <TableCell className="px-1 py-1">
@@ -805,6 +813,19 @@ export function InvoiceCreateDialog({
                     })()}
                   </TableBody>
                 </Table>
+                {/* 値引き項目追加ボタン */}
+                <div className="border-t px-2 py-2 bg-muted/30">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-sm text-muted-foreground hover:text-foreground"
+                    onClick={handleAddDiscountItem}
+                  >
+                    <Minus className="h-4 w-4 mr-1" />
+                    値引き項目を追加
+                  </Button>
+                </div>
               </div>
             )}
           </div>
