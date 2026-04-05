@@ -205,6 +205,7 @@ export interface Employee {
   email: string;
   role: EmployeeRole;
   dropbox_base_path: string | null;
+  work_calendar_set_id: string | null;  // 勤怠カレンダーセット
   created_at: string;
   updated_at: string;
 }
@@ -1103,4 +1104,89 @@ export interface InvoiceWithItems extends InvoiceWithDetails {
   subtotal: number;
   tax_amount: number;
   tax_rate: number;
+}
+
+// ============================================
+// WorkCalendarSet (勤怠カレンダーセット)
+// ============================================
+export interface WorkCalendarSet {
+  id: string;
+  name: string;                         // セット名（例: "本社標準", "パート勤務"）
+  description: string | null;           // 説明
+  is_default: boolean;                  // デフォルトセット
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkCalendarSetInsert {
+  id?: string;
+  name: string;
+  description?: string | null;
+  is_default?: boolean;
+}
+
+// ============================================
+// WorkCalendarHoliday (年間休日設定)
+// ============================================
+export interface WorkCalendarHoliday {
+  id: string;
+  calendar_set_id: string;
+  fiscal_year: number;                  // 年度（例: 2025 = 2025/4/1～2026/3/31）
+  holiday_date: string;                 // 休日の日付
+  holiday_name: string | null;          // 休日名（例: "元日", "成人の日"）
+  created_at: string;
+}
+
+export interface WorkCalendarHolidayInsert {
+  id?: string;
+  calendar_set_id: string;
+  fiscal_year: number;
+  holiday_date: string;
+  holiday_name?: string | null;
+}
+
+// ============================================
+// WorkCalendarMonthlyHours (月別勤務時間設定)
+// ============================================
+export interface WorkCalendarMonthlyHours {
+  id: string;
+  calendar_set_id: string;
+  fiscal_year: number;                  // 年度
+  month: number;                        // 月（1～12）
+  work_start_time: string;              // 出勤時刻（例: "09:00"）
+  work_end_time: string;                // 退勤時刻（例: "18:00"）
+  break_minutes: number;                // 休憩時間（分）
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkCalendarMonthlyHoursInsert {
+  id?: string;
+  calendar_set_id: string;
+  fiscal_year: number;
+  month: number;
+  work_start_time?: string;
+  work_end_time?: string;
+  break_minutes?: number;
+}
+
+// カレンダーセット（休日と勤務時間付き）
+export interface WorkCalendarSetWithDetails extends WorkCalendarSet {
+  holidays: WorkCalendarHoliday[];
+  monthlyHours: WorkCalendarMonthlyHours[];
+}
+
+// 年度から期間を取得するヘルパー
+export function getFiscalYearRange(fiscalYear: number): { start: Date; end: Date } {
+  return {
+    start: new Date(fiscalYear, 3, 1),      // 4月1日
+    end: new Date(fiscalYear + 1, 2, 31),   // 翌年3月31日
+  };
+}
+
+// 日付から年度を取得するヘルパー
+export function getFiscalYear(date: Date): number {
+  const month = date.getMonth();
+  const year = date.getFullYear();
+  return month < 3 ? year - 1 : year; // 1-3月は前年度
 }
