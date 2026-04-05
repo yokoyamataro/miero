@@ -110,6 +110,7 @@ export function InvoiceList({
 
   // フィルタ状態
   const [searchQuery, setSearchQuery] = useState("");
+  const [filterDocumentType, setFilterDocumentType] = useState<string>("invoice"); // invoice/estimate/all
   const [filterEntity, setFilterEntity] = useState<string>("all");
   const [filterAccounting, setFilterAccounting] = useState<string>("all");
   const [filterPayment, setFilterPayment] = useState<string>("all");
@@ -131,6 +132,14 @@ export function InvoiceList({
   // フィルタリング
   const filteredInvoices = useMemo(() => {
     return invoices.filter((invoice) => {
+      // 書類タイプフィルタ（見積書/請求書）
+      if (filterDocumentType !== "all") {
+        const docType = invoice.document_type || "invoice";
+        if (docType !== filterDocumentType) {
+          return false;
+        }
+      }
+
       // 検索クエリ
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
@@ -183,7 +192,7 @@ export function InvoiceList({
 
       return true;
     });
-  }, [invoices, searchQuery, filterEntity, filterAccounting, filterPayment, filterYear, filterMonth]);
+  }, [invoices, searchQuery, filterDocumentType, filterEntity, filterAccounting, filterPayment, filterYear, filterMonth]);
 
   // 集計
   const totals = useMemo(() => {
@@ -238,6 +247,7 @@ export function InvoiceList({
 
   const clearFilters = () => {
     setSearchQuery("");
+    setFilterDocumentType("invoice");
     setFilterEntity("all");
     setFilterAccounting("all");
     setFilterPayment("all");
@@ -248,10 +258,35 @@ export function InvoiceList({
   const hasActiveFilters =
     searchQuery || filterEntity !== "all" || filterAccounting !== "all" || filterPayment !== "all" || filterYear !== "all" || filterMonth !== null;
 
+  // 現在表示中の書類タイプのラベル
+  const documentTypeLabel = filterDocumentType === "estimate" ? "見積書" : "請求書";
+
   const months = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
   return (
     <div className="space-y-6">
+      {/* 書類タイプ切り替え */}
+      <div className="flex gap-2">
+        <Button
+          variant={filterDocumentType === "invoice" ? "default" : "outline"}
+          onClick={() => setFilterDocumentType("invoice")}
+        >
+          請求書を表示
+        </Button>
+        <Button
+          variant={filterDocumentType === "estimate" ? "default" : "outline"}
+          onClick={() => setFilterDocumentType("estimate")}
+        >
+          見積書を表示
+        </Button>
+        <Button
+          variant={filterDocumentType === "all" ? "default" : "outline"}
+          onClick={() => setFilterDocumentType("all")}
+        >
+          すべて表示
+        </Button>
+      </div>
+
       {/* フィルタ */}
       <Card>
         <CardContent className="pt-6 space-y-4">
@@ -261,17 +296,17 @@ export function InvoiceList({
             <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="請求書番号、業務名、相手先で検索..."
+                placeholder={`${documentTypeLabel}番号、業務名、相手先で検索...`}
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-9"
               />
             </div>
 
-            {/* 請求書追加ボタン */}
+            {/* 追加ボタン */}
             <Button onClick={() => setShowAddModal(true)} disabled={isPending}>
               <Plus className="h-4 w-4 mr-1" />
-              請求書を追加
+              {documentTypeLabel}を追加
             </Button>
 
             {/* 事業主体フィルタ */}
@@ -322,9 +357,9 @@ export function InvoiceList({
             )}
           </div>
 
-          {/* 2行目: 請求月フィルタ（年プルダウン + 月ボタン） */}
+          {/* 2行目: 月フィルタ（年プルダウン + 月ボタン） */}
           <div className="flex items-center gap-3">
-            <span className="text-sm text-muted-foreground">請求月:</span>
+            <span className="text-sm text-muted-foreground">{filterDocumentType === "estimate" ? "見積月" : "請求月"}:</span>
             <Select value={filterYear} onValueChange={setFilterYear}>
               <SelectTrigger className="w-[100px]">
                 <SelectValue placeholder="年" />
@@ -377,7 +412,7 @@ export function InvoiceList({
         </Card>
         <Card>
           <CardContent className="pt-4 pb-4">
-            <div className="text-sm text-muted-foreground">請求金額計</div>
+            <div className="text-sm text-muted-foreground">{filterDocumentType === "estimate" ? "見積金額計" : "請求金額計"}</div>
             <div className="text-xl font-bold">{formatCurrency(totals.totalAmount)}</div>
           </CardContent>
         </Card>
@@ -397,20 +432,20 @@ export function InvoiceList({
           {filteredInvoices.length === 0 ? (
             <div className="text-center text-muted-foreground py-12">
               {hasActiveFilters
-                ? "条件に一致する請求書がありません"
-                : "請求書がありません"}
+                ? `条件に一致する${documentTypeLabel}がありません`
+                : `${documentTypeLabel}がありません`}
             </div>
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[180px]">請求書番号</TableHead>
-                    <TableHead className="w-[100px]">請求日</TableHead>
+                    <TableHead className="w-[180px]">{documentTypeLabel}番号</TableHead>
+                    <TableHead className="w-[100px]">{filterDocumentType === "estimate" ? "見積日" : "請求日"}</TableHead>
                     <TableHead className="w-[150px]">入金日</TableHead>
                     <TableHead>相手先</TableHead>
                     <TableHead>業務名</TableHead>
-                    <TableHead className="text-right">請求金額</TableHead>
+                    <TableHead className="text-right">{filterDocumentType === "estimate" ? "見積金額" : "請求金額"}</TableHead>
                     <TableHead className="w-[80px]">事業主体</TableHead>
                     <TableHead className="text-center w-[60px]">会計</TableHead>
                     <TableHead className="w-[80px]"></TableHead>
@@ -527,9 +562,9 @@ export function InvoiceList({
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>請求書を削除しますか？</AlertDialogTitle>
+            <AlertDialogTitle>{deleteTarget?.document_type === "estimate" ? "見積書" : "請求書"}を削除しますか？</AlertDialogTitle>
             <AlertDialogDescription>
-              請求書「{deleteTarget?.invoice_number}」を削除します。この操作は取り消せません。
+              {deleteTarget?.document_type === "estimate" ? "見積書" : "請求書"}「{deleteTarget?.invoice_number}」を削除します。この操作は取り消せません。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
