@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useEffect, useRef } from "react";
+import React, { useState, useTransition, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -684,83 +684,105 @@ export function InvoiceCreateDialog({
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {items.map((item) => (
-                      <TableRow key={item.id}>
-                        <TableCell className="px-2">
-                          <GripVertical className="h-4 w-4 text-muted-foreground" />
-                        </TableCell>
-                        <TableCell>
-                          <Input
-                            value={item.name}
-                            onChange={(e) =>
-                              handleUpdateItem(item.id, "name", e.target.value)
-                            }
-                            placeholder="項目名"
-                            className="h-8"
-                          />
-                          {item.category_name && (
-                            <span className="text-xs text-muted-foreground">
-                              {item.category_name}
-                            </span>
+                    {(() => {
+                      // カテゴリ別にグループ化
+                      const groupedItems: { category: string | null; items: InvoiceLineItem[] }[] = [];
+                      for (const item of items) {
+                        const categoryKey = item.category_name || null;
+                        const existing = groupedItems.find((g) => g.category === categoryKey);
+                        if (existing) {
+                          existing.items.push(item);
+                        } else {
+                          groupedItems.push({ category: categoryKey, items: [item] });
+                        }
+                      }
+
+                      return groupedItems.map((group) => (
+                        <React.Fragment key={`group-${group.category || "uncategorized"}`}>
+                          {/* カテゴリヘッダー行 */}
+                          {group.category && (
+                            <TableRow className="bg-cyan-100 hover:bg-cyan-100">
+                              <TableCell colSpan={7} className="py-2 font-medium text-sm">
+                                {group.category}
+                              </TableCell>
+                            </TableRow>
                           )}
-                        </TableCell>
-                        <TableCell>
-                          <Input
-                            type="number"
-                            value={item.quantity}
-                            onChange={(e) =>
-                              handleUpdateItem(
-                                item.id,
-                                "quantity",
-                                parseFloat(e.target.value) || 0
-                              )
-                            }
-                            className="h-8 text-right"
-                            min={0}
-                            step={0.01}
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Input
-                            value={item.unit || ""}
-                            onChange={(e) =>
-                              handleUpdateItem(item.id, "unit", e.target.value)
-                            }
-                            className="h-8"
-                            placeholder="式"
-                          />
-                        </TableCell>
-                        <TableCell>
-                          <Input
-                            type="number"
-                            value={item.unit_price}
-                            onChange={(e) =>
-                              handleUpdateItem(
-                                item.id,
-                                "unit_price",
-                                parseInt(e.target.value) || 0
-                              )
-                            }
-                            className="h-8 text-right"
-                            min={0}
-                          />
-                        </TableCell>
-                        <TableCell className="text-right font-medium">
-                          {formatCurrency(item.amount)}
-                        </TableCell>
-                        <TableCell>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="sm"
-                            className="h-8 w-8 p-0"
-                            onClick={() => handleRemoveItem(item.id)}
-                          >
-                            <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                          {/* カテゴリ内の項目 */}
+                          {group.items.map((item) => (
+                            <TableRow key={item.id}>
+                              <TableCell className="px-2">
+                                <GripVertical className="h-4 w-4 text-muted-foreground" />
+                              </TableCell>
+                              <TableCell>
+                                <Input
+                                  value={item.name}
+                                  onChange={(e) =>
+                                    handleUpdateItem(item.id, "name", e.target.value)
+                                  }
+                                  placeholder="項目名"
+                                  className="h-8"
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Input
+                                  type="number"
+                                  value={item.quantity}
+                                  onChange={(e) =>
+                                    handleUpdateItem(
+                                      item.id,
+                                      "quantity",
+                                      parseFloat(e.target.value) || 0
+                                    )
+                                  }
+                                  className="h-8 text-right"
+                                  min={0}
+                                  step={0.01}
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Input
+                                  value={item.unit || ""}
+                                  onChange={(e) =>
+                                    handleUpdateItem(item.id, "unit", e.target.value)
+                                  }
+                                  className="h-8"
+                                  placeholder="式"
+                                />
+                              </TableCell>
+                              <TableCell>
+                                <Input
+                                  type="number"
+                                  value={item.unit_price}
+                                  onChange={(e) =>
+                                    handleUpdateItem(
+                                      item.id,
+                                      "unit_price",
+                                      parseInt(e.target.value) || 0
+                                    )
+                                  }
+                                  className="h-8 text-right"
+                                  min={0}
+                                />
+                              </TableCell>
+                              <TableCell className="text-right font-medium">
+                                {formatCurrency(item.amount)}
+                              </TableCell>
+                              <TableCell>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-8 w-8 p-0"
+                                  onClick={() => handleRemoveItem(item.id)}
+                                >
+                                  <Trash2 className="h-4 w-4 text-muted-foreground hover:text-destructive" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </React.Fragment>
+                      ));
+                    })()}
                   </TableBody>
                 </Table>
               </div>
