@@ -281,7 +281,7 @@ export function InvoiceCreateDialog({
     });
   };
 
-  // 手動で項目追加
+  // 手動で項目追加（末尾に追加）
   const handleAddManualItem = () => {
     setItems([
       ...items,
@@ -299,6 +299,60 @@ export function InvoiceCreateDialog({
     ]);
   };
 
+  // 指定分類の末尾に項目を追加
+  const handleAddItemToCategory = (categoryName: string | null) => {
+    const newItem: InvoiceLineItem = {
+      id: crypto.randomUUID(),
+      item_template_id: null,
+      category_name: categoryName,
+      name: "",
+      description: null,
+      unit: "式",
+      quantity: 1,
+      unit_price: 0,
+      amount: 0,
+    };
+
+    // 該当カテゴリの最後の項目のインデックスを見つける
+    let lastIndexOfCategory = -1;
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].category_name === categoryName) {
+        lastIndexOfCategory = i;
+      }
+    }
+
+    if (lastIndexOfCategory === -1) {
+      // カテゴリが見つからない場合は末尾に追加
+      setItems([...items, newItem]);
+    } else {
+      // 該当カテゴリの末尾に挿入
+      const newItems = [...items];
+      newItems.splice(lastIndexOfCategory + 1, 0, newItem);
+      setItems(newItems);
+    }
+  };
+
+  // 新しい分類を追加（項目1つ付き）
+  const handleAddNewCategory = () => {
+    const categoryName = prompt("新しい分類名を入力してください：");
+    if (!categoryName || categoryName.trim() === "") return;
+
+    setItems([
+      ...items,
+      {
+        id: crypto.randomUUID(),
+        item_template_id: null,
+        category_name: categoryName.trim(),
+        name: "",
+        description: null,
+        unit: "式",
+        quantity: 1,
+        unit_price: 0,
+        amount: 0,
+      },
+    ]);
+  };
+
   // 値引き項目を追加
   const handleAddDiscountItem = () => {
     setItems([
@@ -306,7 +360,7 @@ export function InvoiceCreateDialog({
       {
         id: crypto.randomUUID(),
         item_template_id: null,
-        category_name: null,
+        category_name: "値引き",
         name: "値引き",
         description: null,
         unit: "式",
@@ -459,16 +513,17 @@ export function InvoiceCreateDialog({
       [],
     ];
 
-    // 明細ヘッダー
-    const itemHeader = ["項目名", "数量", "単位", "単価", "金額"];
+    // 明細ヘッダー（1列目=分類、2列目=項目名）
+    const itemHeader = ["分類", "項目名", "数量", "単位", "単価", "金額"];
 
     // 出力対象の項目（数量0を除外するオプションに対応）
     const exportItems = excludeZeroQuantity
       ? items.filter((item) => item.quantity > 0)
       : items;
 
-    // 明細データ
+    // 明細データ（分類列を追加）
     const itemRows = exportItems.map((item) => [
+      item.category_name || "",
       item.name,
       item.quantity,
       item.unit || "",
@@ -479,10 +534,10 @@ export function InvoiceCreateDialog({
     // 合計行
     const summaryRows = [
       [],
-      ["", "", "", "小計（税抜）", subtotal],
-      ["", "", "", `消費税（${Math.round(taxRate * 100)}%）`, taxAmount],
-      ["", "", "", "立替金", expenses],
-      ["", "", "", "合計金額", totalAmount],
+      ["", "", "", "", "小計（税抜）", subtotal],
+      ["", "", "", "", `消費税（${Math.round(taxRate * 100)}%）`, taxAmount],
+      ["", "", "", "", "立替金", expenses],
+      ["", "", "", "", "合計金額", totalAmount],
     ];
 
     // ワークシートデータを組み立て
@@ -498,7 +553,8 @@ export function InvoiceCreateDialog({
 
     // 列幅設定
     ws["!cols"] = [
-      { wch: 30 }, // 項目名
+      { wch: 15 }, // 分類
+      { wch: 25 }, // 項目名
       { wch: 10 }, // 数量
       { wch: 8 },  // 単位
       { wch: 12 }, // 単価
@@ -681,15 +737,26 @@ export function InvoiceCreateDialog({
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label>明細項目</Label>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={handleAddManualItem}
-              >
-                <Plus className="h-4 w-4 mr-1" />
-                手動追加
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAddNewCategory}
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  分類を追加
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleAddManualItem}
+                >
+                  <Plus className="h-4 w-4 mr-1" />
+                  手動追加
+                </Button>
+              </div>
             </div>
 
             {items.length === 0 ? (
@@ -702,11 +769,11 @@ export function InvoiceCreateDialog({
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-[24px] px-1"></TableHead>
-                      <TableHead className="px-1">項目名</TableHead>
-                      <TableHead className="w-[70px] px-1">数量</TableHead>
-                      <TableHead className="w-[60px] px-1">単位</TableHead>
-                      <TableHead className="w-[90px] px-1">単価</TableHead>
-                      <TableHead className="w-[90px] px-1 text-right">金額</TableHead>
+                      <TableHead className="w-[180px] px-1">項目名</TableHead>
+                      <TableHead className="w-[80px] px-1">数量</TableHead>
+                      <TableHead className="w-[70px] px-1">単位</TableHead>
+                      <TableHead className="w-[100px] px-1">単価</TableHead>
+                      <TableHead className="w-[100px] px-1 text-right">金額</TableHead>
                       <TableHead className="w-[32px] px-1"></TableHead>
                     </TableRow>
                   </TableHeader>
@@ -729,8 +796,20 @@ export function InvoiceCreateDialog({
                           {/* カテゴリヘッダー行 */}
                           {group.category && (
                             <TableRow className="bg-cyan-100 hover:bg-cyan-100">
-                              <TableCell colSpan={7} className="py-1 px-2 font-medium text-sm">
+                              <TableCell colSpan={6} className="py-1 px-2 font-medium text-sm">
                                 {group.category}
+                              </TableCell>
+                              <TableCell className="py-1 px-1 text-right">
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-5 w-5 p-0"
+                                  onClick={() => handleAddItemToCategory(group.category)}
+                                  title="この分類に項目を追加"
+                                >
+                                  <Plus className="h-3.5 w-3.5" />
+                                </Button>
                               </TableCell>
                             </TableRow>
                           )}
