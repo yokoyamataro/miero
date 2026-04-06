@@ -232,6 +232,66 @@ export async function addHolidaysBulk(
 }
 
 // ============================================
+// 休日一括同期（追加・削除）
+// ============================================
+export async function syncHolidays(
+  calendarSetId: string,
+  fiscalYear: number,
+  selectedDates: string[],
+  existingHolidays: { id: string; holiday_date: string; holiday_name: string | null }[]
+): Promise<{ error?: string }> {
+  const supabase = await createClient();
+
+  // 削除すべき休日を特定
+  const selectedSet = new Set(selectedDates);
+  const holidaysToDelete = existingHolidays.filter(
+    (h) => !selectedSet.has(h.holiday_date)
+  );
+
+  // 追加すべき休日を特定
+  const existingDates = new Set(existingHolidays.map((h) => h.holiday_date));
+  const holidaysToAdd = selectedDates
+    .filter((date) => !existingDates.has(date))
+    .map((date) => ({
+      calendar_set_id: calendarSetId,
+      fiscal_year: fiscalYear,
+      holiday_date: date,
+      holiday_name: null,
+    }));
+
+  // 削除実行
+  if (holidaysToDelete.length > 0) {
+    const { error: deleteError } = await supabase
+      .from("work_calendar_holidays")
+      .delete()
+      .in(
+        "id",
+        holidaysToDelete.map((h) => h.id)
+      );
+
+    if (deleteError) {
+      console.error("Error deleting holidays:", deleteError);
+      return { error: "休日の削除に失敗しました" };
+    }
+  }
+
+  // 追加実行
+  if (holidaysToAdd.length > 0) {
+    const { error: insertError } = await supabase
+      .from("work_calendar_holidays")
+      .insert(holidaysToAdd);
+
+    if (insertError) {
+      console.error("Error adding holidays:", insertError);
+      return { error: "休日の追加に失敗しました" };
+    }
+  }
+
+  revalidatePath("/settings/work-calendars");
+  return {};
+}
+
+// ============================================
 // 休日削除
 // ============================================
 export async function deleteHoliday(id: string): Promise<{ error?: string }> {

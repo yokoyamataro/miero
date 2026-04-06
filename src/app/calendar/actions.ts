@@ -976,3 +976,109 @@ export async function reorderEventCategories(
   revalidatePath("/calendar");
   return { success: true };
 }
+
+// ============================================
+// 休暇・祝日取得（カレンダー表示用）
+// ============================================
+
+// カレンダー表示用の休暇情報型
+export interface CalendarLeaveInfo {
+  id: string;
+  employee_id: string;
+  leave_date: string;
+  leave_type: string;
+  leave_category: string;
+  status: string;
+}
+
+// カレンダー表示用の祝日情報型
+export interface CalendarHolidayInfo {
+  date: string;
+  name: string | null;
+}
+
+// 期間内の承認済み休暇を取得（全社員分）
+export async function getLeavesInRange(
+  startDate: string,
+  endDate: string
+): Promise<CalendarLeaveInfo[]> {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("leaves")
+    .select("id, employee_id, leave_date, leave_type, leave_category, status")
+    .eq("entry_type", "use")
+    .in("status", ["approved", "pending"])
+    .gte("leave_date", startDate)
+    .lte("leave_date", endDate)
+    .order("leave_date", { ascending: true });
+
+  if (error) {
+    console.error("Error fetching leaves for calendar:", error);
+    return [];
+  }
+
+  return (data || []) as CalendarLeaveInfo[];
+}
+
+// 期間内の祝日を取得（勤怠カレンダーから）
+export async function getHolidaysInRange(
+  startDate: string,
+  endDate: string
+): Promise<CalendarHolidayInfo[]> {
+  const supabase = await createClient();
+
+  // デフォルトのカレンダーセットから祝日を取得
+  const { data: defaultSet } = await supabase
+    .from("work_calendar_sets")
+    .select("id")
+    .eq("is_default", true)
+    .single();
+
+  if (!defaultSet) {
+    // デフォルトがなければ最初のセットを使用
+    const { data: firstSet } = await supabase
+      .from("work_calendar_sets")
+      .select("id")
+      .limit(1)
+      .single();
+
+    if (!firstSet) return [];
+
+    const { data: holidays, error } = await supabase
+      .from("work_calendar_holidays")
+      .select("holiday_date, holiday_name")
+      .eq("calendar_set_id", firstSet.id)
+      .gte("holiday_date", startDate)
+      .lte("holiday_date", endDate)
+      .order("holiday_date", { ascending: true });
+
+    if (error) {
+      console.error("Error fetching holidays:", error);
+      return [];
+    }
+
+    return (holidays || []).map((h) => ({
+      date: h.holiday_date,
+      name: h.holiday_name,
+    }));
+  }
+
+  const { data: holidays, error } = await supabase
+    .from("work_calendar_holidays")
+    .select("holiday_date, holiday_name")
+    .eq("calendar_set_id", defaultSet.id)
+    .gte("holiday_date", startDate)
+    .lte("holiday_date", endDate)
+    .order("holiday_date", { ascending: true });
+
+  if (error) {
+    console.error("Error fetching holidays:", error);
+    return [];
+  }
+
+  return (holidays || []).map((h) => ({
+    date: h.holiday_date,
+    name: h.holiday_name,
+  }));
+}

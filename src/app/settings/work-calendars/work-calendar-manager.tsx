@@ -56,7 +56,7 @@ import {
   deleteWorkCalendarSet,
   getWorkCalendarSetWithDetails,
   addHolidaysBulk,
-  deleteHoliday,
+  syncHolidays,
   setMonthlyHoursBulk,
   assignCalendarSetToEmployee,
   getJapaneseHolidays,
@@ -435,19 +435,20 @@ function HolidaySettings({
     });
   };
 
-  // 選択を保存
+  // 選択を保存（追加・削除を同期）
   const handleSaveHolidays = async () => {
     startTransition(async () => {
-      const holidaysToSave = Array.from(selectedDates).map((date) => {
-        const existing = holidays.find((h) => h.holiday_date === date);
-        return {
-          calendar_set_id: calendarSetId,
-          fiscal_year: fiscalYear,
-          holiday_date: date,
-          holiday_name: existing?.holiday_name || null,
-        };
-      });
-      await addHolidaysBulk(holidaysToSave);
+      const existingHolidays = holidays.map((h) => ({
+        id: h.id,
+        holiday_date: h.holiday_date,
+        holiday_name: h.holiday_name,
+      }));
+      await syncHolidays(
+        calendarSetId,
+        fiscalYear,
+        Array.from(selectedDates),
+        existingHolidays
+      );
       onUpdate();
     });
   };

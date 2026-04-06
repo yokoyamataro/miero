@@ -12,6 +12,7 @@ import {
   type EventCategory,
 } from "@/types/database";
 import { type ActiveProject, type PersonalTask } from "./dashboard-actions";
+import { type CalendarLeaveInfo, type CalendarHolidayInfo } from "./calendar/actions";
 
 type ViewMode = "day" | "dayAll" | "fiveDay" | "fiveDayAll" | "month";
 
@@ -24,6 +25,8 @@ interface DashboardViewProps {
   personalTasks: PersonalTask[];
   initialView?: ViewMode;
   initialDate?: string;
+  leaves?: CalendarLeaveInfo[];
+  holidays?: CalendarHolidayInfo[];
 }
 
 export function DashboardView({
@@ -35,6 +38,8 @@ export function DashboardView({
   personalTasks,
   initialView = "dayAll",
   initialDate,
+  leaves = [],
+  holidays = [],
 }: DashboardViewProps) {
   const router = useRouter();
   const [showEventModal, setShowEventModal] = useState(false);
@@ -132,6 +137,8 @@ export function DashboardView({
             initialDate={initialDate || format(new Date(), "yyyy-MM-dd")}
             currentEmployeeId={currentEmployeeId}
             onDropProject={handleDropProject}
+            leaves={leaves}
+            holidays={holidays}
           />
         </div>
 

@@ -56,7 +56,7 @@ import {
 } from "@/types/database";
 import { EventModal } from "./calendar/event-modal";
 import { EventDetailModal } from "./calendar/event-detail-modal";
-import { updateEvent } from "./calendar/actions";
+import { updateEvent, type CalendarLeaveInfo, type CalendarHolidayInfo } from "./calendar/actions";
 
 type ViewMode = "day" | "dayAll" | "fiveDay" | "fiveDayAll" | "month";
 type EmployeeFilter = "me" | "all" | string; // "me" = 自分のみ, "all" = 全員, string = 特定の社員ID
@@ -75,6 +75,8 @@ interface DashboardCalendarProps {
     endTime?: { hour: string; minute: string },
     targetEmployeeId?: string
   ) => void;
+  leaves?: CalendarLeaveInfo[];
+  holidays?: CalendarHolidayInfo[];
 }
 
 export interface DroppedProjectData {
@@ -94,6 +96,8 @@ export function DashboardCalendar({
   initialDate,
   currentEmployeeId,
   onDropProject,
+  leaves = [],
+  holidays = [],
 }: DashboardCalendarProps) {
   const [viewMode, setViewMode] = useState<ViewMode>(initialView);
   const [currentDate, setCurrentDate] = useState(() => new Date()); // 常に今日で初期化
@@ -286,6 +290,39 @@ export function DashboardCalendar({
       if (!isDateInRange(date, event.start_date, event.end_date)) return false;
       return event.participants.some((p) => p.id === targetEmployeeId);
     });
+  };
+
+  // 日付の祝日を取得
+  const getHolidayForDate = (date: Date) => {
+    const dateStr = format(date, "yyyy-MM-dd");
+    return holidays.find((h) => h.date === dateStr);
+  };
+
+  // 日付×社員の休暇を取得
+  const getLeaveForDateAndEmployee = (date: Date, employeeId: string) => {
+    const dateStr = format(date, "yyyy-MM-dd");
+    return leaves.find((l) => l.leave_date === dateStr && l.employee_id === employeeId);
+  };
+
+  // 日付の休暇を取得（特定社員）
+  const getLeaveForDate = (date: Date, employeeId?: string) => {
+    const dateStr = format(date, "yyyy-MM-dd");
+    const targetId = employeeId || (employeeFilter === "me" ? currentEmployeeId : employeeFilter !== "all" ? employeeFilter : null);
+    if (!targetId) return null;
+    return leaves.find((l) => l.leave_date === dateStr && l.employee_id === targetId);
+  };
+
+  // 休暇タイプから表示文字列を取得
+  const getLeaveDisplayText = (leave: CalendarLeaveInfo) => {
+    const type = leave.leave_type;
+    if (type.includes("全日")) {
+      return "有給";
+    } else if (type.includes("午前")) {
+      return "有給(午前)";
+    } else if (type.includes("午後")) {
+      return "有給(午後)";
+    }
+    return "休";
   };
 
   // ナビゲーション
@@ -900,6 +937,8 @@ export function DashboardCalendar({
         const dayOfWeek = date.getDay();
         const dateStr = format(date, "yyyy-MM-dd");
         const isDragOver = dragOverDate === dateStr;
+        const holiday = getHolidayForDate(date);
+        const leave = getLeaveForDate(date);
 
         return (
           <div
@@ -912,18 +951,33 @@ export function DashboardCalendar({
             onDragOver={(e) => handleDragOver(date, e)}
             onDragLeave={handleDragLeave}
           >
-            <div
-              className={`text-sm mb-1 w-6 h-6 flex items-center justify-center rounded-full ${
-                isToday(date)
-                  ? "bg-primary text-primary-foreground"
-                  : dayOfWeek === 0
-                  ? "text-red-500"
-                  : dayOfWeek === 6
-                  ? "text-blue-500"
-                  : ""
-              }`}
-            >
-              {format(date, "d")}
+            <div className="flex items-center gap-1 mb-1">
+              <div
+                className={`text-sm w-6 h-6 flex items-center justify-center rounded-full flex-shrink-0 ${
+                  isToday(date)
+                    ? "bg-primary text-primary-foreground"
+                    : dayOfWeek === 0
+                    ? "text-red-500"
+                    : dayOfWeek === 6
+                    ? "text-blue-500"
+                    : ""
+                }`}
+              >
+                {format(date, "d")}
+              </div>
+              {/* 祝日・休暇表示（日付の右に） */}
+              {holiday && (
+                <span className="text-[9px] px-0.5 bg-red-100 text-red-700 rounded truncate" title={holiday.name || "祝日"}>
+                  休
+                </span>
+              )}
+              {leave && (
+                <span className={`text-[9px] px-0.5 rounded truncate ${
+                  leave.status === "approved" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
+                }`} title={leave.leave_type}>
+                  {leave.leave_type.includes("午前") ? "有午前" : leave.leave_type.includes("午後") ? "有午後" : "有給"}
+                </span>
+              )}
             </div>
             <div className="space-y-0.5">
               {dayEvents.slice(0, 2).map((event) => renderEvent(event, true))}
@@ -1007,6 +1061,8 @@ export function DashboardCalendar({
                   const dayEvents = getAllEventsForDateAndEmployee(date, employee.id);
                   const dateStr = format(date, "yyyy-MM-dd");
                   const isDragOver = dragOverDate === dateStr;
+                  const holiday = getHolidayForDate(date);
+                  const leave = getLeaveForDateAndEmployee(date, employee.id);
                   return (
                     <td
                       key={idx}
@@ -1019,6 +1075,19 @@ export function DashboardCalendar({
                       onDragLeave={handleDragLeave}
                     >
                       <div className="space-y-1 min-h-[60px]">
+                        {/* 祝日・休暇表示（名前の下に） */}
+                        {holiday && (
+                          <div className="text-[10px] px-1 py-0.5 bg-red-100 text-red-700 rounded truncate" title={holiday.name || "祝日"}>
+                            休({holiday.name || "祝日"})
+                          </div>
+                        )}
+                        {leave && (
+                          <div className={`text-[10px] px-1 py-0.5 rounded truncate ${
+                            leave.status === "approved" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
+                          }`} title={leave.leave_type}>
+                            {getLeaveDisplayText(leave)}{leave.status === "pending" && "(申請中)"}
+                          </div>
+                        )}
                         {dayEvents.map((event) => renderEvent(event, true, true))}
                       </div>
                     </td>
@@ -1117,6 +1186,8 @@ export function DashboardCalendar({
           {sortedEmployees.map((emp) => {
             const allDayEvents = getAllDayEventsForEmployee(currentDate, emp.id);
             const isDragOver = dragOverDate === dateStr;
+            const holiday = getHolidayForDate(currentDate);
+            const leave = getLeaveForDateAndEmployee(currentDate, emp.id);
             return (
               <div
                 key={emp.id}
@@ -1128,6 +1199,19 @@ export function DashboardCalendar({
                 onDragOver={(e) => handleDragOver(currentDate, e)}
                 onDragLeave={handleDragLeave}
               >
+                {/* 祝日・休暇表示（名前の下に） */}
+                {holiday && (
+                  <div className="text-[10px] px-1 py-0.5 bg-red-100 text-red-700 rounded truncate mb-0.5" title={holiday.name || "祝日"}>
+                    休({holiday.name || "祝日"})
+                  </div>
+                )}
+                {leave && (
+                  <div className={`text-[10px] px-1 py-0.5 rounded truncate mb-0.5 ${
+                    leave.status === "approved" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
+                  }`} title={leave.leave_type}>
+                    {getLeaveDisplayText(leave)}{leave.status === "pending" && "(申請中)"}
+                  </div>
+                )}
                 {allDayEvents.map((event) => renderEvent(event, true, true))}
               </div>
             );
@@ -1244,6 +1328,8 @@ export function DashboardCalendar({
           <div className="p-2 bg-muted border-r text-center text-xs font-medium">時間</div>
           {fiveDays.map((date, idx) => {
             const dayOfWeek = date.getDay();
+            const holiday = getHolidayForDate(date);
+            const leave = getLeaveForDate(date);
             return (
               <div
                 key={idx}
@@ -1251,11 +1337,30 @@ export function DashboardCalendar({
                   dayOfWeek === 0 ? "text-red-500" : dayOfWeek === 6 ? "text-blue-500" : ""
                 }`}
               >
-                <div className="text-sm font-medium">{format(date, "M/d(E)", { locale: ja })}</div>
-                {isToday(date) && (
-                  <span className="inline-block w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs leading-6">
-                    今
-                  </span>
+                <div className="flex items-center justify-center gap-1">
+                  <span className="text-sm font-medium">{format(date, "M/d(E)", { locale: ja })}</span>
+                  {isToday(date) && (
+                    <span className="inline-block w-5 h-5 rounded-full bg-primary text-primary-foreground text-[10px] leading-5 text-center">
+                      今
+                    </span>
+                  )}
+                </div>
+                {/* 祝日・休暇表示（日付の下に） */}
+                {(holiday || leave) && (
+                  <div className="flex flex-wrap justify-center gap-0.5 mt-0.5">
+                    {holiday && (
+                      <span className="text-[10px] px-1 py-0.5 bg-red-100 text-red-700 rounded" title={holiday.name || "祝日"}>
+                        休({holiday.name || "祝日"})
+                      </span>
+                    )}
+                    {leave && (
+                      <span className={`text-[10px] px-1 py-0.5 rounded ${
+                        leave.status === "approved" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
+                      }`} title={leave.leave_type}>
+                        {getLeaveDisplayText(leave)}{leave.status === "pending" && "(申請中)"}
+                      </span>
+                    )}
+                  </div>
                 )}
               </div>
             );
@@ -1399,21 +1504,42 @@ export function DashboardCalendar({
     return (
       <div className="overflow-auto">
         {/* ヘッダー: 日付 */}
-        <div className="grid grid-cols-[60px_1fr] border-b">
-          <div className="p-2 bg-muted border-r text-center text-xs font-medium">時間</div>
-          <div
-            className={`p-2 bg-muted border-r text-center ${
-              dayOfWeek === 0 ? "text-red-500" : dayOfWeek === 6 ? "text-blue-500" : ""
-            }`}
-          >
-            <div className="text-sm font-medium">{format(currentDate, "M/d(E)", { locale: ja })}</div>
-            {isToday(currentDate) && (
-              <span className="inline-block w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs leading-6">
-                今
-              </span>
-            )}
-          </div>
-        </div>
+        {(() => {
+          const holiday = getHolidayForDate(currentDate);
+          const leave = getLeaveForDate(currentDate);
+          return (
+            <div className="grid grid-cols-[60px_1fr] border-b">
+              <div className="p-2 bg-muted border-r text-center text-xs font-medium">時間</div>
+              <div
+                className={`p-2 bg-muted border-r ${
+                  dayOfWeek === 0 ? "text-red-500" : dayOfWeek === 6 ? "text-blue-500" : ""
+                }`}
+              >
+                <div className="flex items-center justify-center gap-2">
+                  <span className="text-sm font-medium">{format(currentDate, "M/d(E)", { locale: ja })}</span>
+                  {isToday(currentDate) && (
+                    <span className="inline-block w-6 h-6 rounded-full bg-primary text-primary-foreground text-xs leading-6 text-center">
+                      今
+                    </span>
+                  )}
+                  {/* 祝日・休暇表示（日付の右に） */}
+                  {holiday && (
+                    <span className="text-[10px] px-1 py-0.5 bg-red-100 text-red-700 rounded" title={holiday.name || "祝日"}>
+                      休({holiday.name || "祝日"})
+                    </span>
+                  )}
+                  {leave && (
+                    <span className={`text-[10px] px-1 py-0.5 rounded ${
+                      leave.status === "approved" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
+                    }`} title={leave.leave_type}>
+                      {getLeaveDisplayText(leave)}{leave.status === "pending" && "(申請中)"}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+        })()}
 
         {/* 終日イベント行 */}
         <div className="grid grid-cols-[60px_1fr] border-b bg-gray-50">
