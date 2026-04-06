@@ -2,6 +2,7 @@ import { format, subMonths, addMonths, startOfMonth, endOfMonth } from "date-fns
 import { getEventsInRange, getEmployees, getCurrentEmployeeId, getEventCategories, getLeavesInRange, getHolidaysInRange } from "./calendar/actions";
 import { getActiveProjects, getIncompletePersonalTasks } from "./dashboard-actions";
 import { DashboardView } from "./dashboard-view";
+import { getFiscalYear } from "@/types/database";
 
 export default async function Home({
   searchParams,
@@ -12,6 +13,11 @@ export default async function Home({
   const today = new Date();
   const rangeStart = format(subMonths(startOfMonth(today), 1), "yyyy-MM-dd");
   const rangeEnd = format(addMonths(endOfMonth(today), 1), "yyyy-MM-dd");
+
+  // 祝日・休暇は年度全体を取得（4月〜翌3月）
+  const fiscalYear = getFiscalYear(today);
+  const fiscalYearStart = `${fiscalYear}-04-01`;
+  const fiscalYearEnd = `${fiscalYear + 1}-03-31`;
 
   // URLパラメータから表示モードと日付を取得
   const initialView = (params.view as "dayAll" | "fiveDay" | "fiveDayAll" | "month") || "dayAll";
@@ -26,8 +32,8 @@ export default async function Home({
       getEventCategories(),
       getActiveProjects(),
       getIncompletePersonalTasks(),
-      getLeavesInRange(rangeStart, rangeEnd),
-      getHolidaysInRange(rangeStart, rangeEnd),
+      getLeavesInRange(fiscalYearStart, fiscalYearEnd),
+      getHolidaysInRange(fiscalYearStart, fiscalYearEnd),
     ]);
 
   return (
