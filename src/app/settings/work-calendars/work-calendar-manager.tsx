@@ -414,14 +414,10 @@ function HolidaySettings({
   const [selectedDates, setSelectedDates] = useState<Set<string>>(
     new Set(holidays.map((h) => h.holiday_date))
   );
-  const [currentMonth, setCurrentMonth] = useState(
-    fiscalYear * 12 + 3 // 4月から開始
-  );
 
   // 年度が変わったら選択をリセット
   useEffect(() => {
     setSelectedDates(new Set(holidays.map((h) => h.holiday_date)));
-    setCurrentMonth(fiscalYear * 12 + 3);
   }, [holidays, fiscalYear]);
 
   // 祝日を自動追加
@@ -500,12 +496,56 @@ function HolidaySettings({
 
   const dayNames = ["日", "月", "火", "水", "木", "金", "土"];
 
-  // 3ヶ月分表示
-  const calendars = [
-    generateCalendar(currentMonth),
-    generateCalendar(currentMonth + 1),
-    generateCalendar(currentMonth + 2),
+  // 年度の12ヶ月分（4月〜翌3月）を表示
+  const fiscalYearMonths = [
+    fiscalYear * 12 + 3,  // 4月
+    fiscalYear * 12 + 4,  // 5月
+    fiscalYear * 12 + 5,  // 6月
+    fiscalYear * 12 + 6,  // 7月
+    fiscalYear * 12 + 7,  // 8月
+    fiscalYear * 12 + 8,  // 9月
+    fiscalYear * 12 + 9,  // 10月
+    fiscalYear * 12 + 10, // 11月
+    fiscalYear * 12 + 11, // 12月
+    (fiscalYear + 1) * 12 + 0, // 1月
+    (fiscalYear + 1) * 12 + 1, // 2月
+    (fiscalYear + 1) * 12 + 2, // 3月
   ];
+  const calendars = fiscalYearMonths.map((m) => generateCalendar(m));
+
+  // 土日を含む総休日数を計算
+  const countTotalHolidays = () => {
+    let weekendCount = 0;
+    let holidayOnlyCount = 0; // 土日以外の休日
+    const weekendDates = new Set<string>();
+
+    // 年度の全日付をチェック
+    const startDate = new Date(fiscalYear, 3, 1); // 4月1日
+    const endDate = new Date(fiscalYear + 1, 2, 31); // 翌3月31日
+
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+      const dateStr = d.toISOString().split("T")[0];
+      if (isWeekend(d)) {
+        weekendCount++;
+        weekendDates.add(dateStr);
+      }
+    }
+
+    // 土日以外の休日をカウント
+    Array.from(selectedDates).forEach((dateStr) => {
+      if (!weekendDates.has(dateStr)) {
+        holidayOnlyCount++;
+      }
+    });
+
+    return {
+      weekendCount,
+      holidayOnlyCount,
+      total: weekendCount + holidayOnlyCount,
+    };
+  };
+
+  const holidayCounts = countTotalHolidays();
 
   return (
     <Card>
@@ -528,41 +568,34 @@ function HolidaySettings({
         </div>
       </CardHeader>
       <CardContent>
-        {/* 月移動 */}
-        <div className="flex items-center justify-center gap-4 mb-4">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setCurrentMonth((m) => m - 3)}
-          >
-            <ChevronLeft className="h-4 w-4" />
-            前へ
-          </Button>
-          <span className="text-sm text-muted-foreground">
-            {calendars[0].year}年{monthNames[calendars[0].month]} ～ {calendars[2].year}年{monthNames[calendars[2].month]}
-          </span>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setCurrentMonth((m) => m + 3)}
-          >
-            次へ
-            <ChevronRight className="h-4 w-4" />
-          </Button>
+        {/* 総休日数表示 */}
+        <div className="flex items-center gap-6 mb-4 p-3 bg-muted rounded-lg">
+          <div className="text-sm">
+            <span className="text-muted-foreground">土日: </span>
+            <span className="font-bold">{holidayCounts.weekendCount}日</span>
+          </div>
+          <div className="text-sm">
+            <span className="text-muted-foreground">祝日等: </span>
+            <span className="font-bold">{holidayCounts.holidayOnlyCount}日</span>
+          </div>
+          <div className="text-sm">
+            <span className="text-muted-foreground">総休日数: </span>
+            <span className="font-bold text-lg">{holidayCounts.total}日</span>
+          </div>
         </div>
 
-        {/* カレンダーグリッド */}
-        <div className="grid grid-cols-3 gap-4">
+        {/* カレンダーグリッド（4列×3行 = 12ヶ月） */}
+        <div className="grid grid-cols-4 gap-3">
           {calendars.map((cal, idx) => (
-            <div key={idx} className="border rounded-lg p-3">
-              <div className="text-center font-medium mb-2">
+            <div key={idx} className="border rounded-lg p-2">
+              <div className="text-center font-medium mb-1 text-sm">
                 {cal.year}年{monthNames[cal.month]}
               </div>
-              <div className="grid grid-cols-7 gap-1 text-center text-xs">
+              <div className="grid grid-cols-7 gap-0.5 text-center text-xs">
                 {dayNames.map((day, i) => (
                   <div
                     key={day}
-                    className={`py-1 font-medium ${
+                    className={`py-0.5 font-medium ${
                       i === 0 ? "text-red-500" : i === 6 ? "text-blue-500" : ""
                     }`}
                   >
@@ -584,10 +617,10 @@ function HolidaySettings({
                       type="button"
                       onClick={() => toggleDate(date)}
                       className={`
-                        py-1 rounded text-sm transition-colors
-                        ${weekend ? "bg-gray-100" : ""}
-                        ${isSelected ? "bg-red-500 text-white" : ""}
-                        ${!isSelected && !weekend ? "hover:bg-gray-100" : ""}
+                        py-0.5 text-xs transition-colors
+                        ${weekend ? "border-2 border-red-400 rounded" : ""}
+                        ${isSelected ? "bg-red-500 text-white rounded" : ""}
+                        ${!isSelected && !weekend ? "hover:bg-gray-100 rounded" : ""}
                       `}
                       title={holiday?.holiday_name || undefined}
                     >
@@ -603,7 +636,7 @@ function HolidaySettings({
         {/* 凡例 */}
         <div className="flex gap-4 mt-4 text-sm text-muted-foreground">
           <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-gray-100" />
+            <div className="w-4 h-4 rounded border-2 border-red-400" />
             <span>土日</span>
           </div>
           <div className="flex items-center gap-2">
