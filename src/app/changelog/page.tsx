@@ -8,6 +8,16 @@ import { GitCommit, Calendar } from "lucide-react";
 const changelogEntries = [
   {
     date: "2026-04-07",
+    version: "1.0.3",
+    changes: [
+      {
+        type: "improve" as const,
+        description: "請求書・見積書作成時に業務を選択すると、その業務の顧客が自動で相手先にセットされるように改善",
+      },
+    ],
+  },
+  {
+    date: "2026-04-07",
     version: "1.0.2",
     changes: [
       {

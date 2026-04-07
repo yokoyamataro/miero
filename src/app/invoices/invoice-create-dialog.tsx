@@ -308,6 +308,15 @@ export function InvoiceCreateDialog({
     setProjectId(project.id);
     setProjectSearchQuery(`${project.code} - ${project.name}`);
     setShowProjectDropdown(false);
+
+    // 業務に紐付いた顧客を相手先に自動セット
+    if (project.contact_id && recipientsLoaded) {
+      const recipient = allRecipients.find((r) => r.id === project.contact_id);
+      if (recipient) {
+        setRecipientContactId(recipient.id);
+        setRecipientSearchQuery(recipient.label);
+      }
+    }
   };
 
   // 業務選択クリア
