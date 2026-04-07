@@ -542,6 +542,80 @@ export async function getProjectCustomerInfo(projectId: string): Promise<{
 }
 
 // ============================================
+// 全顧客リスト取得（相手先選択用）
+// ============================================
+export type RecipientOption = {
+  id: string;
+  label: string;
+  type: "account" | "individual";
+};
+
+export async function getAllRecipients(): Promise<RecipientOption[]> {
+  const supabase = await createClient();
+  const recipients: RecipientOption[] = [];
+
+  // 法人と関連する連絡先を取得
+  const { data: accounts } = await supabase
+    .from("accounts")
+    .select("id, company_name")
+    .is("deleted_at", null)
+    .order("company_name");
+
+  if (accounts) {
+    const accountIds = accounts.map((a) => a.id);
+
+    // 法人に紐付く連絡先を取得
+    if (accountIds.length > 0) {
+      const { data: accountContacts } = await supabase
+        .from("contacts")
+        .select("id, last_name, first_name, account_id")
+        .in("account_id", accountIds)
+        .is("deleted_at", null)
+        .order("last_name");
+
+      if (accountContacts) {
+        // 法人ごとにグループ化して追加
+        for (const account of accounts) {
+          const contacts = accountContacts.filter((c) => c.account_id === account.id);
+          if (contacts.length > 0) {
+            for (const contact of contacts) {
+              recipients.push({
+                id: contact.id,
+                label: `${account.company_name} - ${contact.last_name} ${contact.first_name}`,
+                type: "account",
+              });
+            }
+          } else {
+            // 連絡先がない法人は法人名のみで表示（IDはaccount_idを使用）
+            // ※実際には連絡先IDが必要なため、スキップ
+          }
+        }
+      }
+    }
+  }
+
+  // 個人顧客（法人に紐付かない連絡先）を取得
+  const { data: individuals } = await supabase
+    .from("contacts")
+    .select("id, last_name, first_name")
+    .is("account_id", null)
+    .is("deleted_at", null)
+    .order("last_name");
+
+  if (individuals) {
+    for (const ind of individuals) {
+      recipients.push({
+        id: ind.id,
+        label: `${ind.last_name} ${ind.first_name}`,
+        type: "individual",
+      });
+    }
+  }
+
+  return recipients;
+}
+
+// ============================================
 // 請求書テンプレート一覧取得（項目選択用）
 // ============================================
 export async function getInvoiceTemplates(): Promise<InvoiceTemplateWithCategories[]> {

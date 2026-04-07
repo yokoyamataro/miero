@@ -40,11 +40,12 @@ import {
 } from "@/types/database";
 import {
   createInvoiceWithItems,
-  getProjectCustomerInfo,
   getInvoiceTemplates,
   getInvoiceItems,
   updateInvoiceItems,
   updateInvoice,
+  getAllRecipients,
+  type RecipientOption,
 } from "./actions";
 import { InvoiceItemSelector, type SelectedItem } from "./invoice-item-selector";
 
@@ -92,6 +93,13 @@ export function InvoiceCreateDialog({
   const [templates, setTemplates] = useState<InvoiceTemplateWithCategories[]>([]);
   const [templatesLoaded, setTemplatesLoaded] = useState(false);
 
+  // 全顧客リスト（相手先選択用）
+  const [allRecipients, setAllRecipients] = useState<RecipientOption[]>([]);
+  const [recipientsLoaded, setRecipientsLoaded] = useState(false);
+  const [recipientSearchQuery, setRecipientSearchQuery] = useState("");
+  const [showRecipientDropdown, setShowRecipientDropdown] = useState(false);
+  const recipientSearchRef = useRef<HTMLDivElement>(null);
+
   // 基本情報
   const [documentType, setDocumentType] = useState<InvoiceDocumentType>("invoice");
   const [projectId, setProjectId] = useState("");
@@ -103,10 +111,6 @@ export function InvoiceCreateDialog({
   const [taxRate, setTaxRate] = useState(0.1);
   const [notes, setNotes] = useState("");
 
-  // 顧客情報
-  const [customerInfo, setCustomerInfo] = useState<{
-    contacts: { id: string; name: string; accountName: string | null }[];
-  } | null>(null);
 
   // 明細項目
   const [items, setItems] = useState<InvoiceLineItem[]>([]);
@@ -119,7 +123,7 @@ export function InvoiceCreateDialog({
   const [showProjectDropdown, setShowProjectDropdown] = useState(false);
   const projectSearchRef = useRef<HTMLDivElement>(null);
 
-  // テンプレートを読み込み
+  // テンプレートと顧客リストを読み込み
   useEffect(() => {
     if (open && !templatesLoaded) {
       getInvoiceTemplates().then((data) => {
@@ -127,7 +131,13 @@ export function InvoiceCreateDialog({
         setTemplatesLoaded(true);
       });
     }
-  }, [open, templatesLoaded]);
+    if (open && !recipientsLoaded) {
+      getAllRecipients().then((data) => {
+        setAllRecipients(data);
+        setRecipientsLoaded(true);
+      });
+    }
+  }, [open, templatesLoaded, recipientsLoaded]);
 
   // 編集モード時に既存データを読み込み
   useEffect(() => {
@@ -148,11 +158,6 @@ export function InvoiceCreateDialog({
       if (project) {
         setProjectSearchQuery(`${project.code} - ${project.name}`);
       }
-
-      // 顧客情報を取得
-      getProjectCustomerInfo(editingInvoice.project_id).then((info) => {
-        setCustomerInfo(info);
-      });
 
       // 明細項目を取得
       getInvoiceItems(editingInvoice.id).then((invoiceItems) => {
@@ -186,10 +191,11 @@ export function InvoiceCreateDialog({
     setExpenses(0);
     setTaxRate(0.1);
     setNotes("");
-    setCustomerInfo(null);
     setItems([]);
     setProjectSearchQuery("");
     setShowProjectDropdown(false);
+    setRecipientSearchQuery("");
+    setShowRecipientDropdown(false);
   };
 
   // クリック外で検索ドロップダウンを閉じる
@@ -197,6 +203,9 @@ export function InvoiceCreateDialog({
     const handleClickOutside = (event: MouseEvent) => {
       if (projectSearchRef.current && !projectSearchRef.current.contains(event.target as Node)) {
         setShowProjectDropdown(false);
+      }
+      if (recipientSearchRef.current && !recipientSearchRef.current.contains(event.target as Node)) {
+        setShowRecipientDropdown(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -219,40 +228,55 @@ export function InvoiceCreateDialog({
     // リセットは次回openするときのuseEffectで行う
   };
 
-  // 業務変更時
-  const handleProjectChange = async (newProjectId: string) => {
-    setProjectId(newProjectId);
-    setRecipientContactId("");
-    if (newProjectId) {
-      const info = await getProjectCustomerInfo(newProjectId);
-      setCustomerInfo(info);
-      if (info?.contacts?.length === 1) {
-        setRecipientContactId(info.contacts[0].id);
-      }
-    } else {
-      setCustomerInfo(null);
-    }
-  };
-
   // 業務選択時
-  const handleProjectSelect = async (project: ProjectForInvoice) => {
+  const handleProjectSelect = (project: ProjectForInvoice) => {
     setProjectId(project.id);
     setProjectSearchQuery(`${project.code} - ${project.name}`);
     setShowProjectDropdown(false);
-    const info = await getProjectCustomerInfo(project.id);
-    setCustomerInfo(info);
-    if (info?.contacts?.length === 1) {
-      setRecipientContactId(info.contacts[0].id);
-    }
   };
 
   // 業務選択クリア
   const handleClearProject = () => {
     setProjectId("");
     setProjectSearchQuery("");
-    setCustomerInfo(null);
-    setRecipientContactId("");
   };
+
+  // 相手先検索結果のフィルタリング
+  const filteredRecipients = allRecipients.filter((recipient) => {
+    if (!recipientSearchQuery) return true;
+    const q = recipientSearchQuery.toLowerCase();
+    return recipient.label.toLowerCase().includes(q);
+  }).slice(0, 15); // 最大15件表示
+
+  // 相手先選択時
+  const handleRecipientSelect = (recipient: RecipientOption) => {
+    setRecipientContactId(recipient.id);
+    setRecipientSearchQuery(recipient.label);
+    setShowRecipientDropdown(false);
+  };
+
+  // 相手先クリア
+  const handleClearRecipient = () => {
+    setRecipientContactId("");
+    setRecipientSearchQuery("");
+  };
+
+  // 選択中の相手先ラベルを取得
+  const getSelectedRecipientLabel = () => {
+    if (!recipientContactId) return "";
+    const recipient = allRecipients.find((r) => r.id === recipientContactId);
+    return recipient?.label || "";
+  };
+
+  // 編集モードで相手先がセットされている場合の初期化
+  useEffect(() => {
+    if (recipientsLoaded && recipientContactId && !recipientSearchQuery) {
+      const label = getSelectedRecipientLabel();
+      if (label) {
+        setRecipientSearchQuery(label);
+      }
+    }
+  }, [recipientsLoaded, recipientContactId]);
 
   // テンプレートから項目追加
   const handleAddItemsFromTemplate = (selectedItems: SelectedItem[]) => {
@@ -626,7 +650,6 @@ export function InvoiceCreateDialog({
                       setShowProjectDropdown(true);
                       if (!e.target.value) {
                         setProjectId("");
-                        setCustomerInfo(null);
                       }
                     }}
                     onFocus={() => setShowProjectDropdown(true)}
@@ -702,25 +725,54 @@ export function InvoiceCreateDialog({
             {/* 相手先 */}
             <div className="space-y-2">
               <Label>相手先</Label>
-              <Select
-                value={recipientContactId || "__none__"}
-                onValueChange={(v) =>
-                  setRecipientContactId(v === "__none__" ? "" : v)
-                }
-                disabled={!customerInfo || customerInfo.contacts.length === 0}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="相手先を選択" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">未選択</SelectItem>
-                  {customerInfo?.contacts.map((contact) => (
-                    <SelectItem key={contact.id} value={contact.id}>
-                      {contact.accountName || contact.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="relative" ref={recipientSearchRef}>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="法人名・氏名で検索..."
+                    className="pl-9 pr-8"
+                    value={recipientSearchQuery}
+                    onChange={(e) => {
+                      setRecipientSearchQuery(e.target.value);
+                      setShowRecipientDropdown(true);
+                      if (!e.target.value) {
+                        setRecipientContactId("");
+                      }
+                    }}
+                    onFocus={() => setShowRecipientDropdown(true)}
+                  />
+                  {recipientContactId && (
+                    <button
+                      type="button"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      onClick={handleClearRecipient}
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+                {showRecipientDropdown && filteredRecipients.length > 0 && (
+                  <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-[200px] overflow-y-auto">
+                    {filteredRecipients.map((recipient) => (
+                      <button
+                        key={recipient.id}
+                        type="button"
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors ${
+                          recipient.id === recipientContactId ? "bg-muted" : ""
+                        }`}
+                        onClick={() => handleRecipientSelect(recipient)}
+                      >
+                        {recipient.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {showRecipientDropdown && recipientSearchQuery && filteredRecipients.length === 0 && (
+                  <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg p-3 text-sm text-muted-foreground">
+                    該当する顧客がありません
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 

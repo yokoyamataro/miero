@@ -13,6 +13,7 @@ import {
   Receipt,
   CalendarDays,
   Settings,
+  History,
 } from "lucide-react";
 import { format, addHours } from "date-fns";
 import { ja } from "date-fns/locale";
@@ -142,6 +143,11 @@ export async function Header() {
                   <RefreshCw className="h-3 w-3" />
                   {format(buildTime, "M/d HH:mm", { locale: ja })}
                 </span>
+                <Link href="/changelog">
+                  <Button variant="ghost" size="sm" className="h-7 px-2" title="変更履歴">
+                    <History className="h-4 w-4 text-muted-foreground" />
+                  </Button>
+                </Link>
                 <span className="text-sm text-muted-foreground">
                   {employeeName}さん
                 </span>
@@ -191,6 +197,12 @@ export async function Header() {
                         <RefreshCw className="h-3 w-3" />
                         {format(buildTime, "M/d HH:mm", { locale: ja })}
                       </div>
+                      <DropdownMenuItem asChild>
+                        <Link href="/changelog" className="flex items-center gap-2">
+                          <History className="h-4 w-4" />
+                          変更履歴
+                        </Link>
+                      </DropdownMenuItem>
                       <div className="px-2 py-1.5 text-sm text-muted-foreground">
                         {employeeName}さん
                       </div>
