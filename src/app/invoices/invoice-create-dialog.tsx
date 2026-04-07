@@ -139,9 +139,23 @@ export function InvoiceCreateDialog({
     }
   }, [open, templatesLoaded, recipientsLoaded]);
 
+  // ダイアログが開いた時のフラグ（リセットの重複防止）
+  const [initialized, setInitialized] = useState(false);
+
   // 編集モード時に既存データを読み込み
   useEffect(() => {
-    if (open && editingInvoice) {
+    if (!open) {
+      // ダイアログが閉じたら初期化フラグをリセット
+      setInitialized(false);
+      return;
+    }
+
+    if (initialized) {
+      // 既に初期化済みなら何もしない
+      return;
+    }
+
+    if (editingInvoice) {
       // 基本情報をセット
       setDocumentType((editingInvoice.document_type as InvoiceDocumentType) || "invoice");
       setProjectId(editingInvoice.project_id);
@@ -174,11 +188,13 @@ export function InvoiceCreateDialog({
         }));
         setItems(loadedItems);
       });
-    } else if (open && !editingInvoice) {
+      setInitialized(true);
+    } else {
       // 新規作成モードの場合はフォームをリセット
       resetForm();
+      setInitialized(true);
     }
-  }, [open, editingInvoice, projects]);
+  }, [open, editingInvoice, projects, initialized]);
 
   // フォームリセット
   const resetForm = () => {

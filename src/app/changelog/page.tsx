@@ -8,8 +8,12 @@ import { GitCommit, Calendar } from "lucide-react";
 const changelogEntries = [
   {
     date: "2026-04-07",
-    version: "1.0.0",
+    version: "1.0.1",
     changes: [
+      {
+        type: "fix" as const,
+        description: "見積書として作成した場合に正しく見積書として登録されるように修正",
+      },
       {
         type: "feat" as const,
         description: "請求書・見積書作成で全顧客リストから相手先を選択可能に",
@@ -17,6 +21,10 @@ const changelogEntries = [
       {
         type: "feat" as const,
         description: "ダッシュボード業務一覧のフィルターをカテゴリ別に変更",
+      },
+      {
+        type: "feat" as const,
+        description: "変更履歴ページを追加",
       },
     ],
   },
