@@ -8,6 +8,16 @@ import { GitCommit, Calendar } from "lucide-react";
 const changelogEntries = [
   {
     date: "2026-04-07",
+    version: "1.0.4",
+    changes: [
+      {
+        type: "feat" as const,
+        description: "請求書・見積書一覧にPDF添付ボタンを追加（以前の機能を復活）",
+      },
+    ],
+  },
+  {
+    date: "2026-04-07",
     version: "1.0.3",
     changes: [
       {

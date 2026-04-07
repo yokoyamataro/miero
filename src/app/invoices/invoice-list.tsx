@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, useMemo } from "react";
+import { useState, useTransition, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
@@ -40,6 +40,7 @@ import {
   Trash2,
   Plus,
   Pencil,
+  Upload,
 } from "lucide-react";
 import {
   type InvoiceWithDetails,
@@ -51,6 +52,7 @@ import {
   updatePaymentDate,
   getInvoicePdfUrl,
   deleteInvoice,
+  uploadInvoicePdf,
 } from "./actions";
 import { InvoiceCreateDialog } from "./invoice-create-dialog";
 
@@ -125,6 +127,10 @@ export function InvoiceList({
 
   // 編集モーダル
   const [editingInvoice, setEditingInvoice] = useState<InvoiceWithDetails | null>(null);
+
+  // PDFアップロード用
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadTargetId, setUploadTargetId] = useState<string | null>(null);
 
   // 年の選択肢
   const yearOptions = useMemo(() => generateYearOptions(), []);
@@ -227,6 +233,36 @@ export function InvoiceList({
       return;
     }
     window.open(url, "_blank");
+  };
+
+  const handleUploadClick = (invoiceId: string) => {
+    setUploadTargetId(invoiceId);
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !uploadTargetId) return;
+
+    if (file.type !== "application/pdf") {
+      alert("PDFファイルを選択してください");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    startTransition(async () => {
+      const { error } = await uploadInvoicePdf(uploadTargetId, formData);
+      if (error) {
+        alert(error);
+      }
+      setUploadTargetId(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+      router.refresh();
+    });
   };
 
   const handleDeleteClick = (invoice: InvoiceWithDetails) => {
@@ -531,6 +567,16 @@ export function InvoiceList({
                             variant="ghost"
                             size="sm"
                             className="h-7 w-7 p-0 text-muted-foreground hover:text-primary"
+                            title="PDF添付"
+                            onClick={() => handleUploadClick(invoice.id)}
+                            disabled={isPending}
+                          >
+                            <Upload className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0 text-muted-foreground hover:text-primary"
                             title="編集"
                             onClick={() => setEditingInvoice(invoice)}
                             disabled={isPending}
@@ -596,6 +642,15 @@ export function InvoiceList({
         employees={employees}
         projects={projects}
         editingInvoice={editingInvoice}
+      />
+
+      {/* 隠しファイル入力（PDFアップロード用） */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        accept="application/pdf"
+        onChange={handleFileChange}
+        className="hidden"
       />
     </div>
   );
