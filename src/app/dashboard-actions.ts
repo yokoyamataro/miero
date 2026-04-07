@@ -219,7 +219,7 @@ export async function getEmployees(): Promise<Employee[]> {
 }
 
 // 進行中の業務型
-export type ActiveProject = Pick<Project, "id" | "code" | "name" | "location" | "is_urgent" | "is_on_hold"> & {
+export type ActiveProject = Pick<Project, "id" | "code" | "name" | "location" | "is_urgent" | "is_on_hold" | "category"> & {
   manager_id: string | null;
 };
 
@@ -229,7 +229,7 @@ export async function getActiveProjects(): Promise<ActiveProject[]> {
 
   const { data: projects, error } = await supabase
     .from("projects")
-    .select("id, code, name, location, is_urgent, is_on_hold, manager_id")
+    .select("id, code, name, location, is_urgent, is_on_hold, manager_id, category")
     .eq("status", "進行中")
     .order("code", { ascending: false });
 

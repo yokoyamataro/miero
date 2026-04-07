@@ -15,14 +15,14 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { GripVertical, AlertTriangle, Pause, Plus, Info, Trash2, UserCheck, Briefcase, User, UsersRound } from "lucide-react";
+import { GripVertical, AlertTriangle, Pause, Plus, Info, Trash2, UserCheck, Briefcase, FolderOpen, Layers } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { type Employee } from "@/types/database";
+import { type Employee, type ProjectCategory, PROJECT_CATEGORY_LABELS } from "@/types/database";
 import { type ActiveProject, type PersonalTask, toggleTaskComplete, createPersonalTask, deletePersonalTask } from "./dashboard-actions";
 
 interface DashboardProjectListProps {
@@ -32,6 +32,19 @@ interface DashboardProjectListProps {
   currentEmployeeId: string | null;
 }
 
+// カテゴリの表示順序
+const CATEGORY_ORDER: ProjectCategory[] = [
+  "A_Survey",
+  "B_Boundary",
+  "C_Registration",
+  "D_Inheritance",
+  "E_Corporate",
+  "F_Drone",
+  "N_Farmland",
+  "S_General",
+  "Z_Other",
+];
+
 export function DashboardProjectList({
   activeProjects,
   personalTasks,
@@ -40,9 +53,7 @@ export function DashboardProjectList({
 }: DashboardProjectListProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
-  const [managerFilter, setManagerFilter] = useState<string>(
-    currentEmployeeId || "all"
-  );
+  const [categoryFilter, setCategoryFilter] = useState<string>("all");
 
   // 個人タスク追加用
   const [newPersonalTaskTitle, setNewPersonalTaskTitle] = useState("");
@@ -85,26 +96,19 @@ export function DashboardProjectList({
   // タスク表示モード（業務 or 個人タスク）
   const [viewMode, setViewMode] = useState<"business" | "personal">("business");
 
-  // 社員リストをソート（ログインユーザーを先頭に）
-  const sortedEmployees = useMemo(() => {
-    if (!currentEmployeeId) return employees;
-    return [...employees].sort((a, b) => {
-      if (a.id === currentEmployeeId) return -1;
-      if (b.id === currentEmployeeId) return 1;
-      return 0;
-    });
-  }, [employees, currentEmployeeId]);
+  // 存在するカテゴリのリストを取得
+  const availableCategories = useMemo(() => {
+    const categories = new Set(activeProjects.map((p) => p.category));
+    return CATEGORY_ORDER.filter((cat) => categories.has(cat));
+  }, [activeProjects]);
 
   // フィルタリングされた業務
   const filteredProjects = useMemo(() => {
-    if (managerFilter === "all") {
+    if (categoryFilter === "all") {
       return activeProjects;
     }
-    // 担当者が一致するか、担当者未設定の業務も表示
-    return activeProjects.filter((project) =>
-      project.manager_id === managerFilter || project.manager_id === null
-    );
-  }, [activeProjects, managerFilter]);
+    return activeProjects.filter((project) => project.category === categoryFilter);
+  }, [activeProjects, categoryFilter]);
 
   // ソート済み業務（緊急→通常→待機、code降順）
   const sortedProjects = useMemo(() => {
@@ -121,15 +125,10 @@ export function DashboardProjectList({
     });
   }, [filteredProjects]);
 
-  // フィルタリングされた個人タスク
+  // 個人タスク（カテゴリフィルターは適用しない）
   const filteredPersonalTasks = useMemo(() => {
-    if (managerFilter === "all") {
-      return personalTasks;
-    }
-    return personalTasks.filter((task) =>
-      task.assigned_to === managerFilter || task.assigned_to === null
-    );
-  }, [personalTasks, managerFilter]);
+    return personalTasks;
+  }, [personalTasks]);
 
   return (
     <Card className="h-full flex flex-col">
@@ -158,25 +157,22 @@ export function DashboardProjectList({
                 </TabsTrigger>
               </TabsList>
             </Tabs>
-            <Select value={managerFilter} onValueChange={setManagerFilter}>
-              <SelectTrigger className="w-[196px] h-8">
+            <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+              <SelectTrigger className="w-[180px] h-8">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">
                   <span className="flex items-center gap-2">
-                    <UsersRound className="h-4 w-4" />
-                    全員
+                    <Layers className="h-4 w-4" />
+                    全カテゴリ
                   </span>
                 </SelectItem>
-                {sortedEmployees.map((emp) => (
-                  <SelectItem key={emp.id} value={emp.id}>
+                {availableCategories.map((cat) => (
+                  <SelectItem key={cat} value={cat}>
                     <span className="flex items-center gap-2">
-                      <User className="h-4 w-4 opacity-50" />
-                      {emp.name}
-                      {emp.id === currentEmployeeId && (
-                        <span className="text-xs text-muted-foreground">(自分)</span>
-                      )}
+                      <FolderOpen className="h-4 w-4 opacity-50" />
+                      {PROJECT_CATEGORY_LABELS[cat]}
                     </span>
                   </SelectItem>
                 ))}
