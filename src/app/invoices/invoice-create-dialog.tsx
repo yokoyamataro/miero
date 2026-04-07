@@ -28,7 +28,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Plus, Minus, Trash2, GripVertical, Download, Search, X } from "lucide-react";
+import { Plus, Minus, Trash2, GripVertical, Download, Search, X, FileInput } from "lucide-react";
 import * as XLSX from "xlsx";
 import {
   type InvoiceDocumentType,
@@ -45,7 +45,10 @@ import {
   updateInvoiceItems,
   updateInvoice,
   getAllRecipients,
+  getInvoicesForImport,
+  getInvoiceItemsForImport,
   type RecipientOption,
+  type InvoiceForImport,
 } from "./actions";
 import { InvoiceItemSelector, type SelectedItem } from "./invoice-item-selector";
 
@@ -123,6 +126,13 @@ export function InvoiceCreateDialog({
   const [showProjectDropdown, setShowProjectDropdown] = useState(false);
   const projectSearchRef = useRef<HTMLDivElement>(null);
 
+  // 明細読み込み用
+  const [invoicesForImport, setInvoicesForImport] = useState<InvoiceForImport[]>([]);
+  const [invoicesForImportLoaded, setInvoicesForImportLoaded] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [importSearchQuery, setImportSearchQuery] = useState("");
+  const [isLoadingImport, setIsLoadingImport] = useState(false);
+
   // テンプレートと顧客リストを読み込み
   useEffect(() => {
     if (open && !templatesLoaded) {
@@ -137,7 +147,13 @@ export function InvoiceCreateDialog({
         setRecipientsLoaded(true);
       });
     }
-  }, [open, templatesLoaded, recipientsLoaded]);
+    if (open && !invoicesForImportLoaded) {
+      getInvoicesForImport().then((data) => {
+        setInvoicesForImport(data);
+        setInvoicesForImportLoaded(true);
+      });
+    }
+  }, [open, templatesLoaded, recipientsLoaded, invoicesForImportLoaded]);
 
   // ダイアログが開いた時のフラグ（リセットの重複防止）
   const [initialized, setInitialized] = useState(false);
@@ -212,6 +228,49 @@ export function InvoiceCreateDialog({
     setShowProjectDropdown(false);
     setRecipientSearchQuery("");
     setShowRecipientDropdown(false);
+    setShowImportDialog(false);
+    setImportSearchQuery("");
+  };
+
+  // 明細読み込み用のフィルタリング
+  const filteredInvoicesForImport = invoicesForImport.filter((inv) => {
+    if (!importSearchQuery) return true;
+    const q = importSearchQuery.toLowerCase();
+    return (
+      inv.invoice_number.toLowerCase().includes(q) ||
+      inv.project_code.toLowerCase().includes(q) ||
+      inv.project_name.toLowerCase().includes(q)
+    );
+  });
+
+  // 明細を読み込む
+  const handleImportItems = async (invoiceId: string) => {
+    setIsLoadingImport(true);
+    try {
+      const result = await getInvoiceItemsForImport(invoiceId);
+      if (result) {
+        const newItems: InvoiceLineItem[] = result.items.map((item) => ({
+          id: crypto.randomUUID(),
+          item_template_id: item.item_template_id,
+          category_name: item.category_name,
+          name: item.name,
+          description: item.description,
+          unit: item.unit,
+          quantity: item.quantity,
+          unit_price: item.unit_price,
+          amount: item.amount,
+        }));
+        setItems(newItems);
+        setTaxRate(result.taxRate || 0.1);
+        setExpenses(result.expenses || 0);
+      }
+      setShowImportDialog(false);
+      setImportSearchQuery("");
+    } catch (error) {
+      console.error("Error importing items:", error);
+    } finally {
+      setIsLoadingImport(false);
+    }
   };
 
   // クリック外で検索ドロップダウンを閉じる
@@ -792,14 +851,95 @@ export function InvoiceCreateDialog({
             </div>
           </div>
 
-          {/* テンプレートから追加 */}
-          <div className="space-y-2">
-            <Label>テンプレートから追加</Label>
-            <InvoiceItemSelector
-              templates={templates}
-              onAddItems={handleAddItemsFromTemplate}
-            />
+          {/* テンプレートから追加 / 明細読み込み */}
+          <div className="flex gap-4">
+            <div className="space-y-2 flex-1">
+              <Label>テンプレートから追加</Label>
+              <InvoiceItemSelector
+                templates={templates}
+                onAddItems={handleAddItemsFromTemplate}
+              />
+            </div>
+            <div className="space-y-2 flex-1">
+              <Label>既存の請求書/見積書から読み込み</Label>
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full justify-start"
+                onClick={() => setShowImportDialog(true)}
+              >
+                <FileInput className="h-4 w-4 mr-2" />
+                明細を読み込む...
+              </Button>
+            </div>
           </div>
+
+          {/* 明細読み込みダイアログ */}
+          {showImportDialog && (
+            <div className="border rounded-md p-4 bg-muted/30 space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>読み込み元を選択</Label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setShowImportDialog(false);
+                    setImportSearchQuery("");
+                  }}
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              </div>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="請求書番号・業務名で検索..."
+                  className="pl-9"
+                  value={importSearchQuery}
+                  onChange={(e) => setImportSearchQuery(e.target.value)}
+                  autoFocus
+                />
+              </div>
+              <div className="max-h-[200px] overflow-y-auto border rounded-md bg-background">
+                {filteredInvoicesForImport.length === 0 ? (
+                  <div className="p-4 text-center text-sm text-muted-foreground">
+                    該当する請求書/見積書がありません
+                  </div>
+                ) : (
+                  filteredInvoicesForImport.slice(0, 20).map((inv) => (
+                    <button
+                      key={inv.id}
+                      type="button"
+                      className="w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors border-b last:border-b-0 flex items-center justify-between"
+                      onClick={() => handleImportItems(inv.id)}
+                      disabled={isLoadingImport}
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs px-1.5 py-0.5 rounded ${
+                          inv.document_type === "estimate"
+                            ? "bg-green-100 text-green-700"
+                            : "bg-blue-100 text-blue-700"
+                        }`}>
+                          {inv.document_type === "estimate" ? "見積" : "請求"}
+                        </span>
+                        <span className="font-mono text-muted-foreground text-xs">
+                          {inv.invoice_number}
+                        </span>
+                        <span className="truncate max-w-[200px]">{inv.project_name}</span>
+                      </div>
+                      <span className="text-muted-foreground text-xs">
+                        {inv.invoice_date}
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                ※ 読み込むと現在の明細項目は上書きされます
+              </p>
+            </div>
+          )}
 
           {/* 明細項目テーブル */}
           <div className="space-y-2">

@@ -8,6 +8,16 @@ import { GitCommit, Calendar } from "lucide-react";
 const changelogEntries = [
   {
     date: "2026-04-07",
+    version: "1.0.2",
+    changes: [
+      {
+        type: "feat" as const,
+        description: "請求書・見積書作成時に既存の請求書/見積書から明細を読み込む機能を追加",
+      },
+    ],
+  },
+  {
+    date: "2026-04-07",
     version: "1.0.1",
     changes: [
       {

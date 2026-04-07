@@ -889,3 +889,120 @@ export async function updateInvoiceItems(
 
   return {};
 }
+
+// ============================================
+// 明細読み込み用の請求書/見積書一覧取得
+// ============================================
+export type InvoiceForImport = {
+  id: string;
+  invoice_number: string;
+  document_type: InvoiceDocumentType | null;
+  invoice_date: string;
+  project_code: string;
+  project_name: string;
+  total_amount: number;
+};
+
+export async function getInvoicesForImport(): Promise<InvoiceForImport[]> {
+  const supabase = await createClient();
+
+  const { data: invoices, error } = await supabase
+    .from("invoices")
+    .select(`
+      id,
+      invoice_number,
+      document_type,
+      invoice_date,
+      total_amount,
+      project_id
+    `)
+    .is("deleted_at", null)
+    .order("invoice_date", { ascending: false })
+    .limit(100);
+
+  if (error || !invoices) {
+    console.error("Error fetching invoices for import:", error);
+    return [];
+  }
+
+  // プロジェクト情報を取得
+  const projectIds = Array.from(new Set(invoices.map((i) => i.project_id)));
+  const { data: projects } = await supabase
+    .from("projects")
+    .select("id, code, name")
+    .in("id", projectIds);
+
+  const projectMap = new Map(projects?.map((p) => [p.id, p]) || []);
+
+  return invoices.map((inv) => {
+    const project = projectMap.get(inv.project_id);
+    return {
+      id: inv.id,
+      invoice_number: inv.invoice_number,
+      document_type: inv.document_type as InvoiceDocumentType | null,
+      invoice_date: inv.invoice_date,
+      project_code: project?.code || "",
+      project_name: project?.name || "",
+      total_amount: inv.total_amount,
+    };
+  });
+}
+
+// ============================================
+// 請求書/見積書から明細項目を取得（読み込み用）
+// ============================================
+export async function getInvoiceItemsForImport(invoiceId: string): Promise<{
+  items: {
+    item_template_id: string | null;
+    category_name: string | null;
+    name: string;
+    description: string | null;
+    unit: string | null;
+    quantity: number;
+    unit_price: number;
+    amount: number;
+  }[];
+  taxRate: number;
+  expenses: number;
+} | null> {
+  const supabase = await createClient();
+
+  // 請求書情報を取得
+  const { data: invoice, error: invoiceError } = await supabase
+    .from("invoices")
+    .select("tax_rate, expenses")
+    .eq("id", invoiceId)
+    .single();
+
+  if (invoiceError || !invoice) {
+    console.error("Error fetching invoice:", invoiceError);
+    return null;
+  }
+
+  // 明細項目を取得
+  const { data: items, error: itemsError } = await supabase
+    .from("invoice_items")
+    .select("item_template_id, category_name, name, description, unit, quantity, unit_price, amount")
+    .eq("invoice_id", invoiceId)
+    .order("sort_order", { ascending: true });
+
+  if (itemsError) {
+    console.error("Error fetching invoice items:", itemsError);
+    return null;
+  }
+
+  return {
+    items: (items || []).map((item) => ({
+      item_template_id: item.item_template_id,
+      category_name: item.category_name,
+      name: item.name,
+      description: item.description,
+      unit: item.unit,
+      quantity: item.quantity,
+      unit_price: item.unit_price,
+      amount: item.amount,
+    })),
+    taxRate: invoice.tax_rate || 0.1,
+    expenses: invoice.expenses || 0,
+  };
+}
