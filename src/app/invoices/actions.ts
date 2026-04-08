@@ -682,6 +682,91 @@ export async function getInvoiceTemplates(): Promise<InvoiceTemplateWithCategori
 }
 
 // ============================================
+// 請求書作成（簡易版 - PDFのみ登録用）
+// ============================================
+export async function createInvoiceSimple(data: {
+  project_id: string;
+  project_code: string;
+  business_entity_id: string;
+  business_entity_code: string;
+  invoice_date: string;
+  recipient_contact_id: string | null;
+  document_type: InvoiceDocumentType;
+  total_amount: number;
+  notes: string | null;
+}): Promise<{ error?: string; invoiceId?: string }> {
+  const supabase = await createClient();
+
+  // 請求書番号を生成
+  const { invoiceNumber, sequenceNumber } = await generateInvoiceNumber(
+    data.project_code,
+    data.business_entity_code
+  );
+
+  const { data: invoice, error } = await supabase
+    .from("invoices" as never)
+    .insert({
+      invoice_number: invoiceNumber,
+      project_id: data.project_id,
+      business_entity_id: data.business_entity_id,
+      sequence_number: sequenceNumber,
+      invoice_date: data.invoice_date,
+      recipient_contact_id: data.recipient_contact_id,
+      document_type: data.document_type,
+      total_amount: data.total_amount,
+      fee_tax_excluded: data.total_amount, // 簡易版では税込金額をそのまま設定
+      expenses: 0,
+      notes: data.notes,
+    } as never)
+    .select("id")
+    .single();
+
+  if (error) {
+    console.error("Error creating invoice:", error);
+    return { error: "請求書の作成に失敗しました" };
+  }
+
+  return { invoiceId: (invoice as { id: string }).id };
+}
+
+// ============================================
+// 請求書更新（簡易版 - PDFのみ登録用）
+// ============================================
+export async function updateInvoiceSimple(
+  invoiceId: string,
+  updates: {
+    invoice_date?: string;
+    recipient_contact_id?: string | null;
+    total_amount?: number;
+    notes?: string | null;
+  }
+): Promise<{ error?: string }> {
+  const supabase = await createClient();
+
+  const updateData: Record<string, unknown> = {
+    ...updates,
+    updated_at: new Date().toISOString(),
+  };
+
+  // total_amountが更新される場合、fee_tax_excludedも同期
+  if (updates.total_amount !== undefined) {
+    updateData.fee_tax_excluded = updates.total_amount;
+  }
+
+  const { error } = await supabase
+    .from("invoices" as never)
+    .update(updateData as never)
+    .eq("id", invoiceId);
+
+  if (error) {
+    console.error("Error updating invoice:", error);
+    return { error: "請求書の更新に失敗しました" };
+  }
+
+  return {};
+}
+
+// ============================================
 // 請求書作成（明細付き）
 // ============================================
 export async function createInvoiceWithItems(data: {

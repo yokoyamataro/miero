@@ -7,6 +7,16 @@ import { GitCommit, Calendar } from "lucide-react";
 // 変更履歴データ（新しい順）
 const changelogEntries = [
   {
+    date: "2026-04-09",
+    version: "1.0.5",
+    changes: [
+      {
+        type: "improve" as const,
+        description: "請求書・見積書をPDF登録のみのシンプルな形式に変更（テンプレート・明細機能を削除）",
+      },
+    ],
+  },
+  {
     date: "2026-04-07",
     version: "1.0.4",
     changes: [
