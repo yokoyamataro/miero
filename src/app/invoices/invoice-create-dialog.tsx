@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useTransition, useEffect, useRef } from "react";
+import React, { useState, useTransition, useEffect, useRef, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -199,12 +199,36 @@ export function InvoiceCreateDialog({
     setProjectSearchQuery("");
   };
 
-  // 相手先検索結果のフィルタリング
-  const filteredRecipients = allRecipients.filter((recipient) => {
-    if (!recipientSearchQuery) return true;
-    const q = recipientSearchQuery.toLowerCase();
-    return recipient.label.toLowerCase().includes(q);
-  }).slice(0, 15);
+  // 選択中の業務の依頼人ID
+  const selectedProjectContactId = projectId
+    ? projects.find((p) => p.id === projectId)?.contact_id
+    : null;
+
+  // 相手先検索結果のフィルタリング（業務の依頼人を先頭に表示）
+  const filteredRecipients = useMemo(() => {
+    let filtered = allRecipients;
+
+    // 検索クエリがある場合はフィルタリング
+    if (recipientSearchQuery) {
+      const q = recipientSearchQuery.toLowerCase();
+      filtered = allRecipients.filter((recipient) =>
+        recipient.label.toLowerCase().includes(q)
+      );
+    }
+
+    // 業務の依頼人を先頭に移動
+    if (selectedProjectContactId) {
+      const projectContact = filtered.find((r) => r.id === selectedProjectContactId);
+      if (projectContact) {
+        filtered = [
+          projectContact,
+          ...filtered.filter((r) => r.id !== selectedProjectContactId),
+        ];
+      }
+    }
+
+    return filtered.slice(0, 20);
+  }, [allRecipients, recipientSearchQuery, selectedProjectContactId]);
 
   // 相手先選択時
   const handleRecipientSelect = (recipient: RecipientOption) => {
@@ -459,19 +483,25 @@ export function InvoiceCreateDialog({
                 )}
               </div>
               {showRecipientDropdown && filteredRecipients.length > 0 && (
-                <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-[200px] overflow-y-auto">
-                  {filteredRecipients.map((recipient) => (
-                    <button
-                      key={recipient.id}
-                      type="button"
-                      className={`w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors ${
-                        recipient.id === recipientContactId ? "bg-muted" : ""
-                      }`}
-                      onClick={() => handleRecipientSelect(recipient)}
-                    >
-                      {recipient.label}
-                    </button>
-                  ))}
+                <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-[250px] overflow-y-auto">
+                  {filteredRecipients.map((recipient, index) => {
+                    const isProjectContact = recipient.id === selectedProjectContactId;
+                    return (
+                      <button
+                        key={recipient.id}
+                        type="button"
+                        className={`w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors ${
+                          recipient.id === recipientContactId ? "bg-muted" : ""
+                        } ${isProjectContact ? "bg-blue-50 border-b" : ""}`}
+                        onClick={() => handleRecipientSelect(recipient)}
+                      >
+                        {isProjectContact && (
+                          <span className="text-xs text-blue-600 mr-2">業務依頼人</span>
+                        )}
+                        {recipient.label}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
             </div>
