@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -23,7 +23,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { FileText, Download, Loader2, Upload } from "lucide-react";
+import { FileText, Download, Loader2, Upload, Search, X } from "lucide-react";
 import { format } from "date-fns";
 import Docxtemplater from "docxtemplater";
 import PizZip from "pizzip";
@@ -73,6 +73,87 @@ export function DocumentTab({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+
+  // 法人検索用
+  const [accountSearchQuery, setAccountSearchQuery] = useState("");
+  const [showAccountDropdown, setShowAccountDropdown] = useState(false);
+  const accountSearchRef = useRef<HTMLDivElement>(null);
+
+  // 個人検索用
+  const [contactSearchQuery, setContactSearchQuery] = useState("");
+  const [showContactDropdown, setShowContactDropdown] = useState(false);
+  const contactSearchRef = useRef<HTMLDivElement>(null);
+
+  // クリック外でドロップダウンを閉じる
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (accountSearchRef.current && !accountSearchRef.current.contains(event.target as Node)) {
+        setShowAccountDropdown(false);
+      }
+      if (contactSearchRef.current && !contactSearchRef.current.contains(event.target as Node)) {
+        setShowContactDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  // 法人検索結果のフィルタリング
+  const filteredAccounts = useMemo(() => {
+    if (!accountSearchQuery) return accounts;
+    const q = accountSearchQuery.toLowerCase();
+    return accounts.filter((a) =>
+      a.company_name.toLowerCase().includes(q)
+    );
+  }, [accounts, accountSearchQuery]);
+
+  // 個人検索結果のフィルタリング（個人顧客 + 法人担当者）
+  const filteredContacts = useMemo(() => {
+    const allContactsList = [
+      ...individuals.map((c) => ({
+        ...c,
+        displayLabel: `${c.last_name} ${c.first_name}`,
+        groupLabel: null as string | null,
+      })),
+      ...allContacts
+        .filter((c) => c.account_id)
+        .map((c) => {
+          const account = accounts.find((a) => a.id === c.account_id);
+          return {
+            ...c,
+            displayLabel: `${c.last_name} ${c.first_name}`,
+            groupLabel: account?.company_name || null,
+          };
+        }),
+    ];
+
+    if (!contactSearchQuery) return allContactsList.slice(0, 20);
+    const q = contactSearchQuery.toLowerCase();
+    return allContactsList
+      .filter((c) =>
+        c.displayLabel.toLowerCase().includes(q) ||
+        (c.groupLabel && c.groupLabel.toLowerCase().includes(q))
+      )
+      .slice(0, 20);
+  }, [individuals, allContacts, accounts, contactSearchQuery]);
+
+  // 選択中の法人名を取得
+  const selectedAccountName = useMemo(() => {
+    if (recipientType !== "account" || !selectedRecipientId) return "";
+    const account = accounts.find((a) => a.id === selectedRecipientId);
+    return account?.company_name || "";
+  }, [recipientType, selectedRecipientId, accounts]);
+
+  // 選択中の個人名を取得
+  const selectedContactName = useMemo(() => {
+    if (recipientType !== "contact" || !selectedRecipientId) return "";
+    const contact = [...individuals, ...allContacts].find((c) => c.id === selectedRecipientId);
+    if (!contact) return "";
+    const account = contact.account_id ? accounts.find((a) => a.id === contact.account_id) : null;
+    return account
+      ? `${account.company_name} - ${contact.last_name} ${contact.first_name}`
+      : `${contact.last_name} ${contact.first_name}`;
+  }, [recipientType, selectedRecipientId, individuals, allContacts, accounts]);
 
   // 選択中の法人に紐づく支店一覧
   const availableBranches = recipientType === "account" && selectedRecipientId
@@ -356,61 +437,132 @@ export function DocumentTab({
         {/* 宛先選択 */}
         <div className="space-y-2">
           <Label>宛先 *</Label>
-          <Select value={selectedRecipientId} onValueChange={(v) => {
-            setSelectedRecipientId(v);
-            setSelectedBranchId("");
-            setSelectedContactId("");
-          }}>
-            <SelectTrigger>
-              <SelectValue placeholder="宛先を選択" />
-            </SelectTrigger>
-            <SelectContent>
-              {recipientType === "account" ? (
-                accounts.length === 0 ? (
-                  <SelectItem value="none" disabled>
-                    法人がありません
-                  </SelectItem>
-                ) : (
-                  accounts.map((a) => (
-                    <SelectItem key={a.id} value={a.id}>
-                      {a.company_name}
-                    </SelectItem>
-                  ))
-                )
-              ) : (
-                <>
-                  {/* 個人顧客 */}
-                  {individuals.length > 0 && (
-                    <SelectGroup>
-                      <SelectLabel>個人顧客</SelectLabel>
-                      {individuals.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.last_name} {c.first_name}
-                        </SelectItem>
-                      ))}
-                    </SelectGroup>
-                  )}
-                  {/* 法人担当者 */}
-                  {accounts.map((a) => {
-                    const accountContacts = allContacts.filter(
-                      (c) => c.account_id === a.id
-                    );
-                    if (accountContacts.length === 0) return null;
-                    return (
-                      <SelectGroup key={a.id}>
-                        <SelectLabel>{a.company_name}</SelectLabel>
-                        {accountContacts.map((c) => (
-                          <SelectItem key={c.id} value={c.id}>
-                            {c.last_name} {c.first_name}
-                          </SelectItem>
-                        ))}
-                      </SelectGroup>
-                    );
-                  })}
-                </>
+          {recipientType === "account" ? (
+            /* 法人検索 */
+            <div className="relative" ref={accountSearchRef}>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="法人名で検索..."
+                  className="pl-9 pr-8"
+                  value={selectedRecipientId ? selectedAccountName : accountSearchQuery}
+                  onChange={(e) => {
+                    setAccountSearchQuery(e.target.value);
+                    setShowAccountDropdown(true);
+                    if (!e.target.value) {
+                      setSelectedRecipientId("");
+                      setSelectedBranchId("");
+                      setSelectedContactId("");
+                    }
+                  }}
+                  onFocus={() => setShowAccountDropdown(true)}
+                />
+                {selectedRecipientId && (
+                  <button
+                    type="button"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    onClick={() => {
+                      setSelectedRecipientId("");
+                      setSelectedBranchId("");
+                      setSelectedContactId("");
+                      setAccountSearchQuery("");
+                    }}
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+              {showAccountDropdown && filteredAccounts.length > 0 && (
+                <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-[200px] overflow-y-auto">
+                  {filteredAccounts.map((account) => (
+                    <button
+                      key={account.id}
+                      type="button"
+                      className={`w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors ${
+                        account.id === selectedRecipientId ? "bg-muted" : ""
+                      }`}
+                      onClick={() => {
+                        setSelectedRecipientId(account.id);
+                        setSelectedBranchId("");
+                        setSelectedContactId("");
+                        setAccountSearchQuery("");
+                        setShowAccountDropdown(false);
+                      }}
+                    >
+                      {account.company_name}
+                    </button>
+                  ))}
+                </div>
               )}
-            </SelectContent>
-          </Select>
+              {showAccountDropdown && filteredAccounts.length === 0 && accountSearchQuery && (
+                <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg p-3 text-sm text-muted-foreground">
+                  該当する法人がありません
+                </div>
+              )}
+            </div>
+          ) : (
+            /* 個人検索 */
+            <div className="relative" ref={contactSearchRef}>
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="氏名・法人名で検索..."
+                  className="pl-9 pr-8"
+                  value={selectedRecipientId ? selectedContactName : contactSearchQuery}
+                  onChange={(e) => {
+                    setContactSearchQuery(e.target.value);
+                    setShowContactDropdown(true);
+                    if (!e.target.value) {
+                      setSelectedRecipientId("");
+                    }
+                  }}
+                  onFocus={() => setShowContactDropdown(true)}
+                />
+                {selectedRecipientId && (
+                  <button
+                    type="button"
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                    onClick={() => {
+                      setSelectedRecipientId("");
+                      setContactSearchQuery("");
+                    }}
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                )}
+              </div>
+              {showContactDropdown && filteredContacts.length > 0 && (
+                <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-[250px] overflow-y-auto">
+                  {filteredContacts.map((contact) => (
+                    <button
+                      key={contact.id}
+                      type="button"
+                      className={`w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors ${
+                        contact.id === selectedRecipientId ? "bg-muted" : ""
+                      }`}
+                      onClick={() => {
+                        setSelectedRecipientId(contact.id);
+                        setContactSearchQuery("");
+                        setShowContactDropdown(false);
+                      }}
+                    >
+                      {contact.groupLabel && (
+                        <span className="text-muted-foreground text-xs mr-2">
+                          {contact.groupLabel}
+                        </span>
+                      )}
+                      {contact.displayLabel}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {showContactDropdown && filteredContacts.length === 0 && contactSearchQuery && (
+                <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg p-3 text-sm text-muted-foreground">
+                  該当する個人がありません
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
         {/* 支店選択（法人選択時のみ、支店がある場合のみ表示） */}
