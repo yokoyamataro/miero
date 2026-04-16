@@ -271,10 +271,13 @@ export function DashboardCalendar({
     });
   };
 
-  // 全員表示用：日付×社員ごとのイベントを取得（フィルター無視、参加者のみで判定）
+  // 全員表示用：日付×社員ごとのイベントを取得（作成者または参加者で判定）
   const getAllEventsForDateAndEmployee = (date: Date, employeeId: string) => {
     return events.filter((event) => {
       if (!isDateInRange(date, event.start_date, event.end_date)) return false;
+      // 作成者が対象社員
+      if (event.created_by === employeeId) return true;
+      // 参加者に対象社員が含まれる
       return event.participants.some((p) => p.id === employeeId);
     });
   };
