@@ -471,6 +471,7 @@ CREATE TABLE IF NOT EXISTS "public"."invoices" (
     "sequence_number" integer DEFAULT 1 NOT NULL,
     "invoice_date" "date" NOT NULL,
     "recipient_contact_id" "uuid",
+    "recipient_account_id" "uuid",
     "person_in_charge_id" "uuid",
     "fee_tax_excluded" integer DEFAULT 0 NOT NULL,
     "expenses" integer DEFAULT 0 NOT NULL,

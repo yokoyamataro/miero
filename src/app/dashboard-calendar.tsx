@@ -279,17 +279,10 @@ export function DashboardCalendar({
     });
   };
 
-  // 5日表示用：フィルター対象の社員のイベントを取得（参加者のみで判定）
+  // 5日表示用：フィルター対象の社員のイベントを取得（既にフィルター済みのfilteredEventsを使用）
   const getFilteredEventsForDate = (date: Date) => {
-    const targetEmployeeId = employeeFilter === "me" ? currentEmployeeId : employeeFilter === "all" ? null : employeeFilter;
-    if (!targetEmployeeId) {
-      // "all"の場合は全イベント
-      return filteredEvents.filter((event) => isDateInRange(date, event.start_date, event.end_date));
-    }
-    return filteredEvents.filter((event) => {
-      if (!isDateInRange(date, event.start_date, event.end_date)) return false;
-      return event.participants.some((p) => p.id === targetEmployeeId);
-    });
+    // filteredEventsは既にemployeeFilterでフィルタリング済み
+    return filteredEvents.filter((event) => isDateInRange(date, event.start_date, event.end_date));
   };
 
   // 日付の祝日を取得

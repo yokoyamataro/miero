@@ -763,6 +763,7 @@ export interface Invoice {
   sequence_number: number;
   invoice_date: string;
   recipient_contact_id: string | null;
+  recipient_account_id: string | null; // 担当者がいない法人の場合
   person_in_charge_id: string | null;
   document_type: InvoiceDocumentType | null;
   fee_tax_excluded: number;
@@ -789,6 +790,7 @@ export interface InvoiceInsert {
   sequence_number?: number;
   invoice_date: string;
   recipient_contact_id?: string | null;
+  recipient_account_id?: string | null;
   person_in_charge_id?: string | null;
   fee_tax_excluded?: number;
   expenses?: number;

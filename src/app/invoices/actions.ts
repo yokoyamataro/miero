@@ -302,6 +302,8 @@ export async function getAllInvoices(filters?: {
   const businessEntityIds2 = Array.from(new Set(typedInvoices.map((i) => i.business_entity_id)));
   const contactIds2 = Array.from(new Set(typedInvoices.map((i) => i.recipient_contact_id).filter(Boolean))) as string[];
   const employeeIds2 = Array.from(new Set(typedInvoices.map((i) => i.person_in_charge_id).filter(Boolean))) as string[];
+  // recipient_account_idからも法人IDを取得
+  const directAccountIds = Array.from(new Set(typedInvoices.map((i) => i.recipient_account_id).filter(Boolean))) as string[];
 
   const [
     { data: projects },
@@ -324,12 +326,13 @@ export async function getAllInvoices(filters?: {
       : Promise.resolve({ data: [] }),
   ]);
 
-  // 連絡先からaccount_idを取得してアカウント情報を取得
+  // 連絡先からaccount_idを取得してアカウント情報を取得（直接指定されたaccount_idも含む）
   const typedContacts2 = (contacts as Contact[]) || [];
-  const accountIds2 = Array.from(new Set(typedContacts2.map((c) => c.account_id).filter(Boolean))) as string[];
+  const contactAccountIds = Array.from(new Set(typedContacts2.map((c) => c.account_id).filter(Boolean))) as string[];
+  const allAccountIds = Array.from(new Set([...contactAccountIds, ...directAccountIds]));
 
-  const { data: accounts } = accountIds2.length > 0
-    ? await supabase.from("accounts" as never).select("*").in("id", accountIds2)
+  const { data: accounts } = allAccountIds.length > 0
+    ? await supabase.from("accounts" as never).select("*").in("id", allAccountIds)
     : { data: [] };
 
   // マップ作成
@@ -344,9 +347,12 @@ export async function getAllInvoices(filters?: {
     const contact = invoice.recipient_contact_id
       ? contactMap.get(invoice.recipient_contact_id) || null
       : null;
-    const account = contact?.account_id
-      ? accountMap.get(contact.account_id) || null
-      : null;
+    // recipient_account_idが直接指定されている場合はそれを使用、そうでなければ連絡先から取得
+    const account = invoice.recipient_account_id
+      ? accountMap.get(invoice.recipient_account_id) || null
+      : contact?.account_id
+        ? accountMap.get(contact.account_id) || null
+        : null;
 
     return {
       ...invoice,
@@ -546,8 +552,9 @@ export async function getProjectCustomerInfo(projectId: string): Promise<{
 // ============================================
 export type RecipientOption = {
   id: string;
+  accountId?: string; // 法人ID（法人のみの場合に使用）
   label: string;
-  type: "account" | "individual";
+  type: "account" | "individual" | "account_only"; // account_only: 担当者がいない法人
 };
 
 export async function getAllRecipients(): Promise<RecipientOption[]> {
@@ -573,22 +580,25 @@ export async function getAllRecipients(): Promise<RecipientOption[]> {
         .is("deleted_at", null)
         .order("last_name");
 
-      if (accountContacts) {
-        // 法人ごとにグループ化して追加
-        for (const account of accounts) {
-          const contacts = accountContacts.filter((c) => c.account_id === account.id);
-          if (contacts.length > 0) {
-            for (const contact of contacts) {
-              recipients.push({
-                id: contact.id,
-                label: `${account.company_name} - ${contact.last_name} ${contact.first_name}`,
-                type: "account",
-              });
-            }
-          } else {
-            // 連絡先がない法人は法人名のみで表示（IDはaccount_idを使用）
-            // ※実際には連絡先IDが必要なため、スキップ
+      // 法人ごとにグループ化して追加
+      for (const account of accounts) {
+        const contacts = accountContacts?.filter((c) => c.account_id === account.id) || [];
+        if (contacts.length > 0) {
+          for (const contact of contacts) {
+            recipients.push({
+              id: contact.id,
+              label: `${account.company_name} - ${contact.last_name} ${contact.first_name}`,
+              type: "account",
+            });
           }
+        } else {
+          // 連絡先がない法人は法人名のみで表示（account_onlyタイプ）
+          recipients.push({
+            id: account.id, // 法人IDを使用
+            accountId: account.id,
+            label: `${account.company_name}`,
+            type: "account_only",
+          });
         }
       }
     }
@@ -691,7 +701,10 @@ export async function createInvoiceSimple(data: {
   business_entity_code: string;
   invoice_date: string;
   recipient_contact_id: string | null;
+  recipient_account_id: string | null; // 担当者がいない法人の場合
   document_type: InvoiceDocumentType;
+  fee_tax_excluded: number;
+  expenses: number;
   total_amount: number;
   notes: string | null;
 }): Promise<{ error?: string; invoiceId?: string }> {
@@ -712,10 +725,11 @@ export async function createInvoiceSimple(data: {
       sequence_number: sequenceNumber,
       invoice_date: data.invoice_date,
       recipient_contact_id: data.recipient_contact_id,
+      recipient_account_id: data.recipient_account_id,
       document_type: data.document_type,
+      fee_tax_excluded: data.fee_tax_excluded,
+      expenses: data.expenses,
       total_amount: data.total_amount,
-      fee_tax_excluded: data.total_amount, // 簡易版では税込金額をそのまま設定
-      expenses: 0,
       notes: data.notes,
     } as never)
     .select("id")
@@ -737,6 +751,9 @@ export async function updateInvoiceSimple(
   updates: {
     invoice_date?: string;
     recipient_contact_id?: string | null;
+    recipient_account_id?: string | null;
+    fee_tax_excluded?: number;
+    expenses?: number;
     total_amount?: number;
     notes?: string | null;
   }
@@ -747,11 +764,6 @@ export async function updateInvoiceSimple(
     ...updates,
     updated_at: new Date().toISOString(),
   };
-
-  // total_amountが更新される場合、fee_tax_excludedも同期
-  if (updates.total_amount !== undefined) {
-    updateData.fee_tax_excluded = updates.total_amount;
-  }
 
   const { error } = await supabase
     .from("invoices" as never)

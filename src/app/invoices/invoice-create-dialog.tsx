@@ -76,6 +76,9 @@ export function InvoiceCreateDialog({
   const [businessEntityId, setBusinessEntityId] = useState("");
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split("T")[0]);
   const [recipientContactId, setRecipientContactId] = useState("");
+  const [recipientAccountId, setRecipientAccountId] = useState(""); // 担当者がいない法人用
+  const [feeTaxExcluded, setFeeTaxExcluded] = useState(0); // 税抜報酬
+  const [expenses, setExpenses] = useState(0); // 立替金
   const [totalAmount, setTotalAmount] = useState(0);
   const [notes, setNotes] = useState("");
 
@@ -118,6 +121,9 @@ export function InvoiceCreateDialog({
       setBusinessEntityId(editingInvoice.business_entity_id);
       setInvoiceDate(editingInvoice.invoice_date);
       setRecipientContactId(editingInvoice.recipient_contact_id || "");
+      setRecipientAccountId(editingInvoice.recipient_account_id || "");
+      setFeeTaxExcluded(editingInvoice.fee_tax_excluded || 0);
+      setExpenses(editingInvoice.expenses || 0);
       setTotalAmount(editingInvoice.total_amount || 0);
       setNotes(editingInvoice.notes || "");
 
@@ -139,6 +145,9 @@ export function InvoiceCreateDialog({
     setBusinessEntityId("");
     setInvoiceDate(new Date().toISOString().split("T")[0]);
     setRecipientContactId("");
+    setRecipientAccountId("");
+    setFeeTaxExcluded(0);
+    setExpenses(0);
     setTotalAmount(0);
     setNotes("");
     setProjectSearchQuery("");
@@ -232,7 +241,15 @@ export function InvoiceCreateDialog({
 
   // 相手先選択時
   const handleRecipientSelect = (recipient: RecipientOption) => {
-    setRecipientContactId(recipient.id);
+    if (recipient.type === "account_only") {
+      // 担当者がいない法人の場合
+      setRecipientContactId("");
+      setRecipientAccountId(recipient.accountId || recipient.id);
+    } else {
+      // 担当者または個人の場合
+      setRecipientContactId(recipient.id);
+      setRecipientAccountId("");
+    }
     setRecipientSearchQuery(recipient.label);
     setShowRecipientDropdown(false);
   };
@@ -240,6 +257,7 @@ export function InvoiceCreateDialog({
   // 相手先クリア
   const handleClearRecipient = () => {
     setRecipientContactId("");
+    setRecipientAccountId("");
     setRecipientSearchQuery("");
   };
 
@@ -284,6 +302,9 @@ export function InvoiceCreateDialog({
         const result = await updateInvoiceSimple(editingInvoice.id, {
           invoice_date: invoiceDate,
           recipient_contact_id: recipientContactId || null,
+          recipient_account_id: recipientAccountId || null,
+          fee_tax_excluded: feeTaxExcluded,
+          expenses: expenses,
           total_amount: totalAmount,
           notes: notes || null,
         });
@@ -308,7 +329,10 @@ export function InvoiceCreateDialog({
           business_entity_code: entity.code,
           invoice_date: invoiceDate,
           recipient_contact_id: recipientContactId || null,
+          recipient_account_id: recipientAccountId || null,
           document_type: documentType,
+          fee_tax_excluded: feeTaxExcluded,
+          expenses: expenses,
           total_amount: totalAmount,
           notes: notes || null,
         });
@@ -329,11 +353,6 @@ export function InvoiceCreateDialog({
       handleClose();
       router.refresh();
     });
-  };
-
-  // 金額フォーマット
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat("ja-JP").format(amount);
   };
 
   return (
@@ -484,7 +503,7 @@ export function InvoiceCreateDialog({
               </div>
               {showRecipientDropdown && filteredRecipients.length > 0 && (
                 <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-[250px] overflow-y-auto">
-                  {filteredRecipients.map((recipient, index) => {
+                  {filteredRecipients.map((recipient) => {
                     const isProjectContact = recipient.id === selectedProjectContactId;
                     return (
                       <button
@@ -508,15 +527,43 @@ export function InvoiceCreateDialog({
           </div>
 
           {/* 金額 */}
-          <div className="space-y-2">
-            <Label>{documentType === "invoice" ? "請求金額" : "見積金額"}</Label>
-            <Input
-              type="number"
-              value={totalAmount || ""}
-              onChange={(e) => setTotalAmount(parseInt(e.target.value) || 0)}
-              placeholder="0"
-              className="text-right"
-            />
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-sm">税抜報酬</Label>
+                <Input
+                  type="number"
+                  value={feeTaxExcluded || ""}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value) || 0;
+                    setFeeTaxExcluded(value);
+                    setTotalAmount(value + expenses);
+                  }}
+                  placeholder="0"
+                  className="text-right"
+                />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-sm">立替金</Label>
+                <Input
+                  type="number"
+                  value={expenses || ""}
+                  onChange={(e) => {
+                    const value = parseInt(e.target.value) || 0;
+                    setExpenses(value);
+                    setTotalAmount(feeTaxExcluded + value);
+                  }}
+                  placeholder="0"
+                  className="text-right"
+                />
+              </div>
+            </div>
+            <div className="flex items-center justify-between pt-2 border-t">
+              <Label className="text-sm font-medium">{documentType === "invoice" ? "請求金額" : "見積金額"}</Label>
+              <span className="text-lg font-bold">
+                {new Intl.NumberFormat("ja-JP", { style: "currency", currency: "JPY" }).format(totalAmount)}
+              </span>
+            </div>
           </div>
 
           {/* PDF添付 */}
