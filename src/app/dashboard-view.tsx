@@ -11,7 +11,7 @@ import {
   type Employee,
   type EventCategory,
 } from "@/types/database";
-import { type ActiveProject, type PersonalTask } from "./dashboard-actions";
+import { type PersonalTask } from "./dashboard-actions";
 import { type CalendarLeaveInfo, type CalendarHolidayInfo } from "./calendar/actions";
 
 type ViewMode = "day" | "dayAll" | "fiveDay" | "fiveDayAll" | "month";
@@ -21,7 +21,6 @@ interface DashboardViewProps {
   employees: Employee[];
   eventCategories: EventCategory[];
   currentEmployeeId: string | null;
-  activeProjects: ActiveProject[];
   personalTasks: PersonalTask[];
   initialView?: ViewMode;
   initialDate?: string;
@@ -34,7 +33,6 @@ export function DashboardView({
   employees,
   eventCategories,
   currentEmployeeId,
-  activeProjects,
   personalTasks,
   initialView = "dayAll",
   initialDate,
@@ -145,9 +143,7 @@ export function DashboardView({
         {/* 右側: 業務リスト (1/4) */}
         <div className="min-h-0">
           <DashboardProjectList
-            activeProjects={activeProjects}
             personalTasks={personalTasks}
-            employees={employees}
             currentEmployeeId={currentEmployeeId}
           />
         </div>
