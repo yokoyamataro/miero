@@ -4,14 +4,12 @@ import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { format } from "date-fns";
 import { DashboardCalendar, type DroppedProjectData } from "./dashboard-calendar";
-import { DashboardProjectList } from "./dashboard-project-list";
 import { EventModal } from "./calendar/event-modal";
 import {
   type CalendarEventWithParticipants,
   type Employee,
   type EventCategory,
 } from "@/types/database";
-import { type PersonalTask } from "./dashboard-actions";
 import { type CalendarLeaveInfo, type CalendarHolidayInfo } from "./calendar/actions";
 
 type ViewMode = "day" | "dayAll" | "fiveDay" | "fiveDayAll" | "month";
@@ -21,7 +19,6 @@ interface DashboardViewProps {
   employees: Employee[];
   eventCategories: EventCategory[];
   currentEmployeeId: string | null;
-  personalTasks: PersonalTask[];
   initialView?: ViewMode;
   initialDate?: string;
   leaves?: CalendarLeaveInfo[];
@@ -33,7 +30,6 @@ export function DashboardView({
   employees,
   eventCategories,
   currentEmployeeId,
-  personalTasks,
   initialView = "dayAll",
   initialDate,
   leaves = [],
@@ -123,33 +119,20 @@ export function DashboardView({
 
   return (
     <div className="h-[calc(100vh-4rem)] flex flex-col">
-      {/* メインコンテンツ */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-4 gap-4 min-h-0">
-        {/* 左側: カレンダー (3/4) */}
-        <div className="lg:col-span-3 min-h-0">
-          <DashboardCalendar
-            initialEvents={events}
-            employees={employees}
-            eventCategories={eventCategories}
-            initialView={initialView}
-            initialDate={initialDate || format(new Date(), "yyyy-MM-dd")}
-            currentEmployeeId={currentEmployeeId}
-            onDropProject={handleDropProject}
-            leaves={leaves}
-            holidays={holidays}
-          />
-        </div>
-
-        {/* 右側: 業務リスト (1/4) */}
-        <div className="min-h-0">
-          <DashboardProjectList
-            personalTasks={personalTasks}
-            currentEmployeeId={currentEmployeeId}
-          />
-        </div>
+      <div className="flex-1 min-h-0">
+        <DashboardCalendar
+          initialEvents={events}
+          employees={employees}
+          eventCategories={eventCategories}
+          initialView={initialView}
+          initialDate={initialDate || format(new Date(), "yyyy-MM-dd")}
+          currentEmployeeId={currentEmployeeId}
+          onDropProject={handleDropProject}
+          leaves={leaves}
+          holidays={holidays}
+        />
       </div>
 
-      {/* ドロップ時のイベント作成モーダル */}
       <EventModal
         open={showEventModal}
         onOpenChange={(open) => {
