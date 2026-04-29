@@ -14,6 +14,9 @@ import {
   CalendarDays,
   Settings,
   History,
+  ShieldCheck,
+  CalendarCog,
+  ChevronDown,
 } from "lucide-react";
 import { format, addHours } from "date-fns";
 import { ja } from "date-fns/locale";
@@ -39,6 +42,7 @@ const navItems = [
 const adminNavItems = [
   { href: "/employees", label: "社員", icon: Users },
   { href: "/settings/standard-tasks", label: "標準業務", icon: Settings },
+  { href: "/settings/work-calendars", label: "カレンダー設定", icon: CalendarCog },
 ];
 
 export async function Header() {
@@ -112,14 +116,27 @@ export async function Header() {
                   </Button>
                 </Link>
               ))}
-              {isAdmin && adminNavItems.map((item) => (
-                <Link key={item.href} href={item.href}>
-                  <Button variant="ghost" size="sm" className="gap-2 text-orange-600">
-                    <item.icon className="h-4 w-4" />
-                    {item.label}
-                  </Button>
-                </Link>
-              ))}
+              {isAdmin && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" size="sm" className="gap-2 text-orange-600">
+                      <ShieldCheck className="h-4 w-4" />
+                      管理者
+                      <ChevronDown className="h-3 w-3" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-44">
+                    {adminNavItems.map((item) => (
+                      <DropdownMenuItem key={item.href} asChild>
+                        <Link href={item.href} className="flex items-center gap-2 text-orange-600">
+                          <item.icon className="h-4 w-4" />
+                          {item.label}
+                        </Link>
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </nav>
           </div>
 
