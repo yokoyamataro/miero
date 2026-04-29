@@ -20,6 +20,7 @@ import { ja } from "date-fns/locale";
 import { ChevronLeft, ChevronRight, Calendar, CalendarDays, CalendarRange, CheckCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { type CalendarEventWithParticipants, type EventCategory } from "@/types/database";
+import { type CalendarHolidayInfo } from "@/app/calendar/actions";
 import { MobileEventSheet } from "./mobile-event-sheet";
 import { MobileEventDetailSheet } from "./mobile-event-detail-sheet";
 
@@ -34,6 +35,7 @@ interface MobileCalendarViewProps {
   employees: Employee[];
   currentEmployeeId: string | null;
   initialMonth: string;
+  holidays?: CalendarHolidayInfo[];
 }
 
 type ViewMode = "month" | "fiveDay" | "day";
@@ -98,7 +100,15 @@ export function MobileCalendarView({
   employees,
   currentEmployeeId,
   initialMonth,
+  holidays = [],
 }: MobileCalendarViewProps) {
+  const holidayMap = useMemo(() => {
+    const m = new Map<string, CalendarHolidayInfo>();
+    holidays.forEach((h) => m.set(h.date, h));
+    return m;
+  }, [holidays]);
+  const getHoliday = (date: Date) => holidayMap.get(format(date, "yyyy-MM-dd"));
+
   const router = useRouter();
   const today = new Date();
   // 月表示は初期月、1日・5日表示は当日を基準にする
@@ -375,6 +385,7 @@ export function MobileCalendarView({
               const dayOfWeek = getDay(day);
               const isSunday = dayOfWeek === 0;
               const isSaturday = dayOfWeek === 6;
+              const holiday = getHoliday(day);
 
               return (
                 <button
@@ -388,12 +399,15 @@ export function MobileCalendarView({
                     className={`text-xs w-5 h-5 flex items-center justify-center rounded-full flex-shrink-0 ${
                       isToday
                         ? "bg-primary text-primary-foreground font-bold"
+                        : holiday
+                        ? "bg-red-500 text-white font-bold"
                         : isSunday
                         ? "text-red-500"
                         : isSaturday
                         ? "text-blue-500"
                         : ""
                     }`}
+                    title={holiday ? holiday.name || "祝日" : undefined}
                   >
                     {format(day, "d")}
                   </span>
@@ -458,6 +472,7 @@ export function MobileCalendarView({
             {fiveDays.map((date, idx) => {
               const dayOfWeek = getDay(date);
               const isTodayDate = isSameDay(date, today);
+              const holiday = getHoliday(date);
               return (
                 <div
                   key={idx}
@@ -466,9 +481,14 @@ export function MobileCalendarView({
                   }`}
                 >
                   <div className="text-[10px] font-medium">{format(date, "M/d")}</div>
-                  <div className={`text-xs ${isTodayDate ? "bg-primary text-primary-foreground rounded-full w-5 h-5 flex items-center justify-center mx-auto" : ""}`}>
+                  <div className={`text-xs ${isTodayDate ? "bg-primary text-primary-foreground rounded-full w-5 h-5 flex items-center justify-center mx-auto" : holiday ? "bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center mx-auto font-bold" : ""}`}>
                     {format(date, "E", { locale: ja })}
                   </div>
+                  {holiday && (
+                    <div className="text-[9px] text-red-700 font-medium truncate" title={holiday.name || "祝日"}>
+                      {holiday.name || "祝日"}
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -577,10 +597,18 @@ export function MobileCalendarView({
     const allDayEvents = getAllDayEvents();
     const timedEvents = getTimedEvents();
 
+    const dayHoliday = getHoliday(dayDate);
+
     return (
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* メンバー選択 */}
         {renderMemberSelector()}
+
+        {dayHoliday && (
+          <div className="px-2 py-1 bg-red-500 text-white text-xs font-medium text-center">
+            休 {dayHoliday.name || "祝日"}
+          </div>
+        )}
 
         {/* 終日イベント */}
         {allDayEvents.length > 0 && (

@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { getEventsInRange, getEventCategories, getCurrentEmployeeId } from "@/app/calendar/actions";
+import { getEventsInRange, getEventCategories, getCurrentEmployeeId, getHolidaysInRange } from "@/app/calendar/actions";
 import { MobileCalendarView } from "./mobile-calendar-view";
 import { format, startOfMonth, endOfMonth, addMonths, subMonths } from "date-fns";
 
@@ -21,11 +21,12 @@ export default async function MobileCalendarPage({ searchParams }: Props) {
   const rangeStart = format(startOfMonth(subMonths(monthStart, 1)), "yyyy-MM-dd");
   const rangeEnd = format(endOfMonth(addMonths(monthEnd, 1)), "yyyy-MM-dd");
 
-  const [events, categories, currentEmployeeId, { data: employees }] = await Promise.all([
+  const [events, categories, currentEmployeeId, { data: employees }, holidays] = await Promise.all([
     getEventsInRange(rangeStart, rangeEnd),
     getEventCategories(),
     getCurrentEmployeeId(),
     supabase.from("employees").select("id, name").order("name"),
+    getHolidaysInRange(rangeStart, rangeEnd),
   ]);
 
   return (
@@ -36,6 +37,7 @@ export default async function MobileCalendarPage({ searchParams }: Props) {
         employees={employees || []}
         currentEmployeeId={currentEmployeeId}
         initialMonth={format(monthStart, "yyyy-MM")}
+        holidays={holidays}
       />
     </div>
   );

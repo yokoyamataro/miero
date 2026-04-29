@@ -952,19 +952,21 @@ export function DashboardCalendar({
                 className={`text-sm w-6 h-6 flex items-center justify-center rounded-full flex-shrink-0 ${
                   isToday(date)
                     ? "bg-primary text-primary-foreground"
+                    : holiday
+                    ? "bg-red-500 text-white font-medium"
                     : dayOfWeek === 0
                     ? "text-red-500"
                     : dayOfWeek === 6
                     ? "text-blue-500"
                     : ""
                 }`}
+                title={holiday ? holiday.name || "祝日" : undefined}
               >
                 {format(date, "d")}
               </div>
-              {/* 祝日・休暇表示（日付の右に） */}
-              {holiday && (
-                <span className="text-[9px] px-0.5 bg-red-100 text-red-700 rounded truncate" title={holiday.name || "祝日"}>
-                  休
+              {holiday?.name && (
+                <span className="text-[9px] text-red-700 font-medium truncate" title={holiday.name}>
+                  {holiday.name}
                 </span>
               )}
               {leave && (
@@ -1073,7 +1075,7 @@ export function DashboardCalendar({
                       <div className="space-y-1 min-h-[60px]">
                         {/* 祝日・休暇表示（名前の下に） */}
                         {holiday && (
-                          <div className="text-[10px] px-1 py-0.5 bg-red-100 text-red-700 rounded truncate" title={holiday.name || "祝日"}>
+                          <div className="text-[10px] px-1 py-0.5 bg-red-500 text-white font-medium rounded truncate" title={holiday.name || "祝日"}>
                             休({holiday.name || "祝日"})
                           </div>
                         )}
@@ -1197,7 +1199,7 @@ export function DashboardCalendar({
               >
                 {/* 祝日・休暇表示（名前の下に） */}
                 {holiday && (
-                  <div className="text-[10px] px-1 py-0.5 bg-red-100 text-red-700 rounded truncate mb-0.5" title={holiday.name || "祝日"}>
+                  <div className="text-[10px] px-1 py-0.5 bg-red-500 text-white font-medium rounded truncate mb-0.5" title={holiday.name || "祝日"}>
                     休({holiday.name || "祝日"})
                   </div>
                 )}
@@ -1345,7 +1347,7 @@ export function DashboardCalendar({
                 {(holiday || leave) && (
                   <div className="flex flex-wrap justify-center gap-0.5 mt-0.5">
                     {holiday && (
-                      <span className="text-[10px] px-1 py-0.5 bg-red-100 text-red-700 rounded" title={holiday.name || "祝日"}>
+                      <span className="text-[10px] px-1 py-0.5 bg-red-500 text-white font-medium rounded" title={holiday.name || "祝日"}>
                         休({holiday.name || "祝日"})
                       </span>
                     )}
@@ -1520,7 +1522,7 @@ export function DashboardCalendar({
                   )}
                   {/* 祝日・休暇表示（日付の右に） */}
                   {holiday && (
-                    <span className="text-[10px] px-1 py-0.5 bg-red-100 text-red-700 rounded" title={holiday.name || "祝日"}>
+                    <span className="text-[10px] px-1 py-0.5 bg-red-500 text-white font-medium rounded" title={holiday.name || "祝日"}>
                       休({holiday.name || "祝日"})
                     </span>
                   )}
