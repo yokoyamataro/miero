@@ -2,6 +2,7 @@
 
 import { useState, useTransition, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -475,7 +476,7 @@ function HolidaySettings({
   };
 
   const toggleDate = (date: Date) => {
-    const dateStr = date.toISOString().split("T")[0];
+    const dateStr = format(date, "yyyy-MM-dd");
     const newSelected = new Set(selectedDates);
     if (newSelected.has(dateStr)) {
       newSelected.delete(dateStr);
@@ -525,7 +526,7 @@ function HolidaySettings({
     const endDate = new Date(fiscalYear + 1, 2, 31); // 翌3月31日
 
     for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-      const dateStr = d.toISOString().split("T")[0];
+      const dateStr = format(d, "yyyy-MM-dd");
       if (isWeekend(d)) {
         weekendCount++;
         weekendDates.add(dateStr);
@@ -607,7 +608,7 @@ function HolidaySettings({
                   if (!date) {
                     return <div key={`empty-${i}`} />;
                   }
-                  const dateStr = date.toISOString().split("T")[0];
+                  const dateStr = format(date, "yyyy-MM-dd");
                   const isSelected = selectedDates.has(dateStr);
                   const weekend = isWeekend(date);
                   const holiday = holidays.find((h) => h.holiday_date === dateStr);
