@@ -103,7 +103,7 @@ export async function Header() {
               <div className="flex items-center justify-center w-8 h-8 rounded bg-primary">
                 <FolderKanban className="h-5 w-5 text-primary-foreground" />
               </div>
-              <span className="font-bold text-lg hidden sm:inline">業務管理</span>
+              <span className="font-bold text-lg hidden sm:inline whitespace-nowrap">業務管理</span>
             </Link>
 
             {/* デスクトップナビ */}
@@ -155,8 +155,8 @@ export async function Header() {
             {/* デスクトップ表示 */}
             {user && (
               <div className="hidden sm:flex items-center gap-4">
-                <span className="text-xs text-muted-foreground flex items-center gap-1">
-                  <RefreshCw className="h-3 w-3" />
+                <span className="text-xs text-muted-foreground flex items-center gap-1 whitespace-nowrap">
+                  <RefreshCw className="h-3 w-3 flex-shrink-0" />
                   {format(buildTime, "M/d HH:mm", { locale: ja })}
                 </span>
                 <Link href="/changelog">
@@ -164,7 +164,7 @@ export async function Header() {
                     <History className="h-4 w-4 text-muted-foreground" />
                   </Button>
                 </Link>
-                <span className="text-sm text-muted-foreground">
+                <span className="text-sm text-muted-foreground whitespace-nowrap">
                   {employeeName}さん
                 </span>
                 <MobileSwitchButton />
