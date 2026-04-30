@@ -22,6 +22,7 @@ import { format, addHours } from "date-fns";
 import { ja } from "date-fns/locale";
 import { LogoutButton } from "./logout-button";
 import { MobileSwitchButton } from "./mobile-switch-button";
+import { getPendingLeavesCount } from "@/app/leaves/actions";
 // import { HeaderAttendance } from "./header-attendance"; // 一時的に非表示
 import {
   DropdownMenu,
@@ -59,6 +60,7 @@ export async function Header() {
 
   let employeeName = "";
   let isAdmin = false;
+  let pendingLeavesCount = 0;
   // 一時的に非表示
   // let employeeId: string | null = null;
   // let attendance: { id: string; clock_in: string | null; clock_out: string | null; date: string } | null = null;
@@ -78,6 +80,9 @@ export async function Header() {
       .single();
     employeeName = employee?.name || "";
     isAdmin = employee?.role === "admin";
+    if (isAdmin) {
+      pendingLeavesCount = await getPendingLeavesCount();
+    }
     // employeeId = employee?.id || null; // 一時的に非表示
 
     // 今日の勤怠データを取得 - 一時的に非表示
@@ -108,14 +113,22 @@ export async function Header() {
 
             {/* デスクトップナビ */}
             <nav className="hidden md:flex items-center gap-1">
-              {navItems.map((item) => (
-                <Link key={item.href} href={item.href}>
-                  <Button variant="ghost" size="sm" className="gap-2">
-                    <item.icon className="h-4 w-4" />
-                    {item.label}
-                  </Button>
-                </Link>
-              ))}
+              {navItems.map((item) => {
+                const showLeaveBadge = item.href === "/leaves" && isAdmin && pendingLeavesCount > 0;
+                return (
+                  <Link key={item.href} href={item.href}>
+                    <Button variant="ghost" size="sm" className="gap-2">
+                      <item.icon className="h-4 w-4" />
+                      {item.label}
+                      {showLeaveBadge && (
+                        <span className="ml-1 px-1.5 py-0.5 rounded-full bg-red-500 text-white text-[10px] font-medium leading-none">
+                          申請{pendingLeavesCount}
+                        </span>
+                      )}
+                    </Button>
+                  </Link>
+                );
+              })}
               {isAdmin && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -181,14 +194,22 @@ export async function Header() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end" className="w-48">
-                  {navItems.map((item) => (
-                    <DropdownMenuItem key={item.href} asChild>
-                      <Link href={item.href} className="flex items-center gap-2">
-                        <item.icon className="h-4 w-4" />
-                        {item.label}
-                      </Link>
-                    </DropdownMenuItem>
-                  ))}
+                  {navItems.map((item) => {
+                    const showLeaveBadge = item.href === "/leaves" && isAdmin && pendingLeavesCount > 0;
+                    return (
+                      <DropdownMenuItem key={item.href} asChild>
+                        <Link href={item.href} className="flex items-center gap-2">
+                          <item.icon className="h-4 w-4" />
+                          {item.label}
+                          {showLeaveBadge && (
+                            <span className="ml-auto px-1.5 py-0.5 rounded-full bg-red-500 text-white text-[10px] font-medium leading-none">
+                              申請{pendingLeavesCount}
+                            </span>
+                          )}
+                        </Link>
+                      </DropdownMenuItem>
+                    );
+                  })}
                   {isAdmin && (
                     <>
                       <DropdownMenuSeparator />
