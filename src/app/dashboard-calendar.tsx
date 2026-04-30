@@ -863,7 +863,7 @@ export function DashboardCalendar({
       return (
         <div
           key={event.id}
-          className={`text-xs truncate cursor-pointer hover:opacity-80 flex items-center gap-1 px-1 py-0.5 rounded ${lightBgColor}`}
+          className={`text-xs cursor-pointer hover:opacity-80 flex items-center gap-1 px-1 py-0.5 rounded min-w-0 overflow-hidden ${lightBgColor}`}
           onClick={(e) => handleEventClick(event, e)}
           title={event.title}
         >
@@ -1189,7 +1189,7 @@ export function DashboardCalendar({
             return (
               <div
                 key={emp.id}
-                className={`p-1 border-r min-h-[32px] cursor-pointer hover:bg-muted/50 ${
+                className={`p-1 border-r min-h-[32px] min-w-0 overflow-hidden cursor-pointer hover:bg-muted/50 ${
                   isDragOver ? "bg-blue-100 ring-2 ring-blue-400" : ""
                 }`}
                 onClick={() => handleDateClick(currentDate)}
@@ -1375,7 +1375,7 @@ export function DashboardCalendar({
             return (
               <div
                 key={idx}
-                className={`p-1 border-r min-h-[32px] cursor-pointer hover:bg-muted/50 ${
+                className={`p-1 border-r min-h-[32px] min-w-0 overflow-hidden cursor-pointer hover:bg-muted/50 ${
                   isDragOver ? "bg-blue-100 ring-2 ring-blue-400" : ""
                 }`}
                 onClick={() => handleDateClick(date)}
@@ -1543,7 +1543,7 @@ export function DashboardCalendar({
         <div className="grid grid-cols-[60px_1fr] border-b bg-gray-50">
           <div className="p-1 border-r text-xs text-muted-foreground text-center">終日</div>
           <div
-            className={`p-1 border-r min-h-[32px] cursor-pointer hover:bg-muted/50 ${
+            className={`p-1 border-r min-h-[32px] min-w-0 overflow-hidden cursor-pointer hover:bg-muted/50 ${
               dragOverDate === dateStr ? "bg-blue-100 ring-2 ring-blue-400" : ""
             }`}
             onClick={() => handleDateClick(currentDate)}
