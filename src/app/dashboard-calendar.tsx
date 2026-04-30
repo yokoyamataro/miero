@@ -971,7 +971,7 @@ export function DashboardCalendar({
               )}
               {leave && (
                 <span className={`text-[9px] px-0.5 rounded truncate ${
-                  leave.status === "approved" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
+                  leave.status === "approved" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"
                 }`} title={leave.leave_type}>
                   {leave.leave_type.includes("午前") ? "有午前" : leave.leave_type.includes("午後") ? "有午後" : "有給"}
                 </span>
@@ -1081,7 +1081,7 @@ export function DashboardCalendar({
                         )}
                         {leave && (
                           <div className={`text-[10px] px-1 py-0.5 rounded truncate ${
-                            leave.status === "approved" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
+                            leave.status === "approved" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"
                           }`} title={leave.leave_type}>
                             {getLeaveDisplayText(leave)}{leave.status === "pending" && "(申請中)"}
                           </div>
@@ -1205,7 +1205,7 @@ export function DashboardCalendar({
                 )}
                 {leave && (
                   <div className={`text-[10px] px-1 py-0.5 rounded truncate mb-0.5 ${
-                    leave.status === "approved" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
+                    leave.status === "approved" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"
                   }`} title={leave.leave_type}>
                     {getLeaveDisplayText(leave)}{leave.status === "pending" && "(申請中)"}
                   </div>
@@ -1353,7 +1353,7 @@ export function DashboardCalendar({
                     )}
                     {leave && (
                       <span className={`text-[10px] px-1 py-0.5 rounded ${
-                        leave.status === "approved" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
+                        leave.status === "approved" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"
                       }`} title={leave.leave_type}>
                         {getLeaveDisplayText(leave)}{leave.status === "pending" && "(申請中)"}
                       </span>
@@ -1528,7 +1528,7 @@ export function DashboardCalendar({
                   )}
                   {leave && (
                     <span className={`text-[10px] px-1 py-0.5 rounded ${
-                      leave.status === "approved" ? "bg-green-100 text-green-700" : "bg-yellow-100 text-yellow-700"
+                      leave.status === "approved" ? "bg-red-100 text-red-700" : "bg-yellow-100 text-yellow-700"
                     }`} title={leave.leave_type}>
                       {getLeaveDisplayText(leave)}{leave.status === "pending" && "(申請中)"}
                     </span>
