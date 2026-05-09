@@ -17,12 +17,13 @@ import {
   parseISO,
 } from "date-fns";
 import { ja } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, Calendar, CalendarDays, CalendarRange, CheckCircle } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar, CalendarDays, CalendarRange, CheckCircle, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { type CalendarEventWithParticipants, type EventCategory } from "@/types/database";
 import { type CalendarHolidayInfo } from "@/app/calendar/actions";
 import { MobileEventSheet } from "./mobile-event-sheet";
 import { MobileEventDetailSheet } from "./mobile-event-detail-sheet";
+import { MobileEventFormSheet } from "./mobile-event-form-sheet";
 
 interface Employee {
   id: string;
@@ -122,6 +123,9 @@ export function MobileCalendarView({
   // 個別イベント詳細用
   const [selectedEvent, setSelectedEvent] = useState<CalendarEventWithParticipants | null>(null);
   const [showEventDetailSheet, setShowEventDetailSheet] = useState(false);
+
+  // 新規作成シート
+  const [showCreateSheet, setShowCreateSheet] = useState(false);
 
   // 現在の表示モードに応じた日付を返す
   const currentDate = viewMode === "month" ? monthDate : dayDate;
@@ -684,14 +688,24 @@ export function MobileCalendarView({
       {/* ヘッダー */}
       <header className="sticky top-0 bg-background border-b z-10 px-2 py-2">
         <div className="flex items-center justify-between mb-2">
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={navigatePrev}>
-            <ChevronLeft className="h-5 w-5" />
-          </Button>
-          <h1 className="text-base font-bold">
-            {getTitle()}
-          </h1>
-          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={navigateNext}>
-            <ChevronRight className="h-5 w-5" />
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={navigatePrev}>
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
+            <h1 className="text-base font-bold">
+              {getTitle()}
+            </h1>
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={navigateNext}>
+              <ChevronRight className="h-5 w-5" />
+            </Button>
+          </div>
+          <Button
+            size="sm"
+            className="h-8 gap-1"
+            onClick={() => setShowCreateSheet(true)}
+          >
+            <Plus className="h-4 w-4" />
+            新規
           </Button>
         </div>
 
@@ -731,6 +745,17 @@ export function MobileCalendarView({
       {viewMode === "month" && renderMonthView()}
       {viewMode === "fiveDay" && renderFiveDayView()}
       {viewMode === "day" && renderDayView()}
+
+      {/* 新規作成シート */}
+      <MobileEventFormSheet
+        open={showCreateSheet}
+        onOpenChange={setShowCreateSheet}
+        date={viewMode === "month" ? today : currentDate}
+        event={null}
+        categories={categories}
+        employees={employees}
+        currentEmployeeId={currentEmployeeId}
+      />
 
       {/* 日付選択時のイベント一覧シート */}
       <MobileEventSheet
