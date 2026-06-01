@@ -5,7 +5,8 @@ import { createServerClient, type CookieOptions } from "@supabase/ssr";
 const publicPaths = ["/login", "/auth/callback"];
 
 // モバイル端末判定用のUser-Agentパターン
-const mobileUserAgentPattern = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i;
+// iPadは画面が広いためPC版を表示する
+const mobileUserAgentPattern = /Android|webOS|iPhone|iPod|BlackBerry|IEMobile|Opera Mini/i;
 
 // モバイル版対応パス（/m/で始まるパス）
 const mobilePaths = ["/m"];
