@@ -122,34 +122,63 @@ export function WorkflowTable({
     localStorage.setItem(getStorageKey(selectedTemplateId), JSON.stringify(order));
   }, [selectedTemplateId]);
 
-  // ソートされた業務リスト
-  const sortedProjects = useMemo(() => {
+  // プロジェクトIDの集合変化を検知するキー（進捗の変化では再計算しない）
+  const projectIdsKey = useMemo(
+    () => [...projects].map((p) => p.id).sort().join(","),
+    [projects]
+  );
+
+  // 凍結された並び順（IDの配列）。ソート種別やプロジェクト構成の変化時のみ更新。
+  const [frozenSortedIds, setFrozenSortedIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (projects.length === 0) {
+      setFrozenSortedIds([]);
+      return;
+    }
+    let sorted: typeof projects;
     if (sortType === "location") {
-      return [...projects].sort((a, b) => {
+      sorted = [...projects].sort((a, b) => {
         const locA = getLocationWithoutLotNumber(a.location);
         const locB = getLocationWithoutLotNumber(b.location);
         return locA.localeCompare(locB, "ja");
       });
-    }
-    if (sortType === "progress") {
-      return [...projects].sort((a, b) => {
+    } else if (sortType === "progress") {
+      sorted = [...projects].sort((a, b) => {
         const progA = calculateProgress(a.progress || []);
         const progB = calculateProgress(b.progress || []);
-        return progB - progA; // 進捗率の降順
+        return progB - progA;
+      });
+    } else if (projectOrder.length === 0) {
+      sorted = projects;
+    } else {
+      sorted = [...projects].sort((a, b) => {
+        const indexA = projectOrder.indexOf(a.id);
+        const indexB = projectOrder.indexOf(b.id);
+        if (indexA === -1 && indexB === -1) return 0;
+        if (indexA === -1) return 1;
+        if (indexB === -1) return -1;
+        return indexA - indexB;
       });
     }
-    // manual: 手動順序
-    if (projectOrder.length === 0) return projects;
-    return [...projects].sort((a, b) => {
-      const indexA = projectOrder.indexOf(a.id);
-      const indexB = projectOrder.indexOf(b.id);
-      // 順序に含まれない業務は末尾に
-      if (indexA === -1 && indexB === -1) return 0;
-      if (indexA === -1) return 1;
-      if (indexB === -1) return -1;
-      return indexA - indexB;
-    });
-  }, [projects, projectOrder, sortType]);
+    setFrozenSortedIds(sorted.map((p) => p.id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sortType, projectOrder, projectIdsKey]);
+
+  const sortedProjects = useMemo(() => {
+    if (frozenSortedIds.length === 0) return projects;
+    const byId = new Map(projects.map((p) => [p.id, p]));
+    const ordered: typeof projects = [];
+    for (const id of frozenSortedIds) {
+      const p = byId.get(id);
+      if (p) ordered.push(p);
+    }
+    const known = new Set(frozenSortedIds);
+    for (const p of projects) {
+      if (!known.has(p.id)) ordered.push(p);
+    }
+    return ordered;
+  }, [frozenSortedIds, projects]);
 
   // ドラッグ開始
   const handleDragStart = useCallback((projectId: string) => {

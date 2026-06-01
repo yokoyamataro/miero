@@ -253,6 +253,6 @@ export async function updateWorkflowStatus(
     return { error: "ステータスの更新に失敗しました" };
   }
 
-  revalidatePath("/workflow");
+  // 楽観的更新で十分なため revalidatePath は呼ばない（呼ぶと並び順が再計算されてしまう）
   return { success: true };
 }
