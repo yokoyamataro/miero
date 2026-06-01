@@ -265,31 +265,65 @@ export function ProjectList({
     setDraggingProjectId(projectId);
   }, []);
 
-  const sortedWorkflowProjects = useMemo(() => {
+  // プロジェクトIDの集合（順序無視）が変わったかを検出するキー
+  const workflowProjectIdsKey = useMemo(
+    () => [...workflowProjects].map((p) => p.id).sort().join(","),
+    [workflowProjects]
+  );
+
+  // 凍結された並び順（プロジェクトIDの配列）。
+  // 進捗ステータス変更では再計算せず、ソート種別変更・対象プロジェクト構成変化時のみ更新する。
+  const [frozenSortedIds, setFrozenSortedIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (workflowProjects.length === 0) {
+      setFrozenSortedIds([]);
+      return;
+    }
+    let sorted: WorkflowProject[];
     if (workflowSortType === "location") {
-      return [...workflowProjects].sort((a, b) => {
+      sorted = [...workflowProjects].sort((a, b) => {
         const locA = getLocationWithoutLotNumber(a.location);
         const locB = getLocationWithoutLotNumber(b.location);
         return locA.localeCompare(locB, "ja");
       });
-    }
-    if (workflowSortType === "progress") {
-      return [...workflowProjects].sort((a, b) => {
+    } else if (workflowSortType === "progress") {
+      sorted = [...workflowProjects].sort((a, b) => {
         const progA = calculateProgress(a.progress || []);
         const progB = calculateProgress(b.progress || []);
         return progB - progA;
       });
+    } else if (workflowProjectOrder.length === 0) {
+      sorted = workflowProjects;
+    } else {
+      sorted = [...workflowProjects].sort((a, b) => {
+        const indexA = workflowProjectOrder.indexOf(a.id);
+        const indexB = workflowProjectOrder.indexOf(b.id);
+        if (indexA === -1 && indexB === -1) return 0;
+        if (indexA === -1) return 1;
+        if (indexB === -1) return -1;
+        return indexA - indexB;
+      });
     }
-    if (workflowProjectOrder.length === 0) return workflowProjects;
-    return [...workflowProjects].sort((a, b) => {
-      const indexA = workflowProjectOrder.indexOf(a.id);
-      const indexB = workflowProjectOrder.indexOf(b.id);
-      if (indexA === -1 && indexB === -1) return 0;
-      if (indexA === -1) return 1;
-      if (indexB === -1) return -1;
-      return indexA - indexB;
-    });
-  }, [workflowProjects, workflowProjectOrder, workflowSortType]);
+    setFrozenSortedIds(sorted.map((p) => p.id));
+    // workflowProjectsはprogress変更時にも更新されるため依存に含めず、IDキーで集合変化を検知する
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workflowSortType, workflowProjectOrder, workflowProjectIdsKey]);
+
+  const sortedWorkflowProjects = useMemo(() => {
+    if (frozenSortedIds.length === 0) return workflowProjects;
+    const byId = new Map(workflowProjects.map((p) => [p.id, p]));
+    const ordered: WorkflowProject[] = [];
+    for (const id of frozenSortedIds) {
+      const p = byId.get(id);
+      if (p) ordered.push(p);
+    }
+    const known = new Set(frozenSortedIds);
+    for (const p of workflowProjects) {
+      if (!known.has(p.id)) ordered.push(p);
+    }
+    return ordered;
+  }, [frozenSortedIds, workflowProjects]);
 
   const handleWorkflowDrop = useCallback((targetProjectId: string) => {
     if (!draggingProjectId || draggingProjectId === targetProjectId) {
