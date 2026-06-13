@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { Header } from "@/components/header";
+import { AdminPendingInvoicesNotifier } from "@/components/admin-pending-invoices-notifier";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -21,6 +22,7 @@ export default function RootLayout({
         <div className="min-h-screen bg-background">
           <Header />
           {children}
+          <AdminPendingInvoicesNotifier />
         </div>
       </body>
     </html>
