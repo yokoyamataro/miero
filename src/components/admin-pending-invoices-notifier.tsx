@@ -26,7 +26,15 @@ export async function AdminPendingInvoicesNotifier() {
 
   if (employee?.role !== "admin") return null;
 
-  const pending = await getAllInvoices({ isAccountingRegistered: false });
+  // 直近30日以内の未登録請求書のみ対象
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+  const startDate = thirtyDaysAgo.toISOString().slice(0, 10);
+
+  const pending = await getAllInvoices({
+    isAccountingRegistered: false,
+    startDate,
+  });
   if (pending.length === 0) return null;
 
   return <AdminPendingInvoicesModal invoices={pending} />;
