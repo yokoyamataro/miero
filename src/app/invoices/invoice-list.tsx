@@ -519,12 +519,22 @@ export function InvoiceList({
                         />
                       </TableCell>
                       <TableCell className="text-sm">
-                        {invoice.recipientAccount?.company_name ? (
-                          <div className="font-medium">{invoice.recipientAccount.company_name}</div>
-                        ) : invoice.recipientContact ? (
-                          <div>
+                        {invoice.recipientAccount?.id ? (
+                          <Link
+                            href={`/accounts/${invoice.recipientAccount.id}/edit`}
+                            className="font-medium text-primary hover:underline"
+                            title="法人情報を編集"
+                          >
+                            {invoice.recipientAccount.company_name}
+                          </Link>
+                        ) : invoice.recipientContact?.id ? (
+                          <Link
+                            href={`/contacts/${invoice.recipientContact.id}/edit`}
+                            className="text-primary hover:underline"
+                            title="個人情報を編集"
+                          >
                             {invoice.recipientContact.last_name} {invoice.recipientContact.first_name}
-                          </div>
+                          </Link>
                         ) : (
                           "-"
                         )}
