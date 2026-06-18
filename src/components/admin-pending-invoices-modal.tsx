@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -34,11 +34,34 @@ function getRecipientName(inv: InvoiceWithDetails): string {
   return "-";
 }
 
+const DISMISS_KEY = "adminPendingInvoicesDismissedDate";
+
+function todayKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 export function AdminPendingInvoicesModal({ invoices: initial }: Props) {
   const router = useRouter();
   const [invoices, setInvoices] = useState(initial);
-  const [open, setOpen] = useState(true);
+  // 1日1回だけ表示。当日中に閉じたら以後その日は出さない
+  const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const dismissed = window.localStorage.getItem(DISMISS_KEY);
+    if (dismissed !== todayKey()) {
+      setOpen(true);
+    }
+  }, []);
+
+  const dismissForToday = () => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(DISMISS_KEY, todayKey());
+    }
+    setOpen(false);
+  };
 
   const handleCheck = (id: string) => {
     setInvoices((prev) => prev.filter((i) => i.id !== id));
@@ -51,7 +74,7 @@ export function AdminPendingInvoicesModal({ invoices: initial }: Props) {
   if (invoices.length === 0) return null;
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(o) => (o ? setOpen(true) : dismissForToday())}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -105,7 +128,7 @@ export function AdminPendingInvoicesModal({ invoices: initial }: Props) {
               請求一覧を開く
             </Button>
           </Link>
-          <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
+          <Button variant="ghost" size="sm" onClick={dismissForToday}>
             後で確認
           </Button>
         </div>
