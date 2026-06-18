@@ -117,7 +117,7 @@ export function MobileCalendarView({
   const [dayDate, setDayDate] = useState(today);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [showEventSheet, setShowEventSheet] = useState(false);
-  const [viewMode, setViewMode] = useState<ViewMode>("month");
+  const [viewMode, setViewMode] = useState<ViewMode>("cards");
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string | null>(currentEmployeeId);
 
   // 個別イベント詳細用
@@ -814,15 +814,6 @@ export function MobileCalendarView({
         {/* 表示切替 */}
         <div className="flex justify-center gap-1 flex-wrap">
           <Button
-            variant={viewMode === "day" ? "default" : "outline"}
-            size="sm"
-            className="h-7 text-xs px-2.5"
-            onClick={() => setViewMode("day")}
-          >
-            <CalendarRange className="h-3 w-3 mr-1" />
-            1日
-          </Button>
-          <Button
             variant={viewMode === "cards" ? "default" : "outline"}
             size="sm"
             className="h-7 text-xs px-2.5"
@@ -830,6 +821,15 @@ export function MobileCalendarView({
           >
             <LayoutList className="h-3 w-3 mr-1" />
             カード
+          </Button>
+          <Button
+            variant={viewMode === "day" ? "default" : "outline"}
+            size="sm"
+            className="h-7 text-xs px-2.5"
+            onClick={() => setViewMode("day")}
+          >
+            <CalendarRange className="h-3 w-3 mr-1" />
+            1日
           </Button>
           <Button
             variant={viewMode === "fiveDay" ? "default" : "outline"}
