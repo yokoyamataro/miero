@@ -51,6 +51,16 @@ export function DashboardView({
     return () => clearInterval(t);
   }, []);
 
+  // オンラインなら10分ごとに自動更新
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (typeof navigator !== "undefined" && navigator.onLine) {
+        router.refresh();
+      }
+    }, 10 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [router]);
+
   // 本日（自分が関わる）のイベント集計
   const { hasEventsToday, hasCompletedToday } = useMemo(() => {
     if (!currentEmployeeId) return { hasEventsToday: false, hasCompletedToday: false };

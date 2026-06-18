@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import {
   format,
@@ -17,7 +17,7 @@ import {
   parseISO,
 } from "date-fns";
 import { ja } from "date-fns/locale";
-import { ChevronLeft, ChevronRight, Calendar, CalendarDays, CalendarRange, CheckCircle, Plus } from "lucide-react";
+import { ChevronLeft, ChevronRight, Calendar, CalendarDays, CalendarRange, CheckCircle, Plus, LayoutList } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { type CalendarEventWithParticipants, type EventCategory } from "@/types/database";
 import { type CalendarHolidayInfo } from "@/app/calendar/actions";
@@ -39,7 +39,7 @@ interface MobileCalendarViewProps {
   holidays?: CalendarHolidayInfo[];
 }
 
-type ViewMode = "month" | "fiveDay" | "day";
+type ViewMode = "month" | "fiveDay" | "day" | "cards";
 
 const WEEKDAYS = ["日", "月", "火", "水", "木", "金", "土"];
 
@@ -191,6 +191,7 @@ export function MobileCalendarView({
         setDayDate(subDays(dayDate, 5));
         break;
       case "day":
+      case "cards":
         setDayDate(subDays(dayDate, 1));
         break;
     }
@@ -207,6 +208,7 @@ export function MobileCalendarView({
         setDayDate(addDays(dayDate, 5));
         break;
       case "day":
+      case "cards":
         setDayDate(addDays(dayDate, 1));
         break;
     }
@@ -318,6 +320,7 @@ export function MobileCalendarView({
         const fiveDayEnd = addDays(currentDate, 4);
         return `${format(currentDate, "M/d", { locale: ja })} - ${format(fiveDayEnd, "M/d", { locale: ja })}`;
       case "day":
+      case "cards":
         return format(currentDate, "M月d日(E)", { locale: ja });
     }
   };
@@ -683,6 +686,105 @@ export function MobileCalendarView({
     );
   };
 
+  // カードビュー：時間で区切らず、未完了は上に・完了は横線を引いて下に並べる
+  const renderCardsView = () => {
+    const todayEvents = getEventsForDateAndEmployee(dayDate, selectedEmployeeId);
+    const sortByTime = (a: CalendarEventWithParticipants, b: CalendarEventWithParticipants) => {
+      if (!a.start_time && !b.start_time) return 0;
+      if (!a.start_time) return -1;
+      if (!b.start_time) return 1;
+      return a.start_time.localeCompare(b.start_time);
+    };
+    const uncompleted = todayEvents.filter((e) => !e.is_completed).sort(sortByTime);
+    const completed = todayEvents.filter((e) => e.is_completed).sort(sortByTime);
+    const dayHoliday = getHoliday(dayDate);
+
+    const renderCard = (event: CalendarEventWithParticipants, isCompleted: boolean) => {
+      const color = getCategoryColor(event);
+      const lightBg = getLightBgColor(color);
+      const timeLabel = event.all_day
+        ? "終日"
+        : event.start_time
+          ? `${event.start_time.slice(0, 5)}${event.end_time ? ` - ${event.end_time.slice(0, 5)}` : ""}`
+          : "";
+      return (
+        <button
+          key={event.id}
+          onClick={(e) => handleEventClick(event, e)}
+          className={`w-full text-left p-3 rounded-lg border ${isCompleted ? "bg-muted/50 opacity-70" : lightBg} hover:opacity-90 active:opacity-80 transition-opacity`}
+        >
+          <div className="flex items-start gap-2">
+            {isCompleted ? (
+              <CheckCircle className="h-4 w-4 text-green-600 flex-shrink-0 mt-0.5" />
+            ) : (
+              <span className={`inline-block w-1 h-5 rounded ${color} flex-shrink-0 mt-0.5`} />
+            )}
+            <div className="flex-1 min-w-0">
+              <div className={`font-medium text-sm break-words ${isCompleted ? "line-through text-muted-foreground" : ""}`}>
+                {event.title}
+              </div>
+              {(timeLabel || event.location) && (
+                <div className={`text-xs mt-0.5 ${isCompleted ? "text-muted-foreground/80" : "text-muted-foreground"}`}>
+                  {timeLabel}
+                  {timeLabel && event.location && " / "}
+                  {event.location}
+                </div>
+              )}
+              {event.project && (
+                <div className="text-[10px] text-muted-foreground mt-0.5 truncate">
+                  {event.project.code} {event.project.name}
+                </div>
+              )}
+            </div>
+          </div>
+        </button>
+      );
+    };
+
+    return (
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {renderMemberSelector()}
+        {dayHoliday && (
+          <div className="px-2 py-1 bg-red-500 text-white text-xs font-medium text-center">
+            休 {dayHoliday.name || "祝日"}
+          </div>
+        )}
+        <div className="flex-1 overflow-auto p-3 space-y-4">
+          {todayEvents.length === 0 ? (
+            <div className="text-center text-muted-foreground py-8 text-sm">
+              この日の予定はありません
+            </div>
+          ) : (
+            <>
+              {uncompleted.length > 0 && (
+                <div className="space-y-2">
+                  <div className="text-[11px] text-muted-foreground px-1">未完了 ({uncompleted.length})</div>
+                  {uncompleted.map((e) => renderCard(e, false))}
+                </div>
+              )}
+              {completed.length > 0 && (
+                <div className="space-y-2">
+                  <div className="text-[11px] text-muted-foreground px-1">完了 ({completed.length})</div>
+                  {completed.map((e) => renderCard(e, true))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  // オンラインなら10分ごとに自動更新
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (typeof navigator !== "undefined" && navigator.onLine) {
+        router.refresh();
+      }
+    }, 10 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [router]);
+
   return (
     <div className="flex flex-col h-full">
       {/* ヘッダー */}
@@ -710,20 +812,29 @@ export function MobileCalendarView({
         </div>
 
         {/* 表示切替 */}
-        <div className="flex justify-center gap-1">
+        <div className="flex justify-center gap-1 flex-wrap">
           <Button
             variant={viewMode === "day" ? "default" : "outline"}
             size="sm"
-            className="h-7 text-xs px-3"
+            className="h-7 text-xs px-2.5"
             onClick={() => setViewMode("day")}
           >
             <CalendarRange className="h-3 w-3 mr-1" />
             1日
           </Button>
           <Button
+            variant={viewMode === "cards" ? "default" : "outline"}
+            size="sm"
+            className="h-7 text-xs px-2.5"
+            onClick={() => setViewMode("cards")}
+          >
+            <LayoutList className="h-3 w-3 mr-1" />
+            カード
+          </Button>
+          <Button
             variant={viewMode === "fiveDay" ? "default" : "outline"}
             size="sm"
-            className="h-7 text-xs px-3"
+            className="h-7 text-xs px-2.5"
             onClick={() => setViewMode("fiveDay")}
           >
             <CalendarDays className="h-3 w-3 mr-1" />
@@ -732,7 +843,7 @@ export function MobileCalendarView({
           <Button
             variant={viewMode === "month" ? "default" : "outline"}
             size="sm"
-            className="h-7 text-xs px-3"
+            className="h-7 text-xs px-2.5"
             onClick={() => setViewMode("month")}
           >
             <Calendar className="h-3 w-3 mr-1" />
@@ -745,6 +856,7 @@ export function MobileCalendarView({
       {viewMode === "month" && renderMonthView()}
       {viewMode === "fiveDay" && renderFiveDayView()}
       {viewMode === "day" && renderDayView()}
+      {viewMode === "cards" && renderCardsView()}
 
       {/* 新規作成シート */}
       <MobileEventFormSheet
