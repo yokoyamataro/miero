@@ -3,7 +3,8 @@
 import { useState, useEffect, useRef } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Briefcase, Search, X, Loader2 } from "lucide-react";
+import { Briefcase, Search, X, Loader2, Plus } from "lucide-react";
+import Link from "next/link";
 import { searchProjects, getActiveProjects, type ProjectForLink } from "@/app/calendar/actions";
 
 interface MobileProjectSearchProps {
@@ -164,6 +165,19 @@ export function MobileProjectSearch({
                 ))}
               </div>
             )}
+          </div>
+
+          {/* 新規登録（業務が無い場合の救済導線） */}
+          <div className="border-t bg-background p-2">
+            <Link
+              href="/projects/new"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center justify-center gap-1 text-xs text-primary hover:underline py-1"
+            >
+              <Plus className="h-3.5 w-3.5" />
+              業務を新規登録（別タブで開く）
+            </Link>
           </div>
         </div>
       )}
