@@ -499,8 +499,22 @@ export function InvoiceList({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredInvoices.map((invoice) => (
-                    <TableRow key={invoice.id} className={invoice.payment_received_date ? "bg-green-50" : ""}>
+                  {filteredInvoices.map((invoice) => {
+                    const expectedTotal =
+                      Math.floor(Number(invoice.fee_tax_excluded || 0) * 1.1) +
+                      Number(invoice.expenses || 0);
+                    const amountMismatch = Number(invoice.total_amount) !== expectedTotal;
+                    const rowBgClass = amountMismatch
+                      ? "bg-red-100"
+                      : invoice.payment_received_date
+                        ? "bg-green-50"
+                        : "";
+                    return (
+                    <TableRow
+                      key={invoice.id}
+                      className={rowBgClass}
+                      title={amountMismatch ? `税抜報酬×1.1+立替金=${expectedTotal.toLocaleString()}円 と一致しません` : undefined}
+                    >
                       <TableCell className="font-mono text-sm">
                         <div className="flex items-center gap-1 whitespace-nowrap">
                           {invoice.pdf_path && (
@@ -572,14 +586,13 @@ export function InvoiceList({
                           {invoice.businessEntity?.code}
                         </Badge>
                       </TableCell>
-                      <TableCell className={`text-center ${!invoice.is_accounting_registered ? "bg-red-100" : ""}`}>
+                      <TableCell className="text-center">
                         <Checkbox
                           checked={invoice.is_accounting_registered}
                           onCheckedChange={() =>
                             handleToggleAccounting(invoice.id, invoice.is_accounting_registered)
                           }
                           disabled={isPending}
-                          className={!invoice.is_accounting_registered ? "border-red-500" : ""}
                         />
                       </TableCell>
                       <TableCell>
@@ -617,7 +630,8 @@ export function InvoiceList({
                         </div>
                       </TableCell>
                     </TableRow>
-                  ))}
+                    );
+                  })}
                 </TableBody>
               </Table>
             </div>
