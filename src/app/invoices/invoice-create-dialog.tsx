@@ -512,7 +512,7 @@ export function InvoiceCreateDialog({
                   onChange={(e) => {
                     const value = parseInt(e.target.value) || 0;
                     setFeeTaxExcluded(value);
-                    setTotalAmount(value + expenses);
+                    setTotalAmount(Math.floor(value * 1.1) + expenses);
                   }}
                   placeholder="0"
                   className="text-right"
@@ -526,30 +526,41 @@ export function InvoiceCreateDialog({
                   onChange={(e) => {
                     const value = parseInt(e.target.value) || 0;
                     setExpenses(value);
-                    setTotalAmount(feeTaxExcluded + value);
+                    setTotalAmount(Math.floor(feeTaxExcluded * 1.1) + value);
                   }}
                   placeholder="0"
                   className="text-right"
                 />
               </div>
             </div>
-            <div className="space-y-1 pt-2 border-t">
-              <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">
-                  {documentType === "invoice" ? "請求総額" : "見積金額"}
-                </Label>
-                <span className="text-xs text-muted-foreground">
-                  税抜報酬 + 立替金の自動計算値。上書き可
-                </span>
-              </div>
-              <Input
-                type="number"
-                value={totalAmount || ""}
-                onChange={(e) => setTotalAmount(parseInt(e.target.value) || 0)}
-                placeholder="0"
-                className="text-right text-lg font-bold"
-              />
-            </div>
+            {(() => {
+              const expectedTotal = Math.floor(feeTaxExcluded * 1.1) + expenses;
+              const mismatch = totalAmount !== expectedTotal;
+              return (
+                <div className="space-y-1 pt-2 border-t">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-medium">
+                      {documentType === "invoice" ? "請求総額" : "見積金額"}
+                    </Label>
+                    <span className="text-xs text-muted-foreground">
+                      税抜報酬 × 1.1 + 立替金の自動計算値。上書き可
+                    </span>
+                  </div>
+                  <Input
+                    type="number"
+                    value={totalAmount || ""}
+                    onChange={(e) => setTotalAmount(parseInt(e.target.value) || 0)}
+                    placeholder="0"
+                    className={`text-right text-lg font-bold ${mismatch ? "text-red-600 border-red-400" : ""}`}
+                  />
+                  {mismatch && (
+                    <p className="text-xs text-red-600">
+                      計算値（{expectedTotal.toLocaleString()}円）と一致していません
+                    </p>
+                  )}
+                </div>
+              );
+            })()}
           </div>
 
           {/* PDF添付 */}
