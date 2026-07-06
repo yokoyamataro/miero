@@ -34,6 +34,12 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Search,
   FileText,
   X,
@@ -226,13 +232,18 @@ export function InvoiceList({
     });
   };
 
-  const handleOpenPdf = async (pdfPath: string) => {
+  // PDFプレビューダイアログ
+  const [pdfViewerUrl, setPdfViewerUrl] = useState<string | null>(null);
+  const [pdfViewerTitle, setPdfViewerTitle] = useState<string>("");
+
+  const handleOpenPdf = async (pdfPath: string, invoiceNumber?: string) => {
     const { url, error } = await getInvoicePdfUrl(pdfPath);
     if (error || !url) {
       alert("PDFを開けませんでした");
       return;
     }
-    window.open(url, "_blank");
+    setPdfViewerTitle(invoiceNumber || "PDF");
+    setPdfViewerUrl(url);
   };
 
   const handleUploadClick = (invoiceId: string) => {
@@ -498,7 +509,7 @@ export function InvoiceList({
                               size="sm"
                               className="h-6 w-6 p-0 flex-shrink-0"
                               title="PDFを開く"
-                              onClick={() => handleOpenPdf(invoice.pdf_path!)}
+                              onClick={() => handleOpenPdf(invoice.pdf_path!, invoice.invoice_number)}
                             >
                               <FileText className="h-4 w-4 text-primary" />
                             </Button>
@@ -561,13 +572,14 @@ export function InvoiceList({
                           {invoice.businessEntity?.code}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-center">
+                      <TableCell className={`text-center ${!invoice.is_accounting_registered ? "bg-red-100" : ""}`}>
                         <Checkbox
                           checked={invoice.is_accounting_registered}
                           onCheckedChange={() =>
                             handleToggleAccounting(invoice.id, invoice.is_accounting_registered)
                           }
                           disabled={isPending}
+                          className={!invoice.is_accounting_registered ? "border-red-500" : ""}
                         />
                       </TableCell>
                       <TableCell>
@@ -661,6 +673,39 @@ export function InvoiceList({
         onChange={handleFileChange}
         className="hidden"
       />
+
+      {/* PDFプレビューダイアログ */}
+      <Dialog
+        open={!!pdfViewerUrl}
+        onOpenChange={(open) => {
+          if (!open) setPdfViewerUrl(null);
+        }}
+      >
+        <DialogContent className="max-w-5xl w-[95vw] h-[90vh] p-4 flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center justify-between">
+              <span>{pdfViewerTitle}</span>
+              {pdfViewerUrl && (
+                <a
+                  href={pdfViewerUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-muted-foreground hover:text-primary underline mr-8"
+                >
+                  別タブで開く
+                </a>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          {pdfViewerUrl && (
+            <iframe
+              src={pdfViewerUrl}
+              title={pdfViewerTitle}
+              className="flex-1 w-full border rounded bg-muted"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
