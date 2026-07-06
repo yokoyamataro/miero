@@ -365,31 +365,6 @@ export function InvoiceCreateDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* 書類タイプ選択 */}
-          <div className="space-y-2">
-            <Label>タイプ</Label>
-            <div className="flex gap-2">
-              <Button
-                type="button"
-                variant={documentType === "invoice" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setDocumentType("invoice")}
-                disabled={isEditMode}
-              >
-                {INVOICE_DOCUMENT_TYPE_LABELS.invoice}
-              </Button>
-              <Button
-                type="button"
-                variant={documentType === "estimate" ? "default" : "outline"}
-                size="sm"
-                onClick={() => setDocumentType("estimate")}
-                disabled={isEditMode}
-              >
-                {INVOICE_DOCUMENT_TYPE_LABELS.estimate}
-              </Button>
-            </div>
-          </div>
-
           {/* 業務 */}
           <div className="space-y-2">
             <Label>業務 *</Label>
