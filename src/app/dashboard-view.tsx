@@ -51,13 +51,13 @@ export function DashboardView({
     return () => clearInterval(t);
   }, []);
 
-  // オンラインなら5分ごとに自動更新
+  // オンラインなら1分ごとに自動更新
   useEffect(() => {
     const id = setInterval(() => {
       if (typeof navigator !== "undefined" && navigator.onLine) {
         router.refresh();
       }
-    }, 5 * 60 * 1000);
+    }, 60 * 1000);
     return () => clearInterval(id);
   }, [router]);
 
