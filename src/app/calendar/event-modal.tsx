@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { format, addMonths, startOfMonth, endOfMonth, eachDayOfInterval, getDay, getDate, getMonth } from "date-fns";
 import { ja } from "date-fns/locale";
-import { ChevronRight, ChevronLeft, Calendar, Repeat, X } from "lucide-react";
+import { ChevronRight, ChevronLeft, Calendar, Repeat, X, Bell } from "lucide-react";
 import {
   type CalendarEventWithParticipants,
   type Employee,
@@ -23,6 +23,7 @@ import {
   type RecurrenceType,
   RECURRENCE_TYPE_LABELS,
   DAY_OF_WEEK_LABELS,
+  NOTIFY_MINUTES_OPTIONS,
 } from "@/types/database";
 import { createEvent, updateEvent, createRecurringEvents, createMultipleDateEvents, type ProjectForLink } from "./actions";
 import { ProjectSearch } from "./project-search";
@@ -119,6 +120,9 @@ export function EventModal({
   // 完了フラグ（編集時のみ）
   const [isCompleted, setIsCompleted] = useState(false);
 
+  // 通知タイミング（分。null=通知なし）
+  const [notifyMinutesBefore, setNotifyMinutesBefore] = useState<number | null>(null);
+
   // 編集時のデータ読み込み
   useEffect(() => {
     if (event) {
@@ -141,6 +145,7 @@ export function EventModal({
       setLinkedProjectId(event.project_id);
       setLinkedProjectCode(event.project?.code || null);
       setLinkedProjectName(event.project?.name || null);
+      setNotifyMinutesBefore(event.notify_minutes_before ?? null);
     } else if (selectedDate) {
       const dateStr = format(selectedDate, "yyyy-MM-dd");
       setTitle("");
@@ -162,6 +167,7 @@ export function EventModal({
       setLinkedProjectId(null);
       setLinkedProjectCode(null);
       setLinkedProjectName(null);
+      setNotifyMinutesBefore(null);
       // 繰り返し設定をリセット
       setRecurrenceType("none");
       setRecurrenceDayOfWeek(getDay(selectedDate));
@@ -226,6 +232,7 @@ export function EventModal({
         map_url: mapUrl.trim() || null,
         project_id: linkedProjectId,
         task_id: null,
+        notify_minutes_before: notifyMinutesBefore,
       };
 
       if (event && event.id) {
@@ -268,6 +275,7 @@ export function EventModal({
         onSaved({
           ...eventData,
           id: "",
+          notify_minutes_before: notifyMinutesBefore,
           recurrence_type: recurrenceType,
           recurrence_day_of_week: recurrenceDayOfWeek,
           recurrence_day_of_month: recurrenceDayOfMonth,
@@ -856,6 +864,34 @@ export function EventModal({
               onChange={(e) => setMapUrl(e.target.value)}
               placeholder="https://maps.google.com/..."
             />
+          </div>
+
+          {/* 通知 */}
+          <div className="space-y-2">
+            <Label htmlFor="notify" className="flex items-center gap-1">
+              <Bell className="h-4 w-4" />
+              通知
+            </Label>
+            <select
+              id="notify"
+              className="w-full h-10 px-2 rounded-md border border-input bg-background text-sm"
+              value={notifyMinutesBefore === null ? "" : String(notifyMinutesBefore)}
+              onChange={(e) => {
+                const v = e.target.value;
+                setNotifyMinutesBefore(v === "" ? null : parseInt(v, 10));
+              }}
+            >
+              {NOTIFY_MINUTES_OPTIONS.map((opt) => (
+                <option key={opt.label} value={opt.value === null ? "" : String(opt.value)}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            {notifyMinutesBefore !== null && (!startHour || allDay) && (
+              <p className="text-xs text-amber-600">
+                通知には開始時刻の指定が必要です（終日イベントは通知されません）
+              </p>
+            )}
           </div>
 
           {/* 詳細 */}

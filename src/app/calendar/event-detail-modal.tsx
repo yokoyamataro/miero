@@ -27,6 +27,7 @@ import {
   CheckCircle,
   Loader2,
   AlertTriangle,
+  Bell,
 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { ja } from "date-fns/locale";
@@ -36,6 +37,7 @@ import {
   type EventCategoryLegacy,
   RECURRENCE_TYPE_LABELS,
   DAY_OF_WEEK_LABELS,
+  NOTIFY_MINUTES_OPTIONS,
 } from "@/types/database";
 import { deleteEvent, deleteRecurringEventsAll, deleteRecurringEventsFromDate, updateEvent, type ProjectForLink } from "./actions";
 import { ProjectSearch } from "./project-search";
@@ -367,6 +369,19 @@ export function EventDetailModal({
             <div className="flex items-start gap-3">
               <Repeat className="h-5 w-5 text-muted-foreground mt-0.5" />
               <div>{getRecurrenceInfo()}</div>
+            </div>
+          )}
+
+          {/* 通知設定 */}
+          {event.notify_minutes_before !== null && event.notify_minutes_before !== undefined && (
+            <div className="flex items-start gap-3">
+              <Bell className="h-5 w-5 text-muted-foreground mt-0.5" />
+              <div>
+                {NOTIFY_MINUTES_OPTIONS.find(
+                  (opt) => opt.value === event.notify_minutes_before
+                )?.label || `${event.notify_minutes_before}分前`}
+                に通知
+              </div>
             </div>
           )}
 

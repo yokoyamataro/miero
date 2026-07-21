@@ -489,6 +489,20 @@ export const EVENT_CATEGORY_COLORS: Record<EventCategoryLegacy, string> = {
   その他: "bg-slate-400",
 };
 
+// 通知タイミング（開始何分前）の選択肢
+// null は「通知しない」
+export const NOTIFY_MINUTES_OPTIONS: { value: number | null; label: string }[] = [
+  { value: null, label: "通知なし" },
+  { value: 0, label: "開始時刻" },
+  { value: 5, label: "5分前" },
+  { value: 10, label: "10分前" },
+  { value: 15, label: "15分前" },
+  { value: 30, label: "30分前" },
+  { value: 60, label: "1時間前" },
+  { value: 120, label: "2時間前" },
+  { value: 1440, label: "1日前" },
+];
+
 export interface CalendarEvent {
   id: string;
   title: string;
@@ -506,6 +520,8 @@ export interface CalendarEvent {
   project_id: string | null;
   task_id: string | null;
   created_by: string | null;
+  // 通知
+  notify_minutes_before: number | null;  // 通知タイミング（分）。null=通知なし
   // 繰り返し予定関連
   recurrence_type: RecurrenceType;
   recurrence_day_of_week: number | null;  // 0-6 (日-土) 毎週用
@@ -534,6 +550,8 @@ export interface CalendarEventInsert {
   project_id?: string | null;
   task_id?: string | null;
   created_by?: string | null;
+  // 通知
+  notify_minutes_before?: number | null;
   // 繰り返し予定関連
   recurrence_type?: RecurrenceType;
   recurrence_day_of_week?: number | null;

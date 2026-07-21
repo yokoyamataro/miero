@@ -598,6 +598,55 @@ export async function getEmployees(): Promise<Employee[]> {
   return (employees as Employee[]) || [];
 }
 
+// 通知対象のイベントを取得（今日・明日で通知設定があり、自分が関係者のもの）
+export async function getUpcomingNotifications(): Promise<CalendarEventWithParticipants[]> {
+  const supabase = await createClient();
+
+  const employeeId = await getCurrentEmployeeIdInternal(supabase);
+  if (!employeeId) return [];
+
+  const now = new Date();
+  const today = format(now, "yyyy-MM-dd");
+  const tomorrow = format(addDays(now, 1), "yyyy-MM-dd");
+
+  // 通知タイミングが設定されていて、時刻指定のあるイベントのみ
+  const { data: events, error } = await supabase
+    .from("calendar_events")
+    .select("*")
+    .not("notify_minutes_before", "is", null)
+    .not("start_time", "is", null)
+    .in("start_date", [today, tomorrow])
+    .order("start_date", { ascending: true })
+    .order("start_time", { ascending: true });
+
+  if (error || !events || events.length === 0) return [];
+
+  // 参加者情報を取得（自分が参加している/作成した予定に絞る）
+  const eventIds = events.map((e) => e.id);
+  const { data: myParticipations } = await supabase
+    .from("calendar_event_participants")
+    .select("event_id")
+    .in("event_id", eventIds)
+    .eq("employee_id", employeeId);
+
+  const myEventIds = new Set(myParticipations?.map((p) => p.event_id) || []);
+  const relevantEvents = events.filter(
+    (e) => e.created_by === employeeId || myEventIds.has(e.id)
+  );
+
+  if (relevantEvents.length === 0) return [];
+
+  // 詳細情報（作成者名など）は通知モーダルで最小限しか使わないので空で返す
+  return relevantEvents.map((event) => ({
+    ...event,
+    participants: [],
+    creator: null,
+    project: null,
+    task: null,
+    eventCategory: null,
+  })) as CalendarEventWithParticipants[];
+}
+
 // 単一イベントを取得
 export async function getEvent(eventId: string): Promise<CalendarEventWithParticipants | null> {
   const supabase = await createClient();

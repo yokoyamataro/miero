@@ -148,6 +148,7 @@ export function DashboardView({
         created_by: currentEmployeeId,
         project_id: droppedProjectData.projectId,
         task_id: null,
+        notify_minutes_before: null,
         // 繰り返し予定関連
         recurrence_type: "none",
         recurrence_day_of_week: null,
