@@ -125,7 +125,7 @@ export function MobileWorkflowView({
   };
 
   return (
-    <div className="flex flex-col h-full">
+    <div>
       {/* ヘッダー */}
       <header className="sticky top-0 z-20 bg-background border-b px-4 py-3">
         <h1 className="text-lg font-bold mb-2">工程管理</h1>
@@ -144,7 +144,7 @@ export function MobileWorkflowView({
       </header>
 
       {/* コンテンツ */}
-      <div className="flex-1 overflow-auto">
+      <div>
         {!selectedTemplateId ? (
           <p className="text-center text-muted-foreground py-8">
             標準業務を選択してください
