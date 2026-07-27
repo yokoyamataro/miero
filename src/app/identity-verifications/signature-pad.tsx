@@ -69,17 +69,19 @@ export function SignaturePad({ open, onOpenChange, onSave }: Props) {
     let savedDataUrl: string | null = null;
 
     const setupCanvas = () => {
-      const rect = canvas.getBoundingClientRect();
-      if (rect.width === 0 || rect.height === 0) return;
+      // transform を含まないレイアウト上の実サイズを使う
+      const width = canvas.clientWidth;
+      const height = canvas.clientHeight;
+      if (width === 0 || height === 0) return;
       const dpr = window.devicePixelRatio || 1;
-      canvas.width = Math.round(rect.width * dpr);
-      canvas.height = Math.round(rect.height * dpr);
+      canvas.width = Math.round(width * dpr);
+      canvas.height = Math.round(height * dpr);
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.scale(dpr, dpr);
       ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, rect.width, rect.height);
+      ctx.fillRect(0, 0, width, height);
       ctx.strokeStyle = "#111827";
       ctx.lineWidth = 2.5;
       ctx.lineCap = "round";
@@ -88,7 +90,7 @@ export function SignaturePad({ open, onOpenChange, onSave }: Props) {
       if (savedDataUrl) {
         const img = new window.Image();
         img.onload = () => {
-          ctx.drawImage(img, 0, 0, rect.width, rect.height);
+          ctx.drawImage(img, 0, 0, width, height);
         };
         img.src = savedDataUrl;
       }
@@ -113,7 +115,14 @@ export function SignaturePad({ open, onOpenChange, onSave }: Props) {
   const getPos = (e: React.PointerEvent) => {
     const canvas = canvasRef.current!;
     const rect = canvas.getBoundingClientRect();
-    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
+    // Dialog の transform: scale() が効いていると rect.width と clientWidth が異なる。
+    // ポインタ座標（transform 後の視覚位置）を canvas 内部座標（transform 前）へ補正する。
+    const scaleX = rect.width === 0 ? 1 : canvas.clientWidth / rect.width;
+    const scaleY = rect.height === 0 ? 1 : canvas.clientHeight / rect.height;
+    return {
+      x: (e.clientX - rect.left) * scaleX,
+      y: (e.clientY - rect.top) * scaleY,
+    };
   };
 
   const handlePointerDown = (e: React.PointerEvent) => {
