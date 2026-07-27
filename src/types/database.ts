@@ -583,6 +583,150 @@ export interface CalendarEventWithParticipants extends CalendarEvent {
 }
 
 // ============================================
+// Identity Verification (本人確認シート)
+// ============================================
+
+// 代理人と本人の関係
+export type AgentRelationship = "親族" | "社員" | "他";
+export const AGENT_RELATIONSHIP_OPTIONS: AgentRelationship[] = ["親族", "社員", "他"];
+
+// 支払方法
+export type IdentityPaymentMethod = "現金" | "振込" | "相手方支払";
+export const IDENTITY_PAYMENT_METHOD_OPTIONS: IdentityPaymentMethod[] = [
+  "現金",
+  "振込",
+  "相手方支払",
+];
+
+// 完了書類の受取方法
+export const IDENTITY_DELIVERY_METHOD_OPTIONS = [
+  "事務所来所（本人）",
+  "事務所来所（代理人）",
+  "郵送（本人限定郵便）",
+  "郵送（レターパック）",
+  "仲介業者から受取",
+  "金融機関から受取",
+  "建築業者から受取",
+] as const;
+
+// 本人確認書類
+export const IDENTITY_DOCUMENT_TYPE_OPTIONS = [
+  "顔写真付身分証明書（運転免許証・マイナンバーカード等）",
+  "顔写真のない身分証明書（保険証等）",
+  "法人担当者（運転免許証等）",
+] as const;
+
+// 本人確認方法
+export const IDENTITY_VERIFICATION_METHOD_OPTIONS = [
+  "面談",
+  "代理人（後日本人と電話又は面談）",
+  "本人限定受取郵便",
+  "書留郵便",
+  "面談又は業務権限証明書又は法人に電話して確認",
+] as const;
+
+export interface IdentityVerification {
+  id: string;
+  // 本人
+  postal_code: string | null;
+  address: string | null;
+  name: string;
+  birth_date: string | null;
+  phone: string | null;
+  workplace: string | null;
+  email: string | null;
+  // 代理人
+  agent_address: string | null;
+  agent_name: string | null;
+  agent_relationship: string | null;
+  agent_relationship_detail: string | null;
+  agent_phone: string | null;
+  // 受取・支払
+  delivery_methods: string[];
+  payment_method: string | null;
+  is_not_antisocial: boolean;
+  // 事務所記入欄
+  recorded_date: string | null;
+  recorder_name: string | null;
+  document_types: string[];
+  verification_methods: string[];
+  // トークン（フェーズ2用、フェーズ1では未使用）
+  access_token: string | null;
+  token_expires_at: string | null;
+  submitted_at: string | null;
+  // メタ
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface IdentityVerificationInsert {
+  id?: string;
+  postal_code?: string | null;
+  address?: string | null;
+  name: string;
+  birth_date?: string | null;
+  phone?: string | null;
+  workplace?: string | null;
+  email?: string | null;
+  agent_address?: string | null;
+  agent_name?: string | null;
+  agent_relationship?: string | null;
+  agent_relationship_detail?: string | null;
+  agent_phone?: string | null;
+  delivery_methods?: string[];
+  payment_method?: string | null;
+  is_not_antisocial?: boolean;
+  recorded_date?: string | null;
+  recorder_name?: string | null;
+  document_types?: string[];
+  verification_methods?: string[];
+  access_token?: string | null;
+  token_expires_at?: string | null;
+  submitted_at?: string | null;
+  notes?: string | null;
+  created_by?: string | null;
+}
+
+export interface IdentityVerificationTransaction {
+  id: string;
+  verification_id: string;
+  sort_order: number;
+  agency_name: string | null;
+  reception_date: string | null;
+  reception_number: string | null;
+  created_at: string;
+}
+
+export interface IdentityVerificationTransactionInsert {
+  id?: string;
+  verification_id?: string;
+  sort_order?: number;
+  agency_name?: string | null;
+  reception_date?: string | null;
+  reception_number?: string | null;
+}
+
+export interface IdentityVerificationDocument {
+  id: string;
+  verification_id: string;
+  storage_path: string;
+  file_name: string;
+  mime_type: string | null;
+  file_size: number | null;
+  uploaded_by: string | null;
+  uploaded_at: string;
+}
+
+// 詳細取得用（受託事務・身分証・作成者を含む）
+export interface IdentityVerificationWithDetails extends IdentityVerification {
+  transactions: IdentityVerificationTransaction[];
+  documents: IdentityVerificationDocument[];
+  creator: Employee | null;
+}
+
+// ============================================
 // 業務エリア（市町村）
 // ============================================
 export interface AreaGroup {

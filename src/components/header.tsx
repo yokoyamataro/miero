@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   CalendarCog,
   ChevronDown,
+  IdCard,
 } from "lucide-react";
 import { format, addHours } from "date-fns";
 import { ja } from "date-fns/locale";
@@ -37,6 +38,7 @@ const navItems = [
   { href: "/projects", label: "業務", icon: FolderKanban },
   { href: "/customers", label: "顧客", icon: UserCircle },
   { href: "/invoices", label: "請求", icon: Receipt },
+  { href: "/identity-verifications", label: "本人確認", icon: IdCard },
   { href: "/leaves", label: "休暇", icon: CalendarDays },
 ];
 
