@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   Loader2,
   Plus,
   Trash2,
@@ -17,7 +24,11 @@ import {
   Save,
   ArrowLeft,
   ExternalLink,
+  PenLine,
+  MapPin,
 } from "lucide-react";
+import { format, parseISO } from "date-fns";
+import { ja } from "date-fns/locale";
 import {
   IDENTITY_DELIVERY_METHOD_OPTIONS,
   IDENTITY_DOCUMENT_TYPE_OPTIONS,
@@ -36,17 +47,41 @@ import {
   addIdentityDocument,
   deleteIdentityDocument,
   deleteIdentityVerification,
+  deleteSignature,
+  saveSignature,
   getDocumentSignedUrl,
 } from "./actions";
+import { SignaturePad } from "./signature-pad";
 
 const STORAGE_BUCKET = "identity-documents";
+
+interface RecorderOption {
+  id: string;
+  name: string;
+}
 
 interface Props {
   mode: "new" | "edit";
   verificationId?: string;
-  initialData?: IdentityVerificationInsert;
+  initialData?: IdentityVerificationInsert & {
+    signature_storage_path?: string | null;
+    signature_signed_at?: string | null;
+    signature_latitude?: number | null;
+    signature_longitude?: number | null;
+    signature_accuracy?: number | null;
+    recorder_id?: string | null;
+  };
   initialTransactions?: IdentityVerificationTransactionInsert[];
   initialDocuments?: IdentityVerificationDocument[];
+  employees: RecorderOption[];
+}
+
+interface PendingSignature {
+  blob: Blob;
+  signedAt: string;
+  latitude: number | null;
+  longitude: number | null;
+  accuracy: number | null;
 }
 
 type TxRow = IdentityVerificationTransactionInsert & { key: string };
@@ -66,6 +101,7 @@ export function VerificationForm({
   initialData,
   initialTransactions,
   initialDocuments,
+  employees,
 }: Props) {
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -108,13 +144,61 @@ export function VerificationForm({
   const [recordedDate, setRecordedDate] = useState(
     initialData?.recorded_date || new Date().toISOString().split("T")[0]
   );
-  const [recorderName, setRecorderName] = useState(initialData?.recorder_name || "");
+  const [recorderId, setRecorderId] = useState(initialData?.recorder_id || "");
   const [documentTypes, setDocumentTypes] = useState<string[]>(
     initialData?.document_types || []
   );
   const [verificationMethods, setVerificationMethods] = useState<string[]>(
     initialData?.verification_methods || []
   );
+
+  // 本人署名
+  const [signaturePadOpen, setSignaturePadOpen] = useState(false);
+  const [existingSignaturePath, setExistingSignaturePath] = useState<string | null>(
+    initialData?.signature_storage_path || null
+  );
+  const [existingSignatureSignedAt, setExistingSignatureSignedAt] = useState<string | null>(
+    initialData?.signature_signed_at || null
+  );
+  const [existingSignatureLat, setExistingSignatureLat] = useState<number | null>(
+    initialData?.signature_latitude ?? null
+  );
+  const [existingSignatureLng, setExistingSignatureLng] = useState<number | null>(
+    initialData?.signature_longitude ?? null
+  );
+  const [existingSignatureAcc, setExistingSignatureAcc] = useState<number | null>(
+    initialData?.signature_accuracy ?? null
+  );
+  const [existingSignatureUrl, setExistingSignatureUrl] = useState<string | null>(null);
+  const [pendingSignature, setPendingSignature] = useState<PendingSignature | null>(null);
+  const [pendingSignatureUrl, setPendingSignatureUrl] = useState<string | null>(null);
+  const [deletingSignature, setDeletingSignature] = useState(false);
+
+  // 既存の署名画像URLをロード
+  useEffect(() => {
+    if (!existingSignaturePath) {
+      setExistingSignatureUrl(null);
+      return;
+    }
+    let cancelled = false;
+    getDocumentSignedUrl(existingSignaturePath).then((res) => {
+      if (!cancelled && res.url) setExistingSignatureUrl(res.url);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [existingSignaturePath]);
+
+  // pending の Blob URL 管理
+  useEffect(() => {
+    if (!pendingSignature) {
+      setPendingSignatureUrl(null);
+      return;
+    }
+    const url = URL.createObjectURL(pendingSignature.blob);
+    setPendingSignatureUrl(url);
+    return () => URL.revokeObjectURL(url);
+  }, [pendingSignature]);
 
   // 備考
   const [notes, setNotes] = useState(initialData?.notes || "");
@@ -183,15 +267,52 @@ export function VerificationForm({
     payment_method: paymentMethod || null,
     is_not_antisocial: isNotAntisocial,
     recorded_date: recordedDate || null,
-    recorder_name: recorderName || null,
+    recorder_id: recorderId || null,
     document_types: documentTypes,
     verification_methods: verificationMethods,
     notes: notes || null,
   });
 
+  // Blob を Storage にアップロード + saveSignature を呼び出す
+  const commitPendingSignature = async (targetId: string): Promise<string | null> => {
+    if (!pendingSignature) return null;
+    const supabase = createClient();
+    const path = `signatures/${targetId}.png`;
+    const { error: uploadErr } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .upload(path, pendingSignature.blob, {
+        contentType: "image/png",
+        upsert: true,
+      });
+    if (uploadErr) {
+      throw new Error(`署名のアップロードに失敗しました: ${uploadErr.message}`);
+    }
+    const result = await saveSignature(
+      targetId,
+      path,
+      pendingSignature.signedAt,
+      pendingSignature.latitude,
+      pendingSignature.longitude,
+      pendingSignature.accuracy
+    );
+    if (result.error) {
+      throw new Error(result.error);
+    }
+    return path;
+  };
+
   const handleSubmit = async () => {
     if (!name.trim()) {
       setError("氏名は必須です");
+      return;
+    }
+    if (!recorderId) {
+      setError("記入担当者を選択してください");
+      return;
+    }
+    const hasSignature = !!existingSignaturePath || !!pendingSignature;
+    if (!hasSignature) {
+      setError("本人署名を入力してください");
       return;
     }
 
@@ -215,6 +336,19 @@ export function VerificationForm({
           setError(result.error || "保存に失敗しました");
           return;
         }
+        // 新規保存後、pending 署名があれば Storage + saveSignature を実行
+        if (pendingSignature) {
+          try {
+            await commitPendingSignature(result.id);
+          } catch (err) {
+            setError(
+              (err instanceof Error ? err.message : "署名の保存に失敗しました") +
+                "（シート自体は保存されました）"
+            );
+            router.push(`/identity-verifications/${result.id}`);
+            return;
+          }
+        }
         router.push(`/identity-verifications/${result.id}`);
       } else if (verificationId) {
         const result = await updateIdentityVerification(
@@ -226,6 +360,23 @@ export function VerificationForm({
           setError(result.error);
           return;
         }
+        // 編集時、pending 署名があればアップロード
+        if (pendingSignature) {
+          try {
+            const path = await commitPendingSignature(verificationId);
+            if (path) {
+              setExistingSignaturePath(path);
+              setExistingSignatureSignedAt(pendingSignature.signedAt);
+              setExistingSignatureLat(pendingSignature.latitude);
+              setExistingSignatureLng(pendingSignature.longitude);
+              setExistingSignatureAcc(pendingSignature.accuracy);
+              setPendingSignature(null);
+            }
+          } catch (err) {
+            setError(err instanceof Error ? err.message : "署名の保存に失敗しました");
+            return;
+          }
+        }
         router.refresh();
       }
     } catch (err) {
@@ -233,6 +384,24 @@ export function VerificationForm({
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleDeleteSignature = async () => {
+    if (!verificationId) return;
+    if (!confirm("署名を削除しますか？")) return;
+    setDeletingSignature(true);
+    const result = await deleteSignature(verificationId);
+    setDeletingSignature(false);
+    if (result.error) {
+      setError(result.error);
+      return;
+    }
+    setExistingSignaturePath(null);
+    setExistingSignatureSignedAt(null);
+    setExistingSignatureLat(null);
+    setExistingSignatureLng(null);
+    setExistingSignatureAcc(null);
+    setExistingSignatureUrl(null);
   };
 
   const handleDelete = async () => {
@@ -571,6 +740,135 @@ export function VerificationForm({
         </CardContent>
       </Card>
 
+      {/* 本人署名 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <PenLine className="h-5 w-5" />
+            本人署名 *
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {existingSignaturePath || pendingSignature ? (
+            <div className="space-y-3">
+              <div className="border rounded-md bg-white p-2 inline-block">
+                {pendingSignatureUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={pendingSignatureUrl}
+                    alt="署名（未保存）"
+                    className="max-h-40"
+                  />
+                ) : existingSignatureUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={existingSignatureUrl}
+                    alt="署名"
+                    className="max-h-40"
+                  />
+                ) : (
+                  <p className="text-sm text-muted-foreground p-4">
+                    署名を読み込み中...
+                  </p>
+                )}
+              </div>
+
+              {pendingSignature ? (
+                <div className="text-sm text-amber-700 bg-amber-50 rounded p-2">
+                  未保存の署名です（{format(parseISO(pendingSignature.signedAt), "yyyy/MM/dd HH:mm:ss", { locale: ja })} 署名）。
+                  フォームを保存すると確定します。
+                </div>
+              ) : (
+                existingSignatureSignedAt && (
+                  <div className="text-sm text-muted-foreground space-y-1">
+                    <div>
+                      署名日時:{" "}
+                      {format(
+                        parseISO(existingSignatureSignedAt),
+                        "yyyy/MM/dd HH:mm:ss",
+                        { locale: ja }
+                      )}
+                    </div>
+                    {existingSignatureLat !== null && existingSignatureLng !== null ? (
+                      <div className="flex items-center gap-1">
+                        <MapPin className="h-3.5 w-3.5" />
+                        <a
+                          href={`https://www.google.com/maps?q=${existingSignatureLat},${existingSignatureLng}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary hover:underline"
+                        >
+                          {existingSignatureLat.toFixed(6)}, {existingSignatureLng.toFixed(6)}
+                        </a>
+                        {existingSignatureAcc !== null && (
+                          <span className="text-xs">
+                            （誤差 ±{Math.round(existingSignatureAcc)}m）
+                          </span>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="text-xs">位置情報: 記録なし</div>
+                    )}
+                  </div>
+                )
+              )}
+
+              <div className="flex gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSignaturePadOpen(true)}
+                >
+                  <PenLine className="h-4 w-4 mr-1" />
+                  署名し直す
+                </Button>
+                {pendingSignature ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setPendingSignature(null)}
+                  >
+                    未保存の署名を破棄
+                  </Button>
+                ) : (
+                  mode === "edit" && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleDeleteSignature}
+                      disabled={deletingSignature}
+                      className="text-destructive"
+                    >
+                      {deletingSignature && (
+                        <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                      )}
+                      署名を削除
+                    </Button>
+                  )
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">
+                本人に画面上で署名してもらってください。保存時に日時と現在地を記録します。
+              </p>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setSignaturePadOpen(true)}
+              >
+                <PenLine className="h-4 w-4 mr-1" />
+                署名する
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* 事務所記入欄 */}
       <Card>
         <CardHeader>
@@ -588,12 +886,19 @@ export function VerificationForm({
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="recorderName">記入担当者</Label>
-              <Input
-                id="recorderName"
-                value={recorderName}
-                onChange={(e) => setRecorderName(e.target.value)}
-              />
+              <Label htmlFor="recorderId">記入担当者 *</Label>
+              <Select value={recorderId} onValueChange={setRecorderId}>
+                <SelectTrigger id="recorderId">
+                  <SelectValue placeholder="社員を選択" />
+                </SelectTrigger>
+                <SelectContent>
+                  {employees.map((emp) => (
+                    <SelectItem key={emp.id} value={emp.id}>
+                      {emp.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
@@ -793,6 +1098,15 @@ export function VerificationForm({
           保存
         </Button>
       </div>
+
+      <SignaturePad
+        open={signaturePadOpen}
+        onOpenChange={setSignaturePadOpen}
+        onSave={async (payload) => {
+          setPendingSignature(payload);
+          setSignaturePadOpen(false);
+        }}
+      />
     </div>
   );
 }

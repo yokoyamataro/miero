@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getIdentityVerification } from "../actions";
+import { getIdentityVerification, getEmployeesForRecorder } from "../actions";
 import { VerificationForm } from "../verification-form";
 
 export default async function IdentityVerificationDetailPage({
@@ -8,7 +8,10 @@ export default async function IdentityVerificationDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const verification = await getIdentityVerification(id);
+  const [verification, employees] = await Promise.all([
+    getIdentityVerification(id),
+    getEmployeesForRecorder(),
+  ]);
 
   if (!verification) {
     notFound();
@@ -25,6 +28,7 @@ export default async function IdentityVerificationDetailPage({
         initialData={rest}
         initialTransactions={transactions}
         initialDocuments={documents}
+        employees={employees}
       />
     </main>
   );

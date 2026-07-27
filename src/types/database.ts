@@ -645,9 +645,16 @@ export interface IdentityVerification {
   delivery_methods: string[];
   payment_method: string | null;
   is_not_antisocial: boolean;
+  // 本人署名
+  signature_storage_path: string | null;
+  signature_signed_at: string | null;
+  signature_latitude: number | null;
+  signature_longitude: number | null;
+  signature_accuracy: number | null;
   // 事務所記入欄
   recorded_date: string | null;
-  recorder_name: string | null;
+  recorder_id: string | null;   // 記入担当者（社員ID）
+  recorder_name: string | null; // 後方互換（未使用）
   document_types: string[];
   verification_methods: string[];
   // トークン（フェーズ2用、フェーズ1では未使用）
@@ -678,7 +685,13 @@ export interface IdentityVerificationInsert {
   delivery_methods?: string[];
   payment_method?: string | null;
   is_not_antisocial?: boolean;
+  signature_storage_path?: string | null;
+  signature_signed_at?: string | null;
+  signature_latitude?: number | null;
+  signature_longitude?: number | null;
+  signature_accuracy?: number | null;
   recorded_date?: string | null;
+  recorder_id?: string | null;
   recorder_name?: string | null;
   document_types?: string[];
   verification_methods?: string[];

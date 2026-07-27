@@ -309,3 +309,82 @@ export async function getDocumentSignedUrl(
   }
   return { url: data.signedUrl };
 }
+
+// 本人署名のメタ情報をDBに保存（画像自体はクライアントからStorageへ直接アップロード済み前提）
+export async function saveSignature(
+  verificationId: string,
+  storagePath: string,
+  signedAt: string,
+  latitude: number | null,
+  longitude: number | null,
+  accuracy: number | null
+): Promise<{ success?: boolean; error?: string }> {
+  const supabase = await createClient();
+  const employeeId = await getCurrentEmployeeIdInternal(supabase);
+  if (!employeeId) return { error: "ログインが必要です" };
+
+  const { error } = await supabase
+    .from("identity_verifications")
+    .update({
+      signature_storage_path: storagePath,
+      signature_signed_at: signedAt,
+      signature_latitude: latitude,
+      signature_longitude: longitude,
+      signature_accuracy: accuracy,
+    } as never)
+    .eq("id", verificationId);
+
+  if (error) {
+    console.error("Error saving signature:", error);
+    return { error: "署名の保存に失敗しました" };
+  }
+  revalidatePath(`/identity-verifications/${verificationId}`);
+  return { success: true };
+}
+
+// 本人署名を削除（Storageからも削除）
+export async function deleteSignature(
+  verificationId: string
+): Promise<{ success?: boolean; error?: string }> {
+  const supabase = await createClient();
+  const employeeId = await getCurrentEmployeeIdInternal(supabase);
+  if (!employeeId) return { error: "ログインが必要です" };
+
+  const { data: current } = await supabase
+    .from("identity_verifications")
+    .select("signature_storage_path")
+    .eq("id", verificationId)
+    .single();
+
+  const path = (current as { signature_storage_path: string | null } | null)
+    ?.signature_storage_path;
+  if (path) {
+    await supabase.storage.from(STORAGE_BUCKET).remove([path]);
+  }
+
+  const { error } = await supabase
+    .from("identity_verifications")
+    .update({
+      signature_storage_path: null,
+      signature_signed_at: null,
+      signature_latitude: null,
+      signature_longitude: null,
+      signature_accuracy: null,
+    } as never)
+    .eq("id", verificationId);
+
+  if (error) return { error: "削除に失敗しました" };
+
+  revalidatePath(`/identity-verifications/${verificationId}`);
+  return { success: true };
+}
+
+// 社員一覧（記入担当者プルダウン用）
+export async function getEmployeesForRecorder() {
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("employees")
+    .select("id, name")
+    .order("name");
+  return (data as { id: string; name: string }[]) || [];
+}
