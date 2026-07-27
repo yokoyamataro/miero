@@ -57,33 +57,63 @@ export function SignaturePad({ open, onOpenChange, onSave }: Props) {
 
   useEffect(() => {
     if (!open) return;
-    // モーダルが開くたびにキャンバスをリセット
     const canvas = canvasRef.current;
     if (!canvas) return;
-    // 高DPI対応: CSSサイズに合わせて内部解像度を上げる
-    const rect = canvas.getBoundingClientRect();
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = rect.width * dpr;
-    canvas.height = rect.height * dpr;
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.scale(dpr, dpr);
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, rect.width, rect.height);
-    ctx.strokeStyle = "#111827";
-    ctx.lineWidth = 2.5;
-    ctx.lineCap = "round";
-    ctx.lineJoin = "round";
+
     hasStrokeRef.current = false;
     setHasStroke(false);
     setError(null);
+
+    // Dialogのzoomアニメーションで CSSサイズが変わるので、ResizeObserverで追従して
+    // canvas 内部解像度を都度更新する。既に描画がある場合は再描画して失わないようにする。
+    let savedDataUrl: string | null = null;
+
+    const setupCanvas = () => {
+      const rect = canvas.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) return;
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.round(rect.width * dpr);
+      canvas.height = Math.round(rect.height * dpr);
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.scale(dpr, dpr);
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect(0, 0, rect.width, rect.height);
+      ctx.strokeStyle = "#111827";
+      ctx.lineWidth = 2.5;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      // 既存の描画を復元
+      if (savedDataUrl) {
+        const img = new window.Image();
+        img.onload = () => {
+          ctx.drawImage(img, 0, 0, rect.width, rect.height);
+        };
+        img.src = savedDataUrl;
+      }
+    };
+
+    setupCanvas();
+
+    const observer = new ResizeObserver(() => {
+      // 描画中はリサイズを反映しない（stroke が途切れないよう）
+      if (drawingRef.current) return;
+      // 描画済みなら退避してから再構築
+      if (hasStrokeRef.current) {
+        savedDataUrl = canvas.toDataURL("image/png");
+      }
+      setupCanvas();
+    });
+    observer.observe(canvas);
+
+    return () => observer.disconnect();
   }, [open]);
 
-  const getPos = (e: PointerEvent | React.PointerEvent) => {
+  const getPos = (e: React.PointerEvent) => {
     const canvas = canvasRef.current!;
     const rect = canvas.getBoundingClientRect();
-    return { x: e.clientX - rect.width * 0 - rect.left, y: e.clientY - rect.top };
+    return { x: e.clientX - rect.left, y: e.clientY - rect.top };
   };
 
   const handlePointerDown = (e: React.PointerEvent) => {
