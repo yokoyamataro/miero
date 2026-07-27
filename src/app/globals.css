@@ -73,4 +73,14 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /* iOS Safari は 16px 未満の input にフォーカスすると自動ズームしてレイアウトを崩すため、
+     iPad 以下の幅では 16px を強制する */
+  @media (max-width: 1024px) {
+    input,
+    select,
+    textarea {
+      font-size: 16px !important;
+    }
+  }
 }

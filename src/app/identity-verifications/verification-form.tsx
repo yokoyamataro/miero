@@ -52,6 +52,7 @@ import {
   getDocumentSignedUrl,
 } from "./actions";
 import { SignaturePad, type SignaturePadHandle } from "./signature-pad";
+import { JapaneseDatePicker } from "@/components/ui/japanese-date-picker";
 
 const STORAGE_BUCKET = "identity-documents";
 
@@ -560,11 +561,10 @@ export function VerificationForm({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="birthDate">生年月日</Label>
-              <Input
+              <JapaneseDatePicker
                 id="birthDate"
-                type="date"
-                value={birthDate}
-                onChange={(e) => setBirthDate(e.target.value)}
+                value={birthDate || null}
+                onChange={(v) => setBirthDate(v || "")}
               />
             </div>
             <div className="space-y-2">
@@ -916,8 +916,8 @@ export function VerificationForm({
 
           <div className="space-y-2">
             <Label>3. 受託事務</Label>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+            <div className="overflow-x-auto -mx-2 sm:mx-0">
+              <table className="w-full text-sm min-w-[600px]">
                 <thead>
                   <tr className="border-b bg-muted/50">
                     <th className="p-2 text-left w-12">#</th>
