@@ -56,7 +56,7 @@ import {
 } from "@/types/database";
 import { EventModal } from "./calendar/event-modal";
 import { EventDetailModal } from "./calendar/event-detail-modal";
-import { updateEvent, type CalendarLeaveInfo, type CalendarHolidayInfo } from "./calendar/actions";
+import { updateEvent, getEventsInRange, type CalendarLeaveInfo, type CalendarHolidayInfo } from "./calendar/actions";
 
 type ViewMode = "day" | "dayAll" | "fiveDay" | "fiveDayAll" | "month";
 type EmployeeFilter = "me" | "all" | string; // "me" = 自分のみ, "all" = 全員, string = 特定の社員ID
@@ -107,6 +107,40 @@ export function DashboardCalendar({
   useEffect(() => {
     setCurrentDate(new Date());
   }, []);
+
+  // 既にフェッチ済みのイベント範囲。currentDate が範囲外に出たら追加取得する。
+  // 初期範囲は SSR で取得済みの「今日中心の前月〜翌月」に合わせる。
+  const rangeRef = useRef<{ start: string; end: string }>({
+    start: format(subMonths(startOfMonth(new Date()), 1), "yyyy-MM-dd"),
+    end: format(addMonths(endOfMonth(new Date()), 1), "yyyy-MM-dd"),
+  });
+
+  useEffect(() => {
+    // 表示中の月の前後1ヶ月を「必要な範囲」とする
+    const desiredStart = format(
+      subMonths(startOfMonth(currentDate), 1),
+      "yyyy-MM-dd"
+    );
+    const desiredEnd = format(
+      addMonths(endOfMonth(currentDate), 1),
+      "yyyy-MM-dd"
+    );
+    const current = rangeRef.current;
+    if (desiredStart >= current.start && desiredEnd <= current.end) return;
+
+    const newStart = desiredStart < current.start ? desiredStart : current.start;
+    const newEnd = desiredEnd > current.end ? desiredEnd : current.end;
+
+    let cancelled = false;
+    getEventsInRange(newStart, newEnd).then((fetched) => {
+      if (cancelled) return;
+      setEvents(fetched);
+      rangeRef.current = { start: newStart, end: newEnd };
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [currentDate]);
   const [showEventModal, setShowEventModal] = useState(false);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEventWithParticipants | null>(null);
