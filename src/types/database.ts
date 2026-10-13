@@ -1367,3 +1367,45 @@ export function getFiscalYear(date: Date): number {
   const year = date.getFullYear();
   return month < 3 ? year - 1 : year; // 1-3月は前年度
 }
+
+// ============================================
+// Manual (業務マニュアル)
+// ============================================
+export interface Manual {
+  id: string;
+  title: string;
+  category: string | null;
+  body: string;
+  tags: string[];
+  is_published: boolean;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+}
+
+export interface ManualInsert {
+  id?: string;
+  title: string;
+  category?: string | null;
+  body?: string;
+  tags?: string[];
+  is_published?: boolean;
+  created_by?: string | null;
+}
+
+// マニュアル（作成者情報付き）
+export interface ManualWithAuthor extends Manual {
+  author: Employee | null;
+}
+
+// マニュアルのデフォルトカテゴリ（運用で増やせる）
+export const DEFAULT_MANUAL_CATEGORIES = [
+  "測量",
+  "登記",
+  "行政書士",
+  "総務",
+  "営業",
+  "システム",
+  "その他",
+];
