@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -145,8 +146,12 @@ export function HeaderAttendance({ initialAttendance, employeeId }: Props) {
   return (
     <>
       <div className="flex items-center gap-3">
-        {/* 現在時刻 */}
-        <div className="flex items-center gap-2">
+        {/* 現在時刻（クリックで自分のタイムカードへ） */}
+        <Link
+          href="/attendance"
+          className="flex items-center gap-2 hover:text-foreground hover:underline"
+          title="自分のタイムカードを見る"
+        >
           <Clock className="h-4 w-4 text-muted-foreground" />
           <div className="text-sm">
             <span className="font-bold tabular-nums">
@@ -156,7 +161,7 @@ export function HeaderAttendance({ initialAttendance, employeeId }: Props) {
               {format(currentTime, "M/d(E)", { locale: ja })}
             </span>
           </div>
-        </div>
+        </Link>
 
         {/* 勤務ステータス（Work以外は特別表示を優先） */}
         {isSpecialStatus ? (

@@ -190,6 +190,109 @@ export async function updateTodayAttendanceDetail(data: {
   return { success: true };
 }
 
+// =============================================
+// 自分のタイムカード（月次履歴 + サマリー）
+// =============================================
+
+export interface AttendanceRow {
+  id: string;
+  date: string;
+  clock_in: string | null;
+  clock_out: string | null;
+  break_minutes: number;
+  status: AttendanceStatus;
+  note: string | null;
+}
+
+export interface MonthlySummary {
+  workDays: number;
+  holidayWorkDays: number;
+  paidLeaveDays: number;
+  absenceDays: number;
+  totalWorkMinutes: number;
+  totalBreakMinutes: number;
+}
+
+function emptySummary(): MonthlySummary {
+  return {
+    workDays: 0,
+    holidayWorkDays: 0,
+    paidLeaveDays: 0,
+    absenceDays: 0,
+    totalWorkMinutes: 0,
+    totalBreakMinutes: 0,
+  };
+}
+
+export async function getMyMonthlyAttendance(
+  year: number,
+  month: number
+): Promise<{ rows: AttendanceRow[]; summary: MonthlySummary }> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return { rows: [], summary: emptySummary() };
+
+  const { data: employee } = await supabase
+    .from("employees")
+    .select("id")
+    .eq("auth_id", user.id)
+    .maybeSingle();
+
+  const employeeId = (employee as { id: string } | null)?.id;
+  if (!employeeId) return { rows: [], summary: emptySummary() };
+
+  const startDate = `${year}-${String(month).padStart(2, "0")}-01`;
+  const lastDay = new Date(year, month, 0).getDate();
+  const endDate = `${year}-${String(month).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`;
+
+  const { data, error } = await supabase
+    .from("attendance_daily")
+    .select("id, date, clock_in, clock_out, break_minutes, status, note")
+    .eq("employee_id", employeeId)
+    .gte("date", startDate)
+    .lte("date", endDate)
+    .order("date", { ascending: true });
+
+  if (error) {
+    console.error("Error fetching monthly attendance:", error);
+    return { rows: [], summary: emptySummary() };
+  }
+
+  const rows = (data || []) as AttendanceRow[];
+
+  const summary: MonthlySummary = emptySummary();
+  for (const r of rows) {
+    switch (r.status) {
+      case "Work":
+        if (r.clock_in && r.clock_out) summary.workDays += 1;
+        break;
+      case "HolidayWork":
+        if (r.clock_in && r.clock_out) summary.holidayWorkDays += 1;
+        break;
+      case "PaidLeave":
+        summary.paidLeaveDays += 1;
+        break;
+      case "Absence":
+        summary.absenceDays += 1;
+        break;
+    }
+
+    if (r.clock_in && r.clock_out) {
+      const inMs = new Date(r.clock_in).getTime();
+      const outMs = new Date(r.clock_out).getTime();
+      const totalMin = Math.max(0, Math.floor((outMs - inMs) / 60000));
+      const breakMin = r.break_minutes ?? 0;
+      summary.totalWorkMinutes += Math.max(0, totalMin - breakMin);
+      summary.totalBreakMinutes += breakMin;
+    }
+  }
+
+  return { rows, summary };
+}
+
 // 退勤取消
 export async function cancelClockOut() {
   const supabase = await createClient();
