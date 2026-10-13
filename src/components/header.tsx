@@ -42,11 +42,11 @@ const navItems = [
   { href: "/invoices", label: "請求", icon: Receipt },
   { href: "/identity-verifications", label: "本人確認", icon: IdCard },
   { href: "/manuals", label: "マニュアル", icon: BookOpen },
-  { href: "/skills", label: "スキル", icon: Target },
   { href: "/leaves", label: "休暇", icon: CalendarDays },
 ];
 
 const adminNavItems = [
+  { href: "/skills", label: "スキル", icon: Target },
   { href: "/employees", label: "社員", icon: Users },
   { href: "/settings/standard-tasks", label: "標準業務", icon: Settings },
   { href: "/settings/work-calendars", label: "カレンダー設定", icon: CalendarCog },

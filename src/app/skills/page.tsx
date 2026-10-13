@@ -30,6 +30,11 @@ export default async function SkillsPage({
 
   const isAdmin = (me as { role: string } | null)?.role === "admin";
 
+  // 当面は管理者のみ利用可能
+  if (!isAdmin) {
+    redirect("/");
+  }
+
   const [categories, employees, allSkills] = await Promise.all([
     getSkillCategoriesWithItems(),
     getEmployees(),
