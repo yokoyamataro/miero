@@ -70,14 +70,6 @@ export async function clockIn() {
       .eq("id", existing.id);
 
     if (error) return { error: error.message };
-
-    // 再出勤の場合は工数ログも削除
-    if (existing.clock_out) {
-      await supabase
-        .from("work_logs")
-        .delete()
-        .eq("attendance_id", existing.id);
-    }
   } else {
     // 新規レコードを作成
     const { error } = await supabase
@@ -137,53 +129,65 @@ export async function clockOut() {
   if (error) return { error: error.message };
 
   revalidatePath("/");
-  return { success: true, attendanceId: existing.id };
-}
-
-// 工数を保存
-export async function saveWorkLogs(
-  attendanceId: string,
-  logs: { projectId: string; minutes: number; comment?: string }[]
-) {
-  const supabase = await createClient();
-
-  // 既存の工数ログを削除
-  await supabase
-    .from("work_logs")
-    .delete()
-    .eq("attendance_id", attendanceId);
-
-  // 新しい工数ログを挿入
-  const inserts = logs.map((log) => ({
-    attendance_id: attendanceId,
-    project_id: log.projectId,
-    minutes: log.minutes,
-    comment: log.comment || null,
-  }));
-
-  const { error } = await supabase
-    .from("work_logs")
-    .insert(inserts);
-
-  if (error) return { error: error.message };
-
-  revalidatePath("/");
   return { success: true };
 }
 
-// 進行中の業務を取得
-export async function getActiveProjects() {
+// 勤怠詳細を更新（休憩/備考/ステータス）
+// 本日のレコードが存在しない場合は新規作成
+export type AttendanceStatus = "Work" | "PaidLeave" | "Absence" | "HolidayWork";
+
+export async function updateTodayAttendanceDetail(data: {
+  breakMinutes?: number;
+  note?: string | null;
+  status?: AttendanceStatus;
+}) {
   const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
 
-  const { data: projects, error } = await supabase
-    .from("projects")
-    .select("id, code, name, status")
-    .in("status", ["受注", "着手", "進行中"])
-    .is("deleted_at", null)
-    .order("code", { ascending: false });
+  if (!user) return { error: "ログインが必要です" };
 
-  if (error) return { error: error.message };
-  return { projects };
+  const { data: employee } = await supabase
+    .from("employees")
+    .select("id")
+    .eq("auth_id", user.id)
+    .single();
+
+  if (!employee) return { error: "社員情報が見つかりません" };
+
+  const today = new Date().toISOString().split("T")[0];
+
+  const { data: existing } = await supabase
+    .from("attendance_daily")
+    .select("id")
+    .eq("employee_id", employee.id)
+    .eq("date", today)
+    .maybeSingle();
+
+  const payload: Record<string, unknown> = {};
+  if (data.breakMinutes !== undefined) payload.break_minutes = data.breakMinutes;
+  if (data.note !== undefined) payload.note = data.note;
+  if (data.status !== undefined) payload.status = data.status;
+
+  if (existing) {
+    const { error } = await supabase
+      .from("attendance_daily")
+      .update(payload)
+      .eq("id", existing.id);
+    if (error) return { error: error.message };
+  } else {
+    // 新規作成（打刻前にステータス変更/備考を入れたいケース）
+    const { error } = await supabase.from("attendance_daily").insert({
+      employee_id: employee.id,
+      date: today,
+      status: data.status ?? "Work",
+      break_minutes: data.breakMinutes ?? 0,
+      note: data.note ?? null,
+    });
+    if (error) return { error: error.message };
+  }
+
+  revalidatePath("/");
+  return { success: true };
 }
 
 // 退勤取消
@@ -214,13 +218,6 @@ export async function cancelClockOut() {
     return { error: "退勤打刻がありません" };
   }
 
-  // 工数ログも削除
-  await supabase
-    .from("work_logs")
-    .delete()
-    .eq("attendance_id", existing.id);
-
-  // 退勤時刻をクリア
   const { error } = await supabase
     .from("attendance_daily")
     .update({ clock_out: null })

@@ -26,7 +26,7 @@ import { ja } from "date-fns/locale";
 import { LogoutButton } from "./logout-button";
 import { MobileSwitchButton } from "./mobile-switch-button";
 import { getPendingLeavesCount } from "@/app/leaves/actions";
-// import { HeaderAttendance } from "./header-attendance"; // 一時的に非表示
+import { HeaderAttendance } from "./header-attendance";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -67,9 +67,16 @@ export async function Header() {
   let employeeName = "";
   let isAdmin = false;
   let pendingLeavesCount = 0;
-  // 一時的に非表示
-  // let employeeId: string | null = null;
-  // let attendance: { id: string; clock_in: string | null; clock_out: string | null; date: string } | null = null;
+  let employeeId: string | null = null;
+  let attendance: {
+    id: string;
+    clock_in: string | null;
+    clock_out: string | null;
+    date: string;
+    break_minutes: number | null;
+    status: string | null;
+    note: string | null;
+  } | null = null;
 
   // ビルド時刻を取得（UTC→日本時間+9時間）
   const buildTimeUtc = process.env.NEXT_PUBLIC_BUILD_TIME
@@ -86,22 +93,22 @@ export async function Header() {
       .single();
     employeeName = employee?.name || "";
     isAdmin = employee?.role === "admin";
+    employeeId = employee?.id || null;
     if (isAdmin) {
       pendingLeavesCount = await getPendingLeavesCount();
     }
-    // employeeId = employee?.id || null; // 一時的に非表示
 
-    // 今日の勤怠データを取得 - 一時的に非表示
-    // if (employeeId) {
-    //   const today = format(new Date(), "yyyy-MM-dd");
-    //   const { data: attendanceData } = await supabase
-    //     .from("attendances")
-    //     .select("id, clock_in, clock_out, date")
-    //     .eq("employee_id", employeeId)
-    //     .eq("date", today)
-    //     .single();
-    //   attendance = attendanceData;
-    // }
+    // 今日の勤怠データを取得
+    if (employeeId) {
+      const today = format(new Date(), "yyyy-MM-dd");
+      const { data: attendanceData } = await supabase
+        .from("attendance_daily")
+        .select("id, clock_in, clock_out, date, break_minutes, status, note")
+        .eq("employee_id", employeeId)
+        .eq("date", today)
+        .maybeSingle();
+      attendance = attendanceData;
+    }
   }
 
   return (
@@ -161,15 +168,15 @@ export async function Header() {
 
           {/* 右側：出勤・ユーザー情報 */}
           <div className="flex items-center gap-4">
-            {/* 出勤UI（デスクトップ）- 一時的に非表示 */}
-            {/* {user && employeeId && (
+            {/* 出勤UI（デスクトップ） */}
+            {user && employeeId && (
               <div className="hidden md:block">
                 <HeaderAttendance
                   initialAttendance={attendance}
                   employeeId={employeeId}
                 />
               </div>
-            )} */}
+            )}
 
             {/* デスクトップ表示 */}
             {user && (

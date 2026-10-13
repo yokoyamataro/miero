@@ -1518,3 +1518,35 @@ export interface EmployeeSkillInsert {
 export interface SkillCategoryWithItems extends SkillCategory {
   items: SkillItem[];
 }
+
+// ============================================
+// Attendance (勤怠)
+// ============================================
+
+export type AttendanceStatus = "Work" | "PaidLeave" | "Absence" | "HolidayWork";
+
+export const ATTENDANCE_STATUS_LABELS: Record<AttendanceStatus, string> = {
+  Work: "通常勤務",
+  PaidLeave: "有給休暇",
+  Absence: "欠勤",
+  HolidayWork: "休日出勤",
+};
+
+export const ATTENDANCE_STATUS_COLORS: Record<AttendanceStatus, string> = {
+  Work: "bg-gray-100 text-gray-700",
+  PaidLeave: "bg-yellow-100 text-yellow-800",
+  Absence: "bg-red-100 text-red-700",
+  HolidayWork: "bg-purple-100 text-purple-700",
+};
+
+export interface AttendanceDaily {
+  id: string;
+  employee_id: string;
+  date: string;
+  clock_in: string | null;
+  clock_out: string | null;
+  break_minutes: number;
+  status: AttendanceStatus;
+  note: string | null;
+  created_at: string;
+}
