@@ -1409,3 +1409,112 @@ export const DEFAULT_MANUAL_CATEGORIES = [
   "システム",
   "その他",
 ];
+
+// ============================================
+// Skill Map (スキルマップ)
+// ============================================
+
+// スキルレベル定義
+export type SkillLevel = 0 | 1 | 2 | 3 | 4;
+
+export interface SkillLevelDefinition {
+  level: SkillLevel;
+  label: string;
+  description: string;
+  color: string; // Tailwind color class
+  bgColor: string;
+}
+
+export const SKILL_LEVELS: SkillLevelDefinition[] = [
+  {
+    level: 0,
+    label: "未経験",
+    description: "未経験・知識なし",
+    color: "text-gray-500",
+    bgColor: "bg-gray-100",
+  },
+  {
+    level: 1,
+    label: "指導付",
+    description: "標準的な案件を、指導を受けながらできる",
+    color: "text-red-700",
+    bgColor: "bg-red-100",
+  },
+  {
+    level: 2,
+    label: "自立",
+    description: "標準的な案件を、一人でできる",
+    color: "text-yellow-800",
+    bgColor: "bg-yellow-100",
+  },
+  {
+    level: 3,
+    label: "応用",
+    description: "複雑・例外的な案件も、一人でできる",
+    color: "text-green-800",
+    bgColor: "bg-green-100",
+  },
+  {
+    level: 4,
+    label: "指導可",
+    description: "人に教えられる・業務を改善できる",
+    color: "text-blue-800",
+    bgColor: "bg-blue-100",
+  },
+];
+
+export interface SkillCategory {
+  id: string;
+  name: string;
+  description: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SkillCategoryInsert {
+  id?: string;
+  name: string;
+  description?: string | null;
+  sort_order?: number;
+}
+
+export interface SkillItem {
+  id: string;
+  category_id: string;
+  name: string;
+  description: string | null;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SkillItemInsert {
+  id?: string;
+  category_id: string;
+  name: string;
+  description?: string | null;
+  sort_order?: number;
+}
+
+export interface EmployeeSkill {
+  employee_id: string;
+  skill_item_id: string;
+  level: SkillLevel;
+  note: string | null;
+  updated_at: string;
+  updated_by: string | null;
+}
+
+export interface EmployeeSkillInsert {
+  employee_id: string;
+  skill_item_id: string;
+  level: SkillLevel;
+  note?: string | null;
+  updated_by?: string | null;
+}
+
+// カテゴリ + 項目を含む型
+export interface SkillCategoryWithItems extends SkillCategory {
+  items: SkillItem[];
+}

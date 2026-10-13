@@ -19,6 +19,7 @@ import {
   ChevronDown,
   IdCard,
   BookOpen,
+  Target,
 } from "lucide-react";
 import { format, addHours } from "date-fns";
 import { ja } from "date-fns/locale";
@@ -41,6 +42,7 @@ const navItems = [
   { href: "/invoices", label: "請求", icon: Receipt },
   { href: "/identity-verifications", label: "本人確認", icon: IdCard },
   { href: "/manuals", label: "マニュアル", icon: BookOpen },
+  { href: "/skills", label: "スキル", icon: Target },
   { href: "/leaves", label: "休暇", icon: CalendarDays },
 ];
 
