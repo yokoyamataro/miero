@@ -40,12 +40,12 @@ const navItems = [
   { href: "/projects", label: "業務", icon: FolderKanban },
   { href: "/customers", label: "顧客", icon: UserCircle },
   { href: "/invoices", label: "請求", icon: Receipt },
-  { href: "/identity-verifications", label: "本人確認", icon: IdCard },
   { href: "/manuals", label: "マニュアル", icon: BookOpen },
   { href: "/leaves", label: "休暇", icon: CalendarDays },
 ];
 
 const adminNavItems = [
+  { href: "/identity-verifications", label: "本人確認", icon: IdCard },
   { href: "/skills", label: "スキル", icon: Target },
   { href: "/employees", label: "社員", icon: Users },
   { href: "/settings/standard-tasks", label: "標準業務", icon: Settings },

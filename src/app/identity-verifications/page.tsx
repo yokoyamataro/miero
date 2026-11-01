@@ -1,10 +1,29 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
+import { createClient } from "@/lib/supabase/server";
 import { getIdentityVerifications } from "./actions";
 import { VerificationList } from "./list-view";
 
 export default async function IdentityVerificationsPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) redirect("/login");
+
+  const { data: me } = await supabase
+    .from("employees")
+    .select("role")
+    .eq("auth_id", user.id)
+    .maybeSingle();
+
+  // 当面は管理者のみ利用可能
+  if ((me as { role: string } | null)?.role !== "admin") {
+    redirect("/");
+  }
+
   const verifications = await getIdentityVerifications();
 
   return (
