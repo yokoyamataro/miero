@@ -33,7 +33,7 @@ import { Building2, User, FileText, UserMinus, Merge, Loader2, Search } from "lu
 import { Button } from "@/components/ui/button";
 import { DocumentTab } from "./document-tab";
 import { convertAccountToIndividual, mergeAccounts } from "@/app/accounts/actions";
-import type { Account, Contact, Employee, DocumentTemplate, Branch } from "@/types/database";
+import type { Account, Contact, Employee, DocumentTemplate } from "@/types/database";
 
 // 五十音インデックス
 const AIUEO_INDEX = [
@@ -91,7 +91,6 @@ interface CustomerTabsProps {
   allContacts: Contact[];
   employees: Employee[];
   templates: DocumentTemplate[];
-  branches: Branch[];
   currentEmployeeId: string | null;
 }
 
@@ -101,7 +100,6 @@ export function CustomerTabs({
   allContacts,
   employees,
   templates,
-  branches,
   currentEmployeeId,
 }: CustomerTabsProps) {
   const router = useRouter();
@@ -536,7 +534,6 @@ export function CustomerTabs({
           allContacts={allContacts}
           individuals={individuals}
           employees={employees}
-          branches={branches}
           currentEmployeeId={currentEmployeeId}
         />
       </TabsContent>

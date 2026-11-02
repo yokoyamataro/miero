@@ -4,7 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import { CustomerTabs } from "./customer-tabs";
-import type { Account, Contact, Employee, DocumentTemplate, Branch } from "@/types/database";
+import type { Account, Contact, Employee, DocumentTemplate } from "@/types/database";
 
 export default async function CustomersPage() {
   const supabase = await createClient();
@@ -28,16 +28,9 @@ export default async function CustomersPage() {
   // 法人一覧を取得（支店も含む）
   const { data: accounts } = await supabase
     .from("accounts" as never)
-    .select("*, contacts(*), branches(*)")
+    .select("*, contacts(*)")
     .is("deleted_at", null)
     .order("company_name_kana");
-
-  // 支店一覧を取得
-  const { data: branches } = await supabase
-    .from("branches" as never)
-    .select("*")
-    .is("deleted_at", null)
-    .order("name");
 
   // 個人顧客一覧を取得（account_idがnullのcontacts）
   const { data: individuals } = await supabase
@@ -92,7 +85,6 @@ export default async function CustomersPage() {
         allContacts={(allContacts || []) as Contact[]}
         employees={(employees || []) as Employee[]}
         templates={(templates || []) as DocumentTemplate[]}
-        branches={(branches || []) as Branch[]}
         currentEmployeeId={currentEmployeeId}
       />
     </main>

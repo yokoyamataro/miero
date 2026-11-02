@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Plus, X, Star, Building, Search, ChevronLeft } from "lucide-react";
+import { Loader2, Plus, X, Star, Search, ChevronLeft } from "lucide-react";
 import type { Industry } from "@/types/database";
 import { estimatePostalCode, lookupAddressByPostalCode } from "@/lib/ai/postal-code";
 
@@ -90,19 +90,6 @@ export interface ContactFormData {
   department: string | null;
   position: string | null;
   is_primary: boolean;
-  branch_id: string | null;
-}
-
-export interface BranchFormData {
-  id?: string;
-  name: string;
-  phone: string | null;
-  fax: string | null;
-  postal_code: string | null;
-  prefecture: string | null;
-  city: string | null;
-  street: string | null;
-  building: string | null;
 }
 
 interface IndividualContactFormData {
@@ -425,8 +412,7 @@ interface AddAccountModalProps {
   industries: Industry[];
   createAccount: (
     data: AccountFormData,
-    contacts: ContactFormData[],
-    branches: BranchFormData[]
+    contacts: ContactFormData[]
   ) => Promise<{ error?: string; accountId?: string; primaryContactId?: string }>;
 }
 
@@ -469,11 +455,8 @@ export function AddAccountModal({
       department: null,
       position: null,
       is_primary: true,
-      branch_id: null,
     },
   ]);
-
-  const [branches, setBranches] = useState<BranchFormData[]>([]);
 
   const resetForm = () => {
     setAccountData({
@@ -501,10 +484,8 @@ export function AddAccountModal({
         department: null,
         position: null,
         is_primary: true,
-        branch_id: null,
       },
     ]);
-    setBranches([]);
     setIndustry("");
     setError(null);
   };
@@ -528,7 +509,6 @@ export function AddAccountModal({
         department: null,
         position: null,
         is_primary: false,
-        branch_id: null,
       },
     ]);
   };
@@ -562,44 +542,6 @@ export function AddAccountModal({
       });
       return newContacts;
     });
-  };
-
-  // 支店の追加
-  const addBranch = () => {
-    setBranches([
-      ...branches,
-      {
-        id: `temp-${Date.now()}`,
-        name: "",
-        phone: null,
-        fax: null,
-        postal_code: null,
-        prefecture: null,
-        city: null,
-        street: null,
-        building: null,
-      },
-    ]);
-  };
-
-  // 支店の削除
-  const removeBranch = (index: number) => {
-    const branchId = branches[index].id;
-    setBranches(branches.filter((_, i) => i !== index));
-    setContacts((prev) =>
-      prev.map((c) => (c.branch_id === branchId ? { ...c, branch_id: null } : c))
-    );
-  };
-
-  // 支店の更新
-  const updateBranch = (
-    index: number,
-    field: keyof BranchFormData,
-    value: string | null
-  ) => {
-    setBranches((prev) =>
-      prev.map((b, i) => (i === index ? { ...b, [field]: value } : b))
-    );
   };
 
   // 住所から郵便番号を推定
@@ -670,11 +612,10 @@ export function AddAccountModal({
     const validContacts = contacts.filter(
       (c) => c.last_name.trim() !== "" || c.first_name.trim() !== ""
     );
-    const validBranches = branches.filter((b) => b.name.trim() !== "");
 
     startTransition(async () => {
       const dataWithIndustry = { ...accountData, industry: industry || null };
-      const result = await createAccount(dataWithIndustry, validContacts, validBranches);
+      const result = await createAccount(dataWithIndustry, validContacts);
       if (result.error) {
         setError(result.error);
       } else if (result.primaryContactId && result.accountId) {
@@ -864,74 +805,6 @@ export function AddAccountModal({
             </div>
           </div>
 
-          {/* 支店セクション */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between border-b pb-2">
-              <h3 className="font-medium">支店</h3>
-              <Button type="button" variant="outline" size="sm" onClick={addBranch}>
-                <Plus className="h-4 w-4 mr-1" />
-                支店を追加
-              </Button>
-            </div>
-            {branches.length === 0 ? (
-              <p className="text-muted-foreground text-sm text-center py-2">
-                支店がありません
-              </p>
-            ) : (
-              branches.map((branch, index) => (
-                <div
-                  key={branch.id || index}
-                  className="border rounded-lg p-4 space-y-3 relative"
-                >
-                  <div className="flex justify-between items-start">
-                    <div className="flex items-center gap-2">
-                      <Building className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm font-medium">
-                        {branch.name || "（支店名未入力）"}
-                      </span>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeBranch(index)}
-                      className="text-destructive hover:text-destructive h-6 w-6 p-0"
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <div>
-                      <Label className="text-xs">支店名 *</Label>
-                      <Input
-                        placeholder="例: 札幌支店"
-                        value={branch.name}
-                        onChange={(e) => updateBranch(index, "name", e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-xs">電話番号</Label>
-                      <Input
-                        placeholder="例: 011-9999-8888"
-                        value={branch.phone || ""}
-                        onChange={(e) => updateBranch(index, "phone", e.target.value || null)}
-                      />
-                    </div>
-                    <div>
-                      <Label className="text-xs">FAX番号</Label>
-                      <Input
-                        placeholder="例: 011-9999-8889"
-                        value={branch.fax || ""}
-                        onChange={(e) => updateBranch(index, "fax", e.target.value || null)}
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-
           {/* 担当者セクション */}
           <div className="space-y-4">
             <div className="flex items-center justify-between border-b pb-2">
@@ -1022,30 +895,7 @@ export function AddAccountModal({
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div>
-                      <Label className="text-xs">所属支店</Label>
-                      <Select
-                        value={contact.branch_id || "none"}
-                        onValueChange={(value) =>
-                          updateContact(index, "branch_id", value === "none" ? null : value)
-                        }
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="本社" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">本社</SelectItem>
-                          {branches
-                            .filter((b) => b.name.trim() !== "")
-                            .map((branch) => (
-                              <SelectItem key={branch.id} value={branch.id || ""}>
-                                {branch.name}
-                              </SelectItem>
-                            ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+                  <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                     <div>
                       <Label className="text-xs">部署</Label>
                       <Input

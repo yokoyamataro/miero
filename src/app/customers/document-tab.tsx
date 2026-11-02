@@ -28,7 +28,7 @@ import { format } from "date-fns";
 import Docxtemplater from "docxtemplater";
 import PizZip from "pizzip";
 import { createClient } from "@/lib/supabase/client";
-import type { DocumentTemplate, Account, Contact, Employee, Branch } from "@/types/database";
+import type { DocumentTemplate, Account, Contact, Employee } from "@/types/database";
 import { generateDocument } from "./document-actions";
 
 interface DocumentTabProps {
@@ -37,7 +37,6 @@ interface DocumentTabProps {
   allContacts: Contact[];
   individuals: Contact[];
   employees: Employee[];
-  branches: Branch[];
   currentEmployeeId: string | null;
 }
 
@@ -47,7 +46,6 @@ export function DocumentTab({
   allContacts,
   individuals,
   employees,
-  branches,
   currentEmployeeId,
 }: DocumentTabProps) {
   const router = useRouter();
@@ -58,7 +56,6 @@ export function DocumentTab({
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
   const [recipientType, setRecipientType] = useState<"account" | "contact">("account");
   const [selectedRecipientId, setSelectedRecipientId] = useState<string>("");
-  const [selectedBranchId, setSelectedBranchId] = useState<string>("");
   const [selectedContactId, setSelectedContactId] = useState<string>("");
   const [selectedSenderId, setSelectedSenderId] = useState<string>(currentEmployeeId || "");
   const [useToday, setUseToday] = useState(true);
@@ -155,21 +152,9 @@ export function DocumentTab({
       : `${contact.last_name} ${contact.first_name}`;
   }, [recipientType, selectedRecipientId, individuals, allContacts, accounts]);
 
-  // 選択中の法人に紐づく支店一覧
-  const availableBranches = recipientType === "account" && selectedRecipientId
-    ? branches.filter(b => b.account_id === selectedRecipientId)
-    : [];
-
-  // 選択中の法人（または支店）に紐づく担当者一覧
+  // 選択中の法人に紐づく担当者一覧
   const availableContacts = recipientType === "account" && selectedRecipientId
-    ? allContacts.filter(c => {
-        if (c.account_id !== selectedRecipientId) return false;
-        // 支店が選択されている場合はその支店の担当者のみ
-        if (selectedBranchId) {
-          return c.branch_id === selectedBranchId;
-        }
-        return true;
-      })
+    ? allContacts.filter(c => c.account_id === selectedRecipientId)
     : [];
 
   // 生成処理
@@ -188,7 +173,6 @@ export function DocumentTab({
         templateId: selectedTemplateId,
         recipientType,
         recipientId: selectedRecipientId,
-        branchId: selectedBranchId || undefined,
         contactId: selectedContactId || undefined,
         senderId: selectedSenderId,
         documentDate: useToday ? format(new Date(), "yyyy-MM-dd") : documentDate,
@@ -408,7 +392,6 @@ export function DocumentTab({
                 onChange={() => {
                   setRecipientType("account");
                   setSelectedRecipientId("");
-                  setSelectedBranchId("");
                   setSelectedContactId("");
                 }}
                 className="w-4 h-4"
@@ -424,7 +407,6 @@ export function DocumentTab({
                 onChange={() => {
                   setRecipientType("contact");
                   setSelectedRecipientId("");
-                  setSelectedBranchId("");
                   setSelectedContactId("");
                 }}
                 className="w-4 h-4"
@@ -451,7 +433,6 @@ export function DocumentTab({
                     setShowAccountDropdown(true);
                     if (!e.target.value) {
                       setSelectedRecipientId("");
-                      setSelectedBranchId("");
                       setSelectedContactId("");
                     }
                   }}
@@ -463,7 +444,6 @@ export function DocumentTab({
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                     onClick={() => {
                       setSelectedRecipientId("");
-                      setSelectedBranchId("");
                       setSelectedContactId("");
                       setAccountSearchQuery("");
                     }}
@@ -483,7 +463,6 @@ export function DocumentTab({
                       }`}
                       onClick={() => {
                         setSelectedRecipientId(account.id);
-                        setSelectedBranchId("");
                         setSelectedContactId("");
                         setAccountSearchQuery("");
                         setShowAccountDropdown(false);
@@ -564,29 +543,6 @@ export function DocumentTab({
             </div>
           )}
         </div>
-
-        {/* 支店選択（法人選択時のみ、支店がある場合のみ表示） */}
-        {recipientType === "account" && selectedRecipientId && availableBranches.length > 0 && (
-          <div className="space-y-2">
-            <Label>支店</Label>
-            <Select value={selectedBranchId || "__none__"} onValueChange={(v) => {
-              setSelectedBranchId(v === "__none__" ? "" : v);
-              setSelectedContactId("");
-            }}>
-              <SelectTrigger>
-                <SelectValue placeholder="支店を選択（任意）" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">本社</SelectItem>
-                {availableBranches.map((b) => (
-                  <SelectItem key={b.id} value={b.id}>
-                    {b.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
 
         {/* 担当者選択（法人選択時のみ、担当者がいる場合のみ表示） */}
         {recipientType === "account" && selectedRecipientId && availableContacts.length > 0 && (
@@ -692,12 +648,6 @@ export function DocumentTab({
             <span>{"{{宛先_郵便番号}}"}</span>
             <span>{"{{宛先_住所}}"}</span>
             <span>{"{{敬称}}"} <span className="text-xs">（様/御中）</span></span>
-            <span className="font-medium col-span-2 mt-2">【支店】</span>
-            <span>{"{{支店名}}"}</span>
-            <span>{"{{支店_電話}}"}</span>
-            <span>{"{{支店_FAX}}"}</span>
-            <span>{"{{支店_郵便番号}}"}</span>
-            <span>{"{{支店_住所}}"}</span>
             <span className="font-medium col-span-2 mt-2">【担当者】</span>
             <span>{"{{担当者_氏名}}"}</span>
             <span>{"{{担当者_氏名様}}"}</span>

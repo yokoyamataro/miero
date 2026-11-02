@@ -2,7 +2,7 @@
 
 import { createClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import type { AccountInsert, ContactInsert, AccountWithContacts, Industry, IndustryInsert, Branch, Project } from "@/types/database";
+import type { AccountInsert, ContactInsert, AccountWithContacts, Industry, IndustryInsert, Project } from "@/types/database";
 import { DEFAULT_INDUSTRIES } from "@/types/database";
 
 // 関連業務の型
@@ -44,19 +44,6 @@ export interface ContactFormData {
   department: string | null;
   position: string | null;
   is_primary: boolean;
-  branch_id: string | null;
-}
-
-export interface BranchFormData {
-  id?: string;
-  name: string;
-  phone: string | null;
-  fax: string | null;
-  postal_code: string | null;
-  prefecture: string | null;
-  city: string | null;
-  street: string | null;
-  building: string | null;
 }
 
 export async function getAccountById(id: string): Promise<AccountWithContacts | null> {
@@ -86,28 +73,15 @@ export async function getAccountById(id: string): Promise<AccountWithContacts | 
     console.error("Error fetching contacts:", contactsError);
   }
 
-  const { data: branches, error: branchesError } = await supabase
-    .from("branches" as never)
-    .select("*")
-    .eq("account_id", id)
-    .is("deleted_at", null)
-    .order("name");
-
-  if (branchesError) {
-    console.error("Error fetching branches:", branchesError);
-  }
-
   return {
     ...(account as AccountWithContacts),
     contacts: (contacts || []) as AccountWithContacts["contacts"],
-    branches: (branches || []) as Branch[],
   };
 }
 
 export async function createAccount(
   data: AccountFormData,
-  contacts: ContactFormData[],
-  branches: BranchFormData[]
+  contacts: ContactFormData[]
 ) {
   const supabase = await createClient();
 
@@ -139,44 +113,11 @@ export async function createAccount(
 
   const accountId = (account as { id: string }).id;
 
-  // 支店を作成し、IDのマッピングを保持
-  const branchIdMap: Record<string, string> = {};
-  if (branches.length > 0) {
-    for (const branch of branches) {
-      const { data: newBranch, error: branchError } = await supabase
-        .from("branches" as never)
-        .insert({
-          account_id: accountId,
-          name: branch.name,
-          phone: branch.phone || null,
-          fax: branch.fax || null,
-          postal_code: branch.postal_code || null,
-          prefecture: branch.prefecture || null,
-          city: branch.city || null,
-          street: branch.street || null,
-          building: branch.building || null,
-        } as never)
-        .select()
-        .single();
-
-      if (branchError) {
-        console.error("Error creating branch:", branchError);
-        return { error: branchError.message };
-      }
-
-      // 一時IDから実際のIDへのマッピング
-      if (branch.id && newBranch) {
-        branchIdMap[branch.id] = (newBranch as { id: string }).id;
-      }
-    }
-  }
-
   let primaryContactId: string | null = null;
 
   if (contacts.length > 0) {
     const contactsToInsert = contacts.map((c) => ({
       account_id: accountId,
-      branch_id: c.branch_id ? branchIdMap[c.branch_id] || null : null,
       last_name: c.last_name,
       first_name: c.first_name,
       last_name_kana: c.last_name_kana || null,
@@ -214,8 +155,7 @@ export async function createAccount(
 export async function updateAccount(
   id: string,
   data: AccountFormData,
-  contacts: ContactFormData[],
-  branches: BranchFormData[]
+  contacts: ContactFormData[]
 ) {
   const supabase = await createClient();
 
@@ -240,50 +180,6 @@ export async function updateAccount(
   if (accountError) {
     console.error("Error updating account:", accountError);
     return { error: accountError.message };
-  }
-
-  // 既存の支店を論理削除
-  const { error: deleteBranchesError } = await supabase
-    .from("branches" as never)
-    .update({ deleted_at: new Date().toISOString() } as never)
-    .eq("account_id", id)
-    .is("deleted_at", null);
-
-  if (deleteBranchesError) {
-    console.error("Error soft-deleting branches:", deleteBranchesError);
-    return { error: deleteBranchesError.message };
-  }
-
-  // 新しい支店を作成し、IDのマッピングを保持
-  const branchIdMap: Record<string, string> = {};
-  if (branches.length > 0) {
-    for (const branch of branches) {
-      const { data: newBranch, error: branchError } = await supabase
-        .from("branches" as never)
-        .insert({
-          account_id: id,
-          name: branch.name,
-          phone: branch.phone || null,
-          fax: branch.fax || null,
-          postal_code: branch.postal_code || null,
-          prefecture: branch.prefecture || null,
-          city: branch.city || null,
-          street: branch.street || null,
-          building: branch.building || null,
-        } as never)
-        .select()
-        .single();
-
-      if (branchError) {
-        console.error("Error creating branch:", branchError);
-        return { error: branchError.message };
-      }
-
-      // 一時IDから実際のIDへのマッピング
-      if (branch.id && newBranch) {
-        branchIdMap[branch.id] = (newBranch as { id: string }).id;
-      }
-    }
   }
 
   // 既存の連絡先を取得
@@ -318,7 +214,6 @@ export async function updateAccount(
   for (const c of contacts) {
     const contactData = {
       account_id: id,
-      branch_id: c.branch_id ? branchIdMap[c.branch_id] || null : null,
       last_name: c.last_name,
       first_name: c.first_name,
       last_name_kana: c.last_name_kana || null,
@@ -371,12 +266,6 @@ export async function deleteAccount(id: string) {
     console.error("Error deleting account:", error);
     return { error: error.message };
   }
-
-  // 関連する支店も論理削除
-  await supabase
-    .from("branches" as never)
-    .update({ deleted_at: new Date().toISOString() } as never)
-    .eq("account_id", id);
 
   // 関連する連絡先も論理削除
   await supabase
@@ -636,7 +525,6 @@ export async function convertAccountToIndividual(
     .from("contacts" as never)
     .insert({
       account_id: null,
-      branch_id: null,
       last_name: data.lastName,
       first_name: data.firstName,
       last_name_kana: data.lastNameKana || null,
@@ -700,11 +588,6 @@ export async function convertAccountToIndividual(
     .eq("account_id", data.accountId);
 
   await supabase
-    .from("branches" as never)
-    .update({ deleted_at: new Date().toISOString() } as never)
-    .eq("account_id", data.accountId);
-
-  await supabase
     .from("accounts" as never)
     .update({ deleted_at: new Date().toISOString() } as never)
     .eq("id", data.accountId);
@@ -751,7 +634,6 @@ export async function mergeAccounts(
     .from("contacts" as never)
     .update({
       account_id: data.targetAccountId,
-      branch_id: null, // 支店は統合先に存在しないのでnullに
     } as never)
     .eq("account_id", data.sourceAccountId)
     .is("deleted_at", null);
@@ -761,13 +643,7 @@ export async function mergeAccounts(
     return { error: "連絡先の移動に失敗しました" };
   }
 
-  // 3. 統合元の支店を論理削除（連絡先は既に移動済み）
-  await supabase
-    .from("branches" as never)
-    .update({ deleted_at: new Date().toISOString() } as never)
-    .eq("account_id", data.sourceAccountId);
-
-  // 4. 統合元の法人を論理削除
+  // 3. 統合元の法人を論理削除
   const { error: deleteError } = await supabase
     .from("accounts" as never)
     .update({ deleted_at: new Date().toISOString() } as never)

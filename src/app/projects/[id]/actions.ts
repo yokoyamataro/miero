@@ -828,25 +828,11 @@ export interface ContactFormData {
   department: string | null;
   position: string | null;
   is_primary: boolean;
-  branch_id: string | null;
-}
-
-export interface BranchFormData {
-  id?: string;
-  name: string;
-  phone: string | null;
-  fax: string | null;
-  postal_code: string | null;
-  prefecture: string | null;
-  city: string | null;
-  street: string | null;
-  building: string | null;
 }
 
 export async function createAccountWithContacts(
   accountData: AccountFormData,
-  contacts: ContactFormData[],
-  branches: BranchFormData[]
+  contacts: ContactFormData[]
 ): Promise<{ error?: string; accountId?: string; primaryContactId?: string }> {
   const supabase = await createClient();
 
@@ -877,44 +863,15 @@ export async function createAccountWithContacts(
 
   const accountId = (account as { id: string }).id;
 
-  // 支店を作成
-  const branchIdMap: Record<string, string> = {};
-  for (const branch of branches) {
-    if (!branch.name.trim()) continue;
-
-    const { data: newBranch, error: branchError } = await supabase
-      .from("branches" as never)
-      .insert({
-        account_id: accountId,
-        name: branch.name,
-        phone: branch.phone,
-        fax: branch.fax,
-        postal_code: branch.postal_code,
-        prefecture: branch.prefecture,
-        city: branch.city,
-        street: branch.street,
-        building: branch.building,
-      } as never)
-      .select("id")
-      .single();
-
-    if (!branchError && newBranch) {
-      branchIdMap[branch.id || ""] = (newBranch as { id: string }).id;
-    }
-  }
-
   // 担当者を作成
   let primaryContactId: string | undefined;
   for (const contact of contacts) {
     if (!contact.last_name.trim() && !contact.first_name.trim()) continue;
 
-    const branchId = contact.branch_id ? branchIdMap[contact.branch_id] || null : null;
-
     const { data: newContact, error: contactError } = await supabase
       .from("contacts" as never)
       .insert({
         account_id: accountId,
-        branch_id: branchId,
         last_name: contact.last_name,
         first_name: contact.first_name,
         last_name_kana: contact.last_name_kana,

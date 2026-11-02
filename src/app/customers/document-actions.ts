@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import type { DocumentTemplate, Employee, Account, Contact, Branch } from "@/types/database";
+import type { DocumentTemplate, Employee, Account, Contact } from "@/types/database";
 
 // テンプレート一覧取得
 export async function getDocumentTemplates(): Promise<DocumentTemplate[]> {
@@ -48,7 +48,6 @@ export async function generateDocument(request: {
   templateId: string;
   recipientType: "account" | "contact";
   recipientId: string;
-  branchId?: string;
   contactId?: string;
   senderId: string;
   documentDate: string;
@@ -92,40 +91,12 @@ export async function generateDocument(request: {
 
     const acct = account as Account;
 
-    // 支店が選択されている場合は支店の住所を使用
-    if (request.branchId) {
-      const { data: branch } = await supabase
-        .from("branches")
-        .select("*")
-        .eq("id", request.branchId)
-        .single();
-
-      if (branch) {
-        const br = branch as Branch;
-        recipientData = {
-          company_name: acct.company_name || "",
-          name: "",
-          postal_code: br.postal_code || "",
-          address: `${br.prefecture || ""}${br.city || ""}${br.street || ""}${br.building || ""}`,
-        };
-      } else {
-        // 支店が見つからない場合は本社の住所
-        recipientData = {
-          company_name: acct.company_name || "",
-          name: "",
-          postal_code: acct.postal_code || "",
-          address: `${acct.prefecture || ""}${acct.city || ""}${acct.street || ""}${acct.building || ""}`,
-        };
-      }
-    } else {
-      // 本社選択時は法人の住所を使用
-      recipientData = {
-        company_name: acct.company_name || "",
-        name: "",
-        postal_code: acct.postal_code || "",
-        address: `${acct.prefecture || ""}${acct.city || ""}${acct.street || ""}${acct.building || ""}`,
-      };
-    }
+    recipientData = {
+      company_name: acct.company_name || "",
+      name: "",
+      postal_code: acct.postal_code || "",
+      address: `${acct.prefecture || ""}${acct.city || ""}${acct.street || ""}${acct.building || ""}`,
+    };
   } else {
     const { data: contact, error: contactError } = await supabase
       .from("contacts")
@@ -152,41 +123,7 @@ export async function generateDocument(request: {
     };
   }
 
-  // 3. 支店情報取得（法人選択時のみ）
-  let branchData: {
-    name: string;
-    phone: string;
-    fax: string;
-    postal_code: string;
-    address: string;
-  } = {
-    name: "",
-    phone: "",
-    fax: "",
-    postal_code: "",
-    address: "",
-  };
-
-  if (request.branchId) {
-    const { data: branch } = await supabase
-      .from("branches")
-      .select("*")
-      .eq("id", request.branchId)
-      .single();
-
-    if (branch) {
-      const br = branch as Branch;
-      branchData = {
-        name: br.name || "",
-        phone: br.phone || "",
-        fax: br.fax || "",
-        postal_code: br.postal_code || "",
-        address: `${br.prefecture || ""}${br.city || ""}${br.street || ""}${br.building || ""}`,
-      };
-    }
-  }
-
-  // 4. 担当者情報取得（法人選択時のみ）
+  // 3. 担当者情報取得（法人選択時のみ）
   let contactData: {
     name: string;
     nameWithKeisho: string;
@@ -247,11 +184,6 @@ export async function generateDocument(request: {
     宛先_郵便番号: recipientData.postal_code ? `〒${recipientData.postal_code}` : "",
     宛先_住所: recipientData.address,
     敬称: keisho,
-    支店名: branchData.name,
-    支店_電話: branchData.phone,
-    支店_FAX: branchData.fax,
-    支店_郵便番号: branchData.postal_code ? `〒${branchData.postal_code}` : "",
-    支店_住所: branchData.address,
     担当者_氏名: contactData.name,
     担当者_氏名様: contactData.nameWithKeisho,
     担当者_部署: contactData.department,

@@ -59,7 +59,7 @@ import {
   type Account,
   type Employee,
 } from "@/types/database";
-import { updateProject, deleteProject, createComment, updateContact, updateAccount, createIndividualContact, createCorporateContact, addContactToAccount, createAccountWithContacts, type AccountFormData, type ContactFormData, type BranchFormData } from "./actions";
+import { updateProject, deleteProject, createComment, updateContact, updateAccount, createIndividualContact, createCorporateContact, addContactToAccount, createAccountWithContacts, type AccountFormData, type ContactFormData } from "./actions";
 import { AddIndividualModal, AddAccountModal } from "@/components/customer-modal";
 import type { Industry } from "@/types/database";
 import { Phone, Mail, MapPin as MapPinIcon, Pencil, Printer, FileText, Loader2 } from "lucide-react";
