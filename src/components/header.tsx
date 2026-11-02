@@ -17,7 +17,6 @@ import {
   ShieldCheck,
   CalendarCog,
   ChevronDown,
-  IdCard,
   BookOpen,
   Target,
 } from "lucide-react";
@@ -45,7 +44,6 @@ const navItems = [
 ];
 
 const adminNavItems = [
-  { href: "/identity-verifications", label: "本人確認", icon: IdCard },
   { href: "/skills", label: "スキル", icon: Target },
   { href: "/employees", label: "社員", icon: Users },
   { href: "/settings/standard-tasks", label: "標準業務", icon: Settings },
