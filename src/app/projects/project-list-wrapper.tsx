@@ -12,8 +12,7 @@ interface ProjectData {
   status: string;
   is_urgent: boolean;
   is_on_hold: boolean;
-  contact_id: string | null;
-  account_id: string | null;
+  customer_id: string | null;
   manager_id: string | null;
   start_date: string | null;
   end_date: string | null;
@@ -29,8 +28,7 @@ interface WorkflowTemplate {
 
 interface ProjectListWrapperProps {
   projects: ProjectData[];
-  contactDisplayMap: Record<string, string>;
-  accountDisplayMap: Record<string, string>;
+  customerDisplayMap: Record<string, string>;
   employeeMap: Record<string, string>;
   recentProjectIds: string[];
   standardTasksMap: Record<string, string[]>;

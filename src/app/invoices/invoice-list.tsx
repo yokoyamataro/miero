@@ -66,7 +66,7 @@ interface ProjectForInvoice {
   id: string;
   code: string;
   name: string;
-  contact_id: string | null;
+  customer_id: string | null;
 }
 
 interface InvoiceListProps {
@@ -157,11 +157,19 @@ export function InvoiceList({
         const query = searchQuery.toLowerCase();
         const matchesNumber = invoice.invoice_number.toLowerCase().includes(query);
         const matchesProject = invoice.project?.name?.toLowerCase().includes(query);
-        const matchesRecipient = invoice.recipientContact
-          ? `${invoice.recipientContact.last_name} ${invoice.recipientContact.first_name}`.toLowerCase().includes(query)
+        const matchesCustomer = invoice.recipientCustomer
+          ? [
+              invoice.recipientCustomer.display_name,
+              invoice.recipientCustomer.display_name_kana,
+              invoice.recipientCustomer.contact_last_name,
+              invoice.recipientCustomer.contact_first_name,
+            ]
+              .filter(Boolean)
+              .join(" ")
+              .toLowerCase()
+              .includes(query)
           : false;
-        const matchesAccount = invoice.recipientAccount?.company_name?.toLowerCase().includes(query);
-        if (!matchesNumber && !matchesProject && !matchesRecipient && !matchesAccount) {
+        if (!matchesNumber && !matchesProject && !matchesCustomer) {
           return false;
         }
       }
@@ -544,21 +552,17 @@ export function InvoiceList({
                         />
                       </TableCell>
                       <TableCell className="text-sm">
-                        {invoice.recipientAccount?.id ? (
+                        {invoice.recipientCustomer ? (
                           <Link
-                            href={`/accounts/${invoice.recipientAccount.id}/edit`}
-                            className="font-medium text-primary hover:underline"
-                            title="法人情報を編集"
+                            href={`/customers/${invoice.recipientCustomer.id}`}
+                            className={`${
+                              invoice.recipientCustomer.type === "corporate"
+                                ? "font-medium"
+                                : ""
+                            } text-primary hover:underline`}
+                            title="顧客詳細"
                           >
-                            {invoice.recipientAccount.company_name}
-                          </Link>
-                        ) : invoice.recipientContact?.id ? (
-                          <Link
-                            href={`/contacts/${invoice.recipientContact.id}/edit`}
-                            className="text-primary hover:underline"
-                            title="個人情報を編集"
-                          >
-                            {invoice.recipientContact.last_name} {invoice.recipientContact.first_name}
+                            {invoice.recipientCustomer.display_name}
                           </Link>
                         ) : (
                           "-"

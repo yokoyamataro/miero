@@ -63,8 +63,7 @@ interface ProjectData {
   status: string;
   is_urgent: boolean;
   is_on_hold: boolean;
-  contact_id: string | null;
-  account_id: string | null;
+  customer_id: string | null;
   manager_id: string | null;
   start_date: string | null;
   end_date: string | null;
@@ -80,8 +79,7 @@ interface WorkflowTemplate {
 
 interface ProjectListProps {
   projects: ProjectData[];
-  contactDisplayMap: Record<string, string>;
-  accountDisplayMap: Record<string, string>;
+  customerDisplayMap: Record<string, string>;
   employeeMap: Record<string, string>;
   recentProjectIds: string[]; // 2週間以内の閲覧履歴（最新順）
   standardTasksMap: Record<string, string[]>; // project_id → テンプレート名の配列
@@ -177,8 +175,7 @@ const getWorkflowStorageKey = (templateId: string) => `workflowProjectOrder_${te
 
 export function ProjectList({
   projects,
-  contactDisplayMap,
-  accountDisplayMap,
+  customerDisplayMap,
   employeeMap,
   recentProjectIds,
   standardTasksMap,
@@ -384,12 +381,7 @@ export function ProjectList({
         const q = filters.search.toLowerCase();
         const matchName = p.name.toLowerCase().includes(q);
         const matchCode = p.code.toLowerCase().includes(q);
-        // 顧客名で検索
-        const customerName = p.account_id
-          ? accountDisplayMap[p.account_id] || ""
-          : p.contact_id
-            ? contactDisplayMap[p.contact_id] || ""
-            : "";
+        const customerName = p.customer_id ? customerDisplayMap[p.customer_id] || "" : "";
         const matchCustomer = customerName.toLowerCase().includes(q);
         if (!matchName && !matchCode && !matchCustomer) return false;
       }
@@ -410,15 +402,12 @@ export function ProjectList({
 
       return true;
     });
-  }, [projects, filters, accountDisplayMap, contactDisplayMap]);
+  }, [projects, filters, customerDisplayMap]);
 
   // ソート処理（デフォルトは閲覧履歴順）
   const sorted = useMemo(() => {
-    const getCustomerName = (p: ProjectData) => {
-      if (p.account_id) return accountDisplayMap[p.account_id] || "";
-      if (p.contact_id) return contactDisplayMap[p.contact_id] || "";
-      return "";
-    };
+    const getCustomerName = (p: ProjectData) =>
+      p.customer_id ? customerDisplayMap[p.customer_id] || "" : "";
     const getManagerName = (p: ProjectData) =>
       p.manager_id ? employeeMap[p.manager_id] || "" : "";
     const getLocation = (p: ProjectData) =>
@@ -474,7 +463,7 @@ export function ProjectList({
       }
       return sort.order === "asc" ? cmp : -cmp;
     });
-  }, [filtered, sort, contactDisplayMap, employeeMap, recentProjectIds]);
+  }, [filtered, sort, customerDisplayMap, employeeMap, recentProjectIds]);
 
   const isWorkflowView = filters.workflowTemplateId !== null;
 
@@ -721,11 +710,9 @@ export function ProjectList({
                         </Badge>
                       </TableCell>
                       <TableCell className="text-xs py-1 truncate max-w-[140px]">
-                        {(project.account_id
-                          ? accountDisplayMap[project.account_id] || "-"
-                          : project.contact_id
-                            ? contactDisplayMap[project.contact_id] || "-"
-                            : "-"
+                        {(project.customer_id
+                          ? customerDisplayMap[project.customer_id] || "-"
+                          : "-"
                         ).slice(0, 16)}
                       </TableCell>
                       <TableCell className="py-1 max-w-[200px]">

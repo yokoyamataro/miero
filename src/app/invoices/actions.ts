@@ -6,8 +6,7 @@ import {
   type InvoiceWithDetails,
   type BusinessEntity,
   type Project,
-  type Contact,
-  type Account,
+  type Customer,
   type Employee,
   type InvoiceDocumentType,
   type InvoiceItem,
@@ -74,7 +73,7 @@ export async function createInvoice(data: {
   business_entity_id: string;
   business_entity_code: string;
   invoice_date: string;
-  recipient_contact_id: string | null;
+  recipient_customer_id: string | null;
   person_in_charge_id: string | null;
   fee_tax_excluded: number;
   expenses: number;
@@ -98,7 +97,7 @@ export async function createInvoice(data: {
       business_entity_id: data.business_entity_id,
       sequence_number: sequenceNumber,
       invoice_date: data.invoice_date,
-      recipient_contact_id: data.recipient_contact_id,
+      recipient_customer_id: data.recipient_customer_id,
       person_in_charge_id: data.person_in_charge_id,
       fee_tax_excluded: data.fee_tax_excluded,
       expenses: data.expenses,
@@ -124,7 +123,7 @@ export async function updateInvoice(
   invoiceId: string,
   updates: {
     invoice_date?: string;
-    recipient_contact_id?: string | null;
+    recipient_customer_id?: string | null;
     person_in_charge_id?: string | null;
     fee_tax_excluded?: number;
     expenses?: number;
@@ -195,12 +194,12 @@ export async function getProjectInvoices(projectId: string): Promise<InvoiceWith
   // 関連データを取得
   const typedInvoices = invoices as Invoice[];
   const businessEntityIds = Array.from(new Set(typedInvoices.map((i) => i.business_entity_id)));
-  const contactIds = Array.from(new Set(typedInvoices.map((i) => i.recipient_contact_id).filter(Boolean))) as string[];
+  const customerIds = Array.from(new Set(typedInvoices.map((i) => i.recipient_customer_id).filter(Boolean))) as string[];
   const employeeIds = Array.from(new Set(typedInvoices.map((i) => i.person_in_charge_id).filter(Boolean))) as string[];
 
   const [
     { data: businessEntities },
-    { data: contacts },
+    { data: customers },
     { data: employees },
     { data: project },
   ] = await Promise.all([
@@ -208,8 +207,8 @@ export async function getProjectInvoices(projectId: string): Promise<InvoiceWith
       .from("business_entities" as never)
       .select("*")
       .in("id", businessEntityIds),
-    contactIds.length > 0
-      ? supabase.from("contacts" as never).select("*").in("id", contactIds)
+    customerIds.length > 0
+      ? supabase.from("customers").select("*").in("id", customerIds)
       : Promise.resolve({ data: [] }),
     employeeIds.length > 0
       ? supabase.from("employees").select("*").in("id", employeeIds)
@@ -217,40 +216,23 @@ export async function getProjectInvoices(projectId: string): Promise<InvoiceWith
     supabase.from("projects").select("*").eq("id", projectId).single(),
   ]);
 
-  // 連絡先からaccount_idを取得してアカウント情報を取得
-  const typedContacts = (contacts as Contact[]) || [];
-  const accountIds = Array.from(new Set(typedContacts.map((c) => c.account_id).filter(Boolean))) as string[];
-
-  const { data: accounts } = accountIds.length > 0
-    ? await supabase.from("accounts" as never).select("*").in("id", accountIds)
-    : { data: [] };
-
   // マップ作成
   const entityMap = new Map((businessEntities as BusinessEntity[] || []).map((e) => [e.id, e]));
-  const contactMap = new Map(typedContacts.map((c) => [c.id, c]));
+  const customerMap = new Map(((customers as Customer[]) || []).map((c) => [c.id, c]));
   const employeeMap = new Map(((employees as Employee[]) || []).map((e) => [e.id, e]));
-  const accountMap = new Map(((accounts as Account[]) || []).map((a) => [a.id, a]));
 
   // 結合
-  return typedInvoices.map((invoice) => {
-    const contact = invoice.recipient_contact_id
-      ? contactMap.get(invoice.recipient_contact_id) || null
-      : null;
-    const account = contact?.account_id
-      ? accountMap.get(contact.account_id) || null
-      : null;
-
-    return {
-      ...invoice,
-      project: project as Project,
-      businessEntity: entityMap.get(invoice.business_entity_id)!,
-      recipientContact: contact,
-      recipientAccount: account,
-      personInCharge: invoice.person_in_charge_id
-        ? employeeMap.get(invoice.person_in_charge_id) || null
-        : null,
-    };
-  });
+  return typedInvoices.map((invoice) => ({
+    ...invoice,
+    project: project as Project,
+    businessEntity: entityMap.get(invoice.business_entity_id)!,
+    recipientCustomer: invoice.recipient_customer_id
+      ? customerMap.get(invoice.recipient_customer_id) || null
+      : null,
+    personInCharge: invoice.person_in_charge_id
+      ? employeeMap.get(invoice.person_in_charge_id) || null
+      : null,
+  }));
 }
 
 // ============================================
@@ -300,15 +282,13 @@ export async function getAllInvoices(filters?: {
   // 関連データを取得
   const projectIds = Array.from(new Set(typedInvoices.map((i) => i.project_id)));
   const businessEntityIds2 = Array.from(new Set(typedInvoices.map((i) => i.business_entity_id)));
-  const contactIds2 = Array.from(new Set(typedInvoices.map((i) => i.recipient_contact_id).filter(Boolean))) as string[];
+  const customerIds2 = Array.from(new Set(typedInvoices.map((i) => i.recipient_customer_id).filter(Boolean))) as string[];
   const employeeIds2 = Array.from(new Set(typedInvoices.map((i) => i.person_in_charge_id).filter(Boolean))) as string[];
-  // recipient_account_idからも法人IDを取得
-  const directAccountIds = Array.from(new Set(typedInvoices.map((i) => i.recipient_account_id).filter(Boolean))) as string[];
 
   const [
     { data: projects },
     { data: businessEntities },
-    { data: contacts },
+    { data: customers },
     { data: employees },
   ] = await Promise.all([
     projectIds.length > 0
@@ -318,48 +298,29 @@ export async function getAllInvoices(filters?: {
       .from("business_entities" as never)
       .select("*")
       .in("id", businessEntityIds2),
-    contactIds2.length > 0
-      ? supabase.from("contacts" as never).select("*").in("id", contactIds2)
+    customerIds2.length > 0
+      ? supabase.from("customers").select("*").in("id", customerIds2)
       : Promise.resolve({ data: [] }),
     employeeIds2.length > 0
       ? supabase.from("employees").select("*").in("id", employeeIds2)
       : Promise.resolve({ data: [] }),
   ]);
 
-  // 連絡先からaccount_idを取得してアカウント情報を取得（直接指定されたaccount_idも含む）
-  const typedContacts2 = (contacts as Contact[]) || [];
-  const contactAccountIds = Array.from(new Set(typedContacts2.map((c) => c.account_id).filter(Boolean))) as string[];
-  const allAccountIds = Array.from(new Set([...contactAccountIds, ...directAccountIds]));
-
-  const { data: accounts } = allAccountIds.length > 0
-    ? await supabase.from("accounts" as never).select("*").in("id", allAccountIds)
-    : { data: [] };
-
   // マップ作成
   const projectMap = new Map(((projects as Project[]) || []).map((p) => [p.id, p]));
   const entityMap = new Map((businessEntities as BusinessEntity[] || []).map((e) => [e.id, e]));
-  const contactMap = new Map(typedContacts2.map((c) => [c.id, c]));
+  const customerMap = new Map(((customers as Customer[]) || []).map((c) => [c.id, c]));
   const employeeMap = new Map(((employees as Employee[]) || []).map((e) => [e.id, e]));
-  const accountMap = new Map(((accounts as Account[]) || []).map((a) => [a.id, a]));
 
   // 結合
   return typedInvoices.map((invoice) => {
-    const contact = invoice.recipient_contact_id
-      ? contactMap.get(invoice.recipient_contact_id) || null
-      : null;
-    // recipient_account_idが直接指定されている場合はそれを使用、そうでなければ連絡先から取得
-    const account = invoice.recipient_account_id
-      ? accountMap.get(invoice.recipient_account_id) || null
-      : contact?.account_id
-        ? accountMap.get(contact.account_id) || null
-        : null;
-
     return {
       ...invoice,
       project: projectMap.get(invoice.project_id)!,
       businessEntity: entityMap.get(invoice.business_entity_id)!,
-      recipientContact: contact,
-      recipientAccount: account,
+      recipientCustomer: invoice.recipient_customer_id
+        ? customerMap.get(invoice.recipient_customer_id) || null
+        : null,
       personInCharge: invoice.person_in_charge_id
         ? employeeMap.get(invoice.person_in_charge_id) || null
         : null,
@@ -470,13 +431,13 @@ export async function uploadInvoicePdf(
 // 業務一覧取得（請求書登録用）
 // ============================================
 export async function getProjectsForInvoice(): Promise<
-  { id: string; code: string; name: string; contact_id: string | null }[]
+  { id: string; code: string; name: string; customer_id: string | null }[]
 > {
   const supabase = await createClient();
 
   const { data, error } = await supabase
     .from("projects")
-    .select("id, code, name, contact_id")
+    .select("id, code, name, customer_id")
     .order("code", { ascending: false })
     .limit(500);
 
@@ -485,7 +446,7 @@ export async function getProjectsForInvoice(): Promise<
     return [];
   }
 
-  return (data as { id: string; code: string; name: string; contact_id: string | null }[]) || [];
+  return (data as { id: string; code: string; name: string; customer_id: string | null }[]) || [];
 }
 
 // ============================================
@@ -551,78 +512,33 @@ export async function getProjectCustomerInfo(projectId: string): Promise<{
 // 全顧客リスト取得（相手先選択用）
 // ============================================
 export type RecipientOption = {
-  id: string;
-  accountId?: string; // 法人ID（法人のみの場合に使用）
+  id: string; // customer_id
   label: string;
-  type: "account" | "individual" | "account_only"; // account_only: 担当者がいない法人
+  type: "corporate" | "individual";
 };
 
 export async function getAllRecipients(): Promise<RecipientOption[]> {
   const supabase = await createClient();
-  const recipients: RecipientOption[] = [];
 
-  // 法人と関連する連絡先を取得
-  const { data: accounts } = await supabase
-    .from("accounts")
-    .select("id, company_name")
+  const { data: customers } = await supabase
+    .from("customers")
+    .select("id, type, display_name, display_name_kana, contact_last_name, contact_first_name")
     .is("deleted_at", null)
-    .order("company_name");
+    .order("display_name_kana", { ascending: true });
 
-  if (accounts) {
-    const accountIds = accounts.map((a) => a.id);
+  if (!customers) return [];
 
-    // 法人に紐付く連絡先を取得
-    if (accountIds.length > 0) {
-      const { data: accountContacts } = await supabase
-        .from("contacts")
-        .select("id, last_name, first_name, account_id")
-        .in("account_id", accountIds)
-        .is("deleted_at", null)
-        .order("last_name");
-
-      // 法人ごとにグループ化して追加
-      for (const account of accounts) {
-        const contacts = accountContacts?.filter((c) => c.account_id === account.id) || [];
-        if (contacts.length > 0) {
-          for (const contact of contacts) {
-            recipients.push({
-              id: contact.id,
-              label: `${account.company_name} - ${contact.last_name} ${contact.first_name}`,
-              type: "account",
-            });
-          }
-        } else {
-          // 連絡先がない法人は法人名のみで表示（account_onlyタイプ）
-          recipients.push({
-            id: account.id, // 法人IDを使用
-            accountId: account.id,
-            label: `${account.company_name}`,
-            type: "account_only",
-          });
-        }
-      }
+  return (customers as Customer[]).map((c) => {
+    let label = c.display_name;
+    if (c.type === "corporate" && (c.contact_last_name || c.contact_first_name)) {
+      label = `${c.display_name} - ${c.contact_last_name ?? ""} ${c.contact_first_name ?? ""}`.trim();
     }
-  }
-
-  // 個人顧客（法人に紐付かない連絡先）を取得
-  const { data: individuals } = await supabase
-    .from("contacts")
-    .select("id, last_name, first_name")
-    .is("account_id", null)
-    .is("deleted_at", null)
-    .order("last_name");
-
-  if (individuals) {
-    for (const ind of individuals) {
-      recipients.push({
-        id: ind.id,
-        label: `${ind.last_name} ${ind.first_name}`,
-        type: "individual",
-      });
-    }
-  }
-
-  return recipients;
+    return {
+      id: c.id,
+      label,
+      type: c.type,
+    };
+  });
 }
 
 // ============================================
@@ -700,8 +616,7 @@ export async function createInvoiceSimple(data: {
   business_entity_id: string;
   business_entity_code: string;
   invoice_date: string;
-  recipient_contact_id: string | null;
-  recipient_account_id: string | null; // 担当者がいない法人の場合
+  recipient_customer_id: string | null;
   document_type: InvoiceDocumentType;
   fee_tax_excluded: number;
   expenses: number;
@@ -724,8 +639,7 @@ export async function createInvoiceSimple(data: {
       business_entity_id: data.business_entity_id,
       sequence_number: sequenceNumber,
       invoice_date: data.invoice_date,
-      recipient_contact_id: data.recipient_contact_id,
-      recipient_account_id: data.recipient_account_id,
+      recipient_customer_id: data.recipient_customer_id,
       document_type: data.document_type,
       fee_tax_excluded: data.fee_tax_excluded,
       expenses: data.expenses,
@@ -750,8 +664,7 @@ export async function updateInvoiceSimple(
   invoiceId: string,
   updates: {
     invoice_date?: string;
-    recipient_contact_id?: string | null;
-    recipient_account_id?: string | null;
+    recipient_customer_id?: string | null;
     fee_tax_excluded?: number;
     expenses?: number;
     total_amount?: number;
@@ -787,7 +700,7 @@ export async function createInvoiceWithItems(data: {
   business_entity_id: string;
   business_entity_code: string;
   invoice_date: string;
-  recipient_contact_id: string | null;
+  recipient_customer_id: string | null;
   person_in_charge_id: string | null;
   document_type: InvoiceDocumentType;
   expenses: number;
@@ -827,7 +740,7 @@ export async function createInvoiceWithItems(data: {
       business_entity_id: data.business_entity_id,
       sequence_number: sequenceNumber,
       invoice_date: data.invoice_date,
-      recipient_contact_id: data.recipient_contact_id,
+      recipient_customer_id: data.recipient_customer_id,
       person_in_charge_id: data.person_in_charge_id,
       document_type: data.document_type,
       fee_tax_excluded: subtotal,

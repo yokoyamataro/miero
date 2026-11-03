@@ -849,6 +849,7 @@ export interface Invoice {
   invoice_date: string;
   recipient_contact_id: string | null;
   recipient_account_id: string | null; // 担当者がいない法人の場合
+  recipient_customer_id: string | null; // Phase 3: 統合顧客 (旧2本の後継)
   person_in_charge_id: string | null;
   document_type: InvoiceDocumentType | null;
   fee_tax_excluded: number;
@@ -876,6 +877,7 @@ export interface InvoiceInsert {
   invoice_date: string;
   recipient_contact_id?: string | null;
   recipient_account_id?: string | null;
+  recipient_customer_id?: string | null;
   person_in_charge_id?: string | null;
   fee_tax_excluded?: number;
   expenses?: number;
@@ -891,8 +893,7 @@ export interface InvoiceInsert {
 export interface InvoiceWithDetails extends Invoice {
   project: Project;
   businessEntity: BusinessEntity;
-  recipientContact: Contact | null;
-  recipientAccount: Account | null;
+  recipientCustomer: Customer | null;
   personInCharge: Employee | null;
 }
 

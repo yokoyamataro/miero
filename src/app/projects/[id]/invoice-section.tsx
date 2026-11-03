@@ -43,8 +43,8 @@ import {
 import {
   type InvoiceWithDetails,
   type BusinessEntity,
+  type Customer,
   type Employee,
-  type Contact,
 } from "@/types/database";
 import {
   createInvoice,
@@ -55,7 +55,6 @@ import {
   getInvoicePdfUrl,
   uploadInvoicePdf,
 } from "@/app/invoices/actions";
-import type { CustomerData } from "./project-info";
 
 interface InvoiceSectionProps {
   projectId: string;
@@ -63,8 +62,8 @@ interface InvoiceSectionProps {
   invoices: InvoiceWithDetails[];
   businessEntities: BusinessEntity[];
   employees: Employee[];
-  customerData: CustomerData;
-  defaultRecipientContactId: string | null;
+  customers: Customer[];
+  defaultRecipientCustomerId: string | null;
 }
 
 // 金額フォーマット
@@ -87,8 +86,8 @@ export function InvoiceSection({
   invoices,
   businessEntities,
   employees,
-  customerData,
-  defaultRecipientContactId,
+  customers,
+  defaultRecipientCustomerId,
 }: InvoiceSectionProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -99,7 +98,7 @@ export function InvoiceSection({
   const [formData, setFormData] = useState({
     business_entity_id: "",
     invoice_date: new Date().toISOString().split("T")[0],
-    recipient_contact_id: defaultRecipientContactId || "",
+    recipient_customer_id: defaultRecipientCustomerId || "",
     person_in_charge_id: "",
     fee_tax_excluded: 0,
     expenses: 0,
@@ -113,7 +112,7 @@ export function InvoiceSection({
     setFormData({
       business_entity_id: "",
       invoice_date: new Date().toISOString().split("T")[0],
-      recipient_contact_id: defaultRecipientContactId || "",
+      recipient_customer_id: defaultRecipientCustomerId || "",
       person_in_charge_id: "",
       fee_tax_excluded: 0,
       expenses: 0,
@@ -133,7 +132,7 @@ export function InvoiceSection({
     setFormData({
       business_entity_id: invoice.business_entity_id,
       invoice_date: invoice.invoice_date,
-      recipient_contact_id: invoice.recipient_contact_id || "",
+      recipient_customer_id: invoice.recipient_customer_id || "",
       person_in_charge_id: invoice.person_in_charge_id || "",
       fee_tax_excluded: invoice.fee_tax_excluded,
       expenses: invoice.expenses,
@@ -176,7 +175,7 @@ export function InvoiceSection({
         // 更新
         const result = await updateInvoice(editingInvoice.id, {
           invoice_date: formData.invoice_date,
-          recipient_contact_id: formData.recipient_contact_id || null,
+          recipient_customer_id: formData.recipient_customer_id || null,
           person_in_charge_id: formData.person_in_charge_id || null,
           fee_tax_excluded: formData.fee_tax_excluded,
           expenses: formData.expenses,
@@ -205,7 +204,7 @@ export function InvoiceSection({
           business_entity_id: formData.business_entity_id,
           business_entity_code: entity.code,
           invoice_date: formData.invoice_date,
-          recipient_contact_id: formData.recipient_contact_id || null,
+          recipient_customer_id: formData.recipient_customer_id || null,
           person_in_charge_id: formData.person_in_charge_id || null,
           fee_tax_excluded: formData.fee_tax_excluded,
           expenses: formData.expenses,
@@ -266,22 +265,13 @@ export function InvoiceSection({
     window.open(url, "_blank");
   };
 
-  // 相手先の選択肢を作成
-  const recipientOptions: { id: string; label: string }[] = [];
-  customerData.accounts.forEach((acc) => {
-    acc.contacts.forEach((c) => {
-      recipientOptions.push({
-        id: c.id,
-        label: `${acc.companyName} - ${c.name}`,
-      });
-    });
-  });
-  customerData.individuals.forEach((ind) => {
-    recipientOptions.push({
-      id: ind.id,
-      label: ind.name,
-    });
-  });
+  // 相手先の選択肢を作成（customers 統合）
+  const recipientOptions: { id: string; label: string; type: "corporate" | "individual" }[] =
+    customers.map((c) => ({
+      id: c.id,
+      label: c.display_name,
+      type: c.type,
+    }));
 
   return (
     <Card>
@@ -459,8 +449,13 @@ export function InvoiceSection({
             <div className="space-y-2">
               <Label>相手先</Label>
               <Select
-                value={formData.recipient_contact_id || "__none__"}
-                onValueChange={(v) => setFormData({ ...formData, recipient_contact_id: v === "__none__" ? "" : v })}
+                value={formData.recipient_customer_id || "__none__"}
+                onValueChange={(v) =>
+                  setFormData({
+                    ...formData,
+                    recipient_customer_id: v === "__none__" ? "" : v,
+                  })
+                }
               >
                 <SelectTrigger>
                   <SelectValue placeholder="相手先を選択" />
@@ -469,7 +464,7 @@ export function InvoiceSection({
                   <SelectItem value="__none__">未選択</SelectItem>
                   {recipientOptions.map((opt) => (
                     <SelectItem key={opt.id} value={opt.id}>
-                      {opt.label}
+                      [{opt.type === "corporate" ? "法人" : "個人"}] {opt.label}
                     </SelectItem>
                   ))}
                 </SelectContent>

@@ -39,7 +39,7 @@ interface ProjectForInvoice {
   id: string;
   code: string;
   name: string;
-  contact_id: string | null;
+  customer_id: string | null;
 }
 
 interface InvoiceCreateDialogProps {
@@ -75,8 +75,7 @@ export function InvoiceCreateDialog({
   const [projectId, setProjectId] = useState("");
   const [businessEntityId, setBusinessEntityId] = useState("");
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split("T")[0]);
-  const [recipientContactId, setRecipientContactId] = useState("");
-  const [recipientAccountId, setRecipientAccountId] = useState(""); // 担当者がいない法人用
+  const [recipientCustomerId, setRecipientCustomerId] = useState("");
   const [feeTaxExcluded, setFeeTaxExcluded] = useState(0); // 税抜報酬
   const [expenses, setExpenses] = useState(0); // 立替金
   const [totalAmount, setTotalAmount] = useState(0);
@@ -120,8 +119,7 @@ export function InvoiceCreateDialog({
       setProjectId(editingInvoice.project_id);
       setBusinessEntityId(editingInvoice.business_entity_id);
       setInvoiceDate(editingInvoice.invoice_date);
-      setRecipientContactId(editingInvoice.recipient_contact_id || "");
-      setRecipientAccountId(editingInvoice.recipient_account_id || "");
+      setRecipientCustomerId(editingInvoice.recipient_customer_id || "");
       setFeeTaxExcluded(editingInvoice.fee_tax_excluded || 0);
       setExpenses(editingInvoice.expenses || 0);
       setTotalAmount(editingInvoice.total_amount || 0);
@@ -144,8 +142,7 @@ export function InvoiceCreateDialog({
     setProjectId("");
     setBusinessEntityId("");
     setInvoiceDate(new Date().toISOString().split("T")[0]);
-    setRecipientContactId("");
-    setRecipientAccountId("");
+    setRecipientCustomerId("");
     setFeeTaxExcluded(0);
     setExpenses(0);
     setTotalAmount(0);
@@ -193,10 +190,10 @@ export function InvoiceCreateDialog({
     setShowProjectDropdown(false);
 
     // 業務に紐付いた顧客を相手先に自動セット
-    if (project.contact_id && recipientsLoaded) {
-      const recipient = allRecipients.find((r) => r.id === project.contact_id);
+    if (project.customer_id && recipientsLoaded) {
+      const recipient = allRecipients.find((r) => r.id === project.customer_id);
       if (recipient) {
-        setRecipientContactId(recipient.id);
+        setRecipientCustomerId(recipient.id);
         setRecipientSearchQuery(recipient.label);
       }
     }
@@ -208,16 +205,15 @@ export function InvoiceCreateDialog({
     setProjectSearchQuery("");
   };
 
-  // 選択中の業務の依頼人ID
-  const selectedProjectContactId = projectId
-    ? projects.find((p) => p.id === projectId)?.contact_id
+  // 選択中の業務の顧客ID
+  const selectedProjectCustomerId = projectId
+    ? projects.find((p) => p.id === projectId)?.customer_id
     : null;
 
-  // 相手先検索結果のフィルタリング（業務の依頼人を先頭に表示）
+  // 相手先検索結果のフィルタリング（業務の顧客を先頭に表示）
   const filteredRecipients = useMemo(() => {
     let filtered = allRecipients;
 
-    // 検索クエリがある場合はフィルタリング
     if (recipientSearchQuery) {
       const q = recipientSearchQuery.toLowerCase();
       filtered = allRecipients.filter((recipient) =>
@@ -225,58 +221,49 @@ export function InvoiceCreateDialog({
       );
     }
 
-    // 業務の依頼人を先頭に移動
-    if (selectedProjectContactId) {
-      const projectContact = filtered.find((r) => r.id === selectedProjectContactId);
-      if (projectContact) {
+    if (selectedProjectCustomerId) {
+      const projectCustomer = filtered.find((r) => r.id === selectedProjectCustomerId);
+      if (projectCustomer) {
         filtered = [
-          projectContact,
-          ...filtered.filter((r) => r.id !== selectedProjectContactId),
+          projectCustomer,
+          ...filtered.filter((r) => r.id !== selectedProjectCustomerId),
         ];
       }
     }
 
     return filtered.slice(0, 20);
-  }, [allRecipients, recipientSearchQuery, selectedProjectContactId]);
+  }, [allRecipients, recipientSearchQuery, selectedProjectCustomerId]);
 
   // 相手先選択時
   const handleRecipientSelect = (recipient: RecipientOption) => {
-    if (recipient.type === "account_only") {
-      // 担当者がいない法人の場合
-      setRecipientContactId("");
-      setRecipientAccountId(recipient.accountId || recipient.id);
-    } else {
-      // 担当者または個人の場合
-      setRecipientContactId(recipient.id);
-      setRecipientAccountId("");
-    }
+    setRecipientCustomerId(recipient.id);
     setRecipientSearchQuery(recipient.label);
     setShowRecipientDropdown(false);
   };
 
   // 相手先クリア
   const handleClearRecipient = () => {
-    setRecipientContactId("");
-    setRecipientAccountId("");
+    setRecipientCustomerId("");
     setRecipientSearchQuery("");
   };
 
   // 選択中の相手先ラベルを取得
   const getSelectedRecipientLabel = () => {
-    if (!recipientContactId) return "";
-    const recipient = allRecipients.find((r) => r.id === recipientContactId);
+    if (!recipientCustomerId) return "";
+    const recipient = allRecipients.find((r) => r.id === recipientCustomerId);
     return recipient?.label || "";
   };
 
   // 編集モードで相手先がセットされている場合の初期化
   useEffect(() => {
-    if (recipientsLoaded && recipientContactId && !recipientSearchQuery) {
+    if (recipientsLoaded && recipientCustomerId && !recipientSearchQuery) {
       const label = getSelectedRecipientLabel();
       if (label) {
         setRecipientSearchQuery(label);
       }
     }
-  }, [recipientsLoaded, recipientContactId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recipientsLoaded, recipientCustomerId]);
 
   // PDF選択
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -301,8 +288,7 @@ export function InvoiceCreateDialog({
         // 編集モード
         const result = await updateInvoiceSimple(editingInvoice.id, {
           invoice_date: invoiceDate,
-          recipient_contact_id: recipientContactId || null,
-          recipient_account_id: recipientAccountId || null,
+          recipient_customer_id: recipientCustomerId || null,
           fee_tax_excluded: feeTaxExcluded,
           expenses: expenses,
           total_amount: totalAmount,
@@ -328,8 +314,7 @@ export function InvoiceCreateDialog({
           business_entity_id: businessEntityId,
           business_entity_code: entity.code,
           invoice_date: invoiceDate,
-          recipient_contact_id: recipientContactId || null,
-          recipient_account_id: recipientAccountId || null,
+          recipient_customer_id: recipientCustomerId || null,
           document_type: documentType,
           fee_tax_excluded: feeTaxExcluded,
           expenses: expenses,
@@ -461,12 +446,12 @@ export function InvoiceCreateDialog({
                     setRecipientSearchQuery(e.target.value);
                     setShowRecipientDropdown(true);
                     if (!e.target.value) {
-                      setRecipientContactId("");
+                      setRecipientCustomerId("");
                     }
                   }}
                   onFocus={() => setShowRecipientDropdown(true)}
                 />
-                {recipientContactId && (
+                {recipientCustomerId && (
                   <button
                     type="button"
                     className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
@@ -479,19 +464,22 @@ export function InvoiceCreateDialog({
               {showRecipientDropdown && filteredRecipients.length > 0 && (
                 <div className="absolute z-50 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-[250px] overflow-y-auto">
                   {filteredRecipients.map((recipient) => {
-                    const isProjectContact = recipient.id === selectedProjectContactId;
+                    const isProjectCustomer = recipient.id === selectedProjectCustomerId;
                     return (
                       <button
                         key={recipient.id}
                         type="button"
                         className={`w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors ${
-                          recipient.id === recipientContactId ? "bg-muted" : ""
-                        } ${isProjectContact ? "bg-blue-50 border-b" : ""}`}
+                          recipient.id === recipientCustomerId ? "bg-muted" : ""
+                        } ${isProjectCustomer ? "bg-blue-50 border-b" : ""}`}
                         onClick={() => handleRecipientSelect(recipient)}
                       >
-                        {isProjectContact && (
+                        {isProjectCustomer && (
                           <span className="text-xs text-blue-600 mr-2">業務依頼人</span>
                         )}
+                        <span className="text-xs text-muted-foreground mr-1">
+                          [{recipient.type === "corporate" ? "法人" : "個人"}]
+                        </span>
                         {recipient.label}
                       </button>
                     );

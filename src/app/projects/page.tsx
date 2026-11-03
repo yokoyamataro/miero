@@ -20,47 +20,15 @@ export default async function ProjectsPage() {
     .select("*")
     .order("created_at", { ascending: false });
 
-  // 連絡先を取得
-  const { data: contacts } = await supabase
-    .from("contacts" as never)
-    .select("*")
-    .is("deleted_at", null);
+  // 顧客 (customers) を取得して customer_id → display_name のマップを作成
+  const { data: customersData } = await supabase
+    .from("customers")
+    .select("id, display_name");
 
-  // 法人を取得
-  const { data: accountsData } = await supabase
-    .from("accounts" as never)
-    .select("*")
-    .is("deleted_at", null);
-
-  // 連絡先と法人のマップを作成
-  type ContactType = { id: string; last_name: string; first_name: string; account_id: string | null };
-  type AccountType = { id: string; company_name: string };
-
-  const contactMap = ((contacts as ContactType[]) || []).reduce((acc, c) => {
-    acc[c.id] = c;
-    return acc;
-  }, {} as Record<string, ContactType>);
-
-  const accountMap = ((accountsData as AccountType[]) || []).reduce((acc, a) => {
-    acc[a.id] = a;
-    return acc;
-  }, {} as Record<string, AccountType>);
-
-  // contact_id → 表示名のマップを作成（法人名または個人名のみ）
-  const contactDisplayMap: Record<string, string> = {};
-  for (const [id, contact] of Object.entries(contactMap)) {
-    if (contact.account_id) {
-      const account = accountMap[contact.account_id];
-      contactDisplayMap[id] = account ? account.company_name : `${contact.last_name} ${contact.first_name}`;
-    } else {
-      contactDisplayMap[id] = `${contact.last_name} ${contact.first_name}`;
-    }
-  }
-
-  // account_id → 表示名のマップを作成（法人顧客の直接参照用）
-  const accountDisplayMap: Record<string, string> = {};
-  for (const [id, account] of Object.entries(accountMap)) {
-    accountDisplayMap[id] = account.company_name;
+  type CustomerType = { id: string; display_name: string };
+  const customerDisplayMap: Record<string, string> = {};
+  for (const c of (customersData as CustomerType[]) || []) {
+    customerDisplayMap[c.id] = c.display_name;
   }
 
   // 担当者マップを作成
@@ -163,8 +131,7 @@ export default async function ProjectsPage() {
 
       <ProjectListWrapper
         projects={projects || []}
-        contactDisplayMap={contactDisplayMap}
-        accountDisplayMap={accountDisplayMap}
+        customerDisplayMap={customerDisplayMap}
         employeeMap={employeeNameMap}
         recentProjectIds={recentProjectIds}
         standardTasksMap={standardTasksMap}
