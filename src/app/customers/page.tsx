@@ -1,10 +1,13 @@
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
 import { CustomerTabs } from "./customer-tabs";
-import type { Account, Contact, Employee, DocumentTemplate } from "@/types/database";
+import type {
+  Account,
+  Contact,
+  Customer,
+  Employee,
+  DocumentTemplate,
+} from "@/types/database";
 
 export default async function CustomersPage() {
   const supabase = await createClient();
@@ -25,14 +28,20 @@ export default async function CustomersPage() {
     currentEmployeeId = employee?.id || null;
   }
 
-  // 法人一覧を取得（支店も含む）
+  // 新: customers 統合テーブル (顧客一覧タブ用)
+  const { data: customersData } = await supabase
+    .from("customers")
+    .select("*")
+    .is("deleted_at", null)
+    .order("display_name_kana", { ascending: true });
+
+  // 旧: accounts/contacts (文書作成タブ用、Phase 3-5 で統合予定)
   const { data: accounts } = await supabase
     .from("accounts" as never)
-    .select("*, contacts(*)")
+    .select("*")
     .is("deleted_at", null)
     .order("company_name_kana");
 
-  // 個人顧客一覧を取得（account_idがnullのcontacts）
   const { data: individuals } = await supabase
     .from("contacts" as never)
     .select("*")
@@ -40,20 +49,17 @@ export default async function CustomersPage() {
     .is("deleted_at", null)
     .order("last_name_kana");
 
-  // 全連絡先を取得（法人担当者含む）
   const { data: allContacts } = await supabase
     .from("contacts" as never)
     .select("*")
     .is("deleted_at", null)
     .order("last_name_kana");
 
-  // 社員一覧を取得
   const { data: employees } = await supabase
     .from("employees")
     .select("id, name, email, role, created_at, updated_at")
     .order("name");
 
-  // テンプレート一覧を取得
   const { data: templates } = await supabase
     .from("document_templates")
     .select("*")
@@ -63,23 +69,10 @@ export default async function CustomersPage() {
     <main className="container mx-auto px-4 py-8">
       <div className="flex items-center justify-between mb-6">
         <h1 className="text-2xl font-bold">顧客管理</h1>
-        <div className="flex gap-2">
-          <Link href="/accounts/new">
-            <Button variant="outline" size="sm">
-              <Plus className="h-4 w-4 mr-1" />
-              法人登録
-            </Button>
-          </Link>
-          <Link href="/contacts/new">
-            <Button variant="outline" size="sm">
-              <Plus className="h-4 w-4 mr-1" />
-              個人登録
-            </Button>
-          </Link>
-        </div>
       </div>
 
       <CustomerTabs
+        customers={(customersData || []) as Customer[]}
         accounts={(accounts || []) as Account[]}
         individuals={(individuals || []) as Contact[]}
         allContacts={(allContacts || []) as Contact[]}

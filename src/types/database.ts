@@ -150,7 +150,7 @@ export function getContactFullNameKana(contact: Contact): string {
 }
 
 // 住所のフルアドレスを取得するヘルパー
-export function getFullAddress(item: Account | Contact): string {
+export function getFullAddress(item: Account | Contact | Customer): string {
   const parts = [
     item.postal_code ? `〒${item.postal_code}` : null,
     item.prefecture,
@@ -159,6 +159,108 @@ export function getFullAddress(item: Account | Contact): string {
     item.building,
   ].filter(Boolean);
   return parts.join(" ");
+}
+
+// ============================================
+// Customer (統合顧客テーブル / Phase 3)
+// accounts と contacts を統合した新しい顧客モデル。
+// type カラムで 'corporate' / 'individual' を区別する。
+// ============================================
+
+export type CustomerType = "corporate" | "individual";
+
+export const CUSTOMER_TYPE_LABELS: Record<CustomerType, string> = {
+  corporate: "法人",
+  individual: "個人",
+};
+
+export interface Customer {
+  id: string;
+  type: CustomerType;
+
+  // 共通属性
+  display_name: string;
+  display_name_kana: string | null;
+  phone: string | null;
+  email: string | null;
+  postal_code: string | null;
+  prefecture: string | null;
+  city: string | null;
+  street: string | null;
+  building: string | null;
+  notes: string | null;
+
+  // 法人固有 (type='corporate' のみ)
+  corporate_number: string | null;
+  industry: string | null;
+  fax: string | null;
+  contact_last_name: string | null;
+  contact_first_name: string | null;
+  contact_last_name_kana: string | null;
+  contact_first_name_kana: string | null;
+  contact_department: string | null;
+  contact_position: string | null;
+  contact_phone: string | null;
+  contact_email: string | null;
+
+  // 個人固有 (type='individual' のみ)
+  last_name: string | null;
+  first_name: string | null;
+  last_name_kana: string | null;
+  first_name_kana: string | null;
+  birth_date: string | null;
+
+  // 旧テーブル追跡用
+  legacy_account_id: string | null;
+  legacy_contact_id: string | null;
+
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+}
+
+export interface CustomerInsert {
+  id?: string;
+  type: CustomerType;
+  display_name: string;
+  display_name_kana?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  postal_code?: string | null;
+  prefecture?: string | null;
+  city?: string | null;
+  street?: string | null;
+  building?: string | null;
+  notes?: string | null;
+  corporate_number?: string | null;
+  industry?: string | null;
+  fax?: string | null;
+  contact_last_name?: string | null;
+  contact_first_name?: string | null;
+  contact_last_name_kana?: string | null;
+  contact_first_name_kana?: string | null;
+  contact_department?: string | null;
+  contact_position?: string | null;
+  contact_phone?: string | null;
+  contact_email?: string | null;
+  last_name?: string | null;
+  first_name?: string | null;
+  last_name_kana?: string | null;
+  first_name_kana?: string | null;
+  birth_date?: string | null;
+}
+
+// 顧客の表示名（宛名用：法人は社名、個人は姓名）
+export function getCustomerDisplayName(customer: Customer): string {
+  return customer.display_name;
+}
+
+// 顧客の担当者フルネーム（法人のみ）
+export function getCustomerContactFullName(customer: Customer): string {
+  if (customer.type !== "corporate") return "";
+  const last = customer.contact_last_name || "";
+  const first = customer.contact_first_name || "";
+  return `${last} ${first}`.trim();
 }
 
 // ============================================

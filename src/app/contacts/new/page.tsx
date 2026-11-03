@@ -1,9 +1,5 @@
-import { ContactForm } from "../contact-form";
+import { redirect } from "next/navigation";
 
 export default function NewContactPage() {
-  return (
-    <main className="container mx-auto px-4 py-8 max-w-2xl">
-      <ContactForm />
-    </main>
-  );
+  redirect("/customers/new");
 }

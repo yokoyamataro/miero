@@ -1,26 +1,23 @@
-import { notFound } from "next/navigation";
-import { getAccountById, getIndustries, getRelatedProjectsForAccount } from "../../actions";
-import { AccountForm } from "../../account-form";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
 
-interface EditAccountPageProps {
+export default async function EditAccountPage({
+  params,
+}: {
   params: Promise<{ id: string }>;
-}
-
-export default async function EditAccountPage({ params }: EditAccountPageProps) {
+}) {
   const { id } = await params;
-  const [account, industries, relatedProjects] = await Promise.all([
-    getAccountById(id),
-    getIndustries(),
-    getRelatedProjectsForAccount(id),
-  ]);
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("customers")
+    .select("id")
+    .eq("legacy_account_id", id)
+    .is("deleted_at", null)
+    .maybeSingle();
 
-  if (!account) {
-    notFound();
+  const customerId = (data as { id: string } | null)?.id;
+  if (customerId) {
+    redirect(`/customers/${customerId}/edit`);
   }
-
-  return (
-    <main className="container mx-auto px-4 py-8 max-w-3xl">
-      <AccountForm account={account} isEdit industries={industries} relatedProjects={relatedProjects} />
-    </main>
-  );
+  redirect("/customers");
 }

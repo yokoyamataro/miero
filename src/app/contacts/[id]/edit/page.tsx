@@ -1,25 +1,23 @@
-import { notFound } from "next/navigation";
-import { getIndividualContactById, getRelatedProjectsForContact } from "../../actions";
-import { ContactForm } from "../../contact-form";
+import { redirect } from "next/navigation";
+import { createClient } from "@/lib/supabase/server";
 
-interface EditContactPageProps {
+export default async function EditContactPage({
+  params,
+}: {
   params: Promise<{ id: string }>;
-}
-
-export default async function EditContactPage({ params }: EditContactPageProps) {
+}) {
   const { id } = await params;
-  const [contact, relatedProjects] = await Promise.all([
-    getIndividualContactById(id),
-    getRelatedProjectsForContact(id),
-  ]);
+  const supabase = await createClient();
+  const { data } = await supabase
+    .from("customers")
+    .select("id")
+    .eq("legacy_contact_id", id)
+    .is("deleted_at", null)
+    .maybeSingle();
 
-  if (!contact) {
-    notFound();
+  const customerId = (data as { id: string } | null)?.id;
+  if (customerId) {
+    redirect(`/customers/${customerId}/edit`);
   }
-
-  return (
-    <main className="container mx-auto px-4 py-8 max-w-2xl">
-      <ContactForm contact={contact} isEdit relatedProjects={relatedProjects} />
-    </main>
-  );
+  redirect("/customers");
 }
