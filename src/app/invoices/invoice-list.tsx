@@ -90,10 +90,17 @@ function formatDate(dateStr: string | null): string {
   return new Date(dateStr).toLocaleDateString("ja-JP");
 }
 
-// 年の選択肢を生成（前年～来年）
-function generateYearOptions(): number[] {
-  const currentYear = new Date().getFullYear();
-  return [currentYear - 1, currentYear, currentYear + 1];
+// 日付から年度を取得（4月はじまり、1-3月は前年度）
+function getFiscalYear(date: Date): number {
+  const month = date.getMonth(); // 0-indexed
+  const year = date.getFullYear();
+  return month < 3 ? year - 1 : year;
+}
+
+// 年度の選択肢を生成（前々年度～来年度）
+function generateFiscalYearOptions(): number[] {
+  const currentFY = getFiscalYear(new Date());
+  return [currentFY - 2, currentFY - 1, currentFY, currentFY + 1];
 }
 
 // 事業主体コードに応じた色を返す
@@ -118,11 +125,13 @@ export function InvoiceList({
 
   // フィルタ状態
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterDocumentType, setFilterDocumentType] = useState<string>("invoice"); // invoice/estimate/all
   const [filterEntity, setFilterEntity] = useState<string>("all");
   const [filterAccounting, setFilterAccounting] = useState<string>("all");
   const [filterPayment, setFilterPayment] = useState<string>("all");
-  const [filterYear, setFilterYear] = useState<string>("all");
+  // 年度は4月はじまり。デフォルトは当年度。
+  const [filterFiscalYear, setFilterFiscalYear] = useState<string>(
+    String(getFiscalYear(new Date()))
+  );
   const [filterMonth, setFilterMonth] = useState<number | null>(null);
 
   // 削除確認ダイアログ
@@ -138,20 +147,12 @@ export function InvoiceList({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadTargetId, setUploadTargetId] = useState<string | null>(null);
 
-  // 年の選択肢
-  const yearOptions = useMemo(() => generateYearOptions(), []);
+  // 年度の選択肢（4月はじまり）
+  const fiscalYearOptions = useMemo(() => generateFiscalYearOptions(), []);
 
   // フィルタリング
   const filteredInvoices = useMemo(() => {
     return invoices.filter((invoice) => {
-      // 書類タイプフィルタ（見積書/請求書）
-      if (filterDocumentType !== "all") {
-        const docType = invoice.document_type || "invoice";
-        if (docType !== filterDocumentType) {
-          return false;
-        }
-      }
-
       // 検索クエリ
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
@@ -196,13 +197,13 @@ export function InvoiceList({
         return false;
       }
 
-      // 年・月フィルタ
-      if (filterYear !== "all" || filterMonth !== null) {
+      // 年度・月フィルタ (年度は4月はじまり)
+      if (filterFiscalYear !== "all" || filterMonth !== null) {
         const invoiceDate = new Date(invoice.invoice_date);
-        const invoiceYear = invoiceDate.getFullYear();
+        const invoiceFY = getFiscalYear(invoiceDate);
         const invoiceMonth = invoiceDate.getMonth() + 1;
 
-        if (filterYear !== "all" && invoiceYear !== parseInt(filterYear)) {
+        if (filterFiscalYear !== "all" && invoiceFY !== parseInt(filterFiscalYear)) {
           return false;
         }
         if (filterMonth !== null && invoiceMonth !== filterMonth) {
@@ -212,7 +213,7 @@ export function InvoiceList({
 
       return true;
     });
-  }, [invoices, searchQuery, filterDocumentType, filterEntity, filterAccounting, filterPayment, filterYear, filterMonth]);
+  }, [invoices, searchQuery, filterEntity, filterAccounting, filterPayment, filterFiscalYear, filterMonth]);
 
   // 集計
   const totals = useMemo(() => {
@@ -302,46 +303,27 @@ export function InvoiceList({
 
   const clearFilters = () => {
     setSearchQuery("");
-    setFilterDocumentType("invoice");
     setFilterEntity("all");
     setFilterAccounting("all");
     setFilterPayment("all");
-    setFilterYear("all");
+    // 当年度に戻す
+    setFilterFiscalYear(String(getFiscalYear(new Date())));
     setFilterMonth(null);
   };
 
+  const currentFY = getFiscalYear(new Date());
   const hasActiveFilters =
-    searchQuery || filterEntity !== "all" || filterAccounting !== "all" || filterPayment !== "all" || filterYear !== "all" || filterMonth !== null;
-
-  // 現在表示中の書類タイプのラベル
-  const documentTypeLabel = filterDocumentType === "estimate" ? "見積書" : "請求書";
+    searchQuery ||
+    filterEntity !== "all" ||
+    filterAccounting !== "all" ||
+    filterPayment !== "all" ||
+    filterFiscalYear !== String(currentFY) ||
+    filterMonth !== null;
 
   const months = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
 
   return (
     <div className="space-y-6">
-      {/* 書類タイプ切り替え */}
-      <div className="flex gap-2">
-        <Button
-          variant={filterDocumentType === "invoice" ? "default" : "outline"}
-          onClick={() => setFilterDocumentType("invoice")}
-        >
-          請求書を表示
-        </Button>
-        <Button
-          variant={filterDocumentType === "estimate" ? "default" : "outline"}
-          onClick={() => setFilterDocumentType("estimate")}
-        >
-          見積書を表示
-        </Button>
-        <Button
-          variant={filterDocumentType === "all" ? "default" : "outline"}
-          onClick={() => setFilterDocumentType("all")}
-        >
-          すべて表示
-        </Button>
-      </div>
-
       {/* フィルタ */}
       <Card>
         <CardContent className="pt-6 space-y-4">
@@ -351,7 +333,7 @@ export function InvoiceList({
             <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder={`${documentTypeLabel}番号、業務名、相手先で検索...`}
+                placeholder="請求書番号、業務名、相手先で検索..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-9"
@@ -361,7 +343,7 @@ export function InvoiceList({
             {/* 追加ボタン */}
             <Button onClick={() => setShowAddModal(true)} disabled={isPending}>
               <Plus className="h-4 w-4 mr-1" />
-              {documentTypeLabel}を追加
+              請求書を追加
             </Button>
 
             {/* 事業主体フィルタ */}
@@ -412,22 +394,32 @@ export function InvoiceList({
             )}
           </div>
 
-          {/* 2行目: 月フィルタ（年プルダウン + 月ボタン） */}
+          {/* 2行目: 年度フィルタ（年度プルダウン + 月ボタン） */}
           <div className="flex items-center gap-3">
-            <span className="text-sm text-muted-foreground">{filterDocumentType === "estimate" ? "見積月" : "請求月"}:</span>
-            <Select value={filterYear} onValueChange={setFilterYear}>
-              <SelectTrigger className="w-[100px]">
-                <SelectValue placeholder="年" />
+            <span className="text-sm text-muted-foreground">請求年度:</span>
+            <Select
+              value={filterFiscalYear}
+              onValueChange={(v) => {
+                setFilterFiscalYear(v);
+                // 年度を切替えたら月は解除 (年度集計を見やすく)
+                setFilterMonth(null);
+              }}
+            >
+              <SelectTrigger className="w-[120px]">
+                <SelectValue placeholder="年度" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">すべて</SelectItem>
-                {yearOptions.map((year) => (
+                {fiscalYearOptions.map((year) => (
                   <SelectItem key={year} value={String(year)}>
-                    {year}年
+                    {year}年度
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
+            <span className="text-xs text-muted-foreground hidden md:inline">
+              (4月〜翌3月)
+            </span>
             <div className="flex gap-1 flex-wrap">
               {months.map((month) => (
                 <Button
@@ -446,6 +438,15 @@ export function InvoiceList({
       </Card>
 
       {/* 集計サマリ */}
+      <div className="text-sm text-muted-foreground">
+        集計対象:{" "}
+        <span className="font-medium text-foreground">
+          {filterFiscalYear === "all"
+            ? "全期間"
+            : `${filterFiscalYear}年度`}
+          {filterMonth !== null && ` ${filterMonth}月`}
+        </span>
+      </div>
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
         <Card>
           <CardContent className="pt-4 pb-4">
@@ -467,7 +468,7 @@ export function InvoiceList({
         </Card>
         <Card>
           <CardContent className="pt-4 pb-4">
-            <div className="text-sm text-muted-foreground">{filterDocumentType === "estimate" ? "見積金額計" : "請求金額計"}</div>
+            <div className="text-sm text-muted-foreground">請求金額計</div>
             <div className="text-xl font-bold">{formatCurrency(totals.totalAmount)}</div>
           </CardContent>
         </Card>
@@ -487,20 +488,20 @@ export function InvoiceList({
           {filteredInvoices.length === 0 ? (
             <div className="text-center text-muted-foreground py-12">
               {hasActiveFilters
-                ? `条件に一致する${documentTypeLabel}がありません`
-                : `${documentTypeLabel}がありません`}
+                ? "条件に一致する請求書がありません"
+                : "請求書がありません"}
             </div>
           ) : (
             <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[180px]">{documentTypeLabel}番号</TableHead>
-                    <TableHead className="w-[100px]">{filterDocumentType === "estimate" ? "見積日" : "請求日"}</TableHead>
+                    <TableHead className="w-[180px]">請求書番号</TableHead>
+                    <TableHead className="w-[100px]">請求日</TableHead>
                     <TableHead className="w-[150px]">入金日</TableHead>
                     <TableHead>相手先</TableHead>
                     <TableHead>業務名</TableHead>
-                    <TableHead className="text-right">{filterDocumentType === "estimate" ? "見積金額" : "請求金額"}</TableHead>
+                    <TableHead className="text-right">請求金額</TableHead>
                     <TableHead className="w-[80px]">事業主体</TableHead>
                     <TableHead className="text-center w-[60px]">会計</TableHead>
                     <TableHead className="w-[80px]"></TableHead>
@@ -647,9 +648,9 @@ export function InvoiceList({
       <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{deleteTarget?.document_type === "estimate" ? "見積書" : "請求書"}を削除しますか？</AlertDialogTitle>
+            <AlertDialogTitle>請求書を削除しますか？</AlertDialogTitle>
             <AlertDialogDescription>
-              {deleteTarget?.document_type === "estimate" ? "見積書" : "請求書"}「{deleteTarget?.invoice_number}」を削除します。この操作は取り消せません。
+              請求書「{deleteTarget?.invoice_number}」を削除します。この操作は取り消せません。
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

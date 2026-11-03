@@ -8,7 +8,6 @@ import {
   type Project,
   type Customer,
   type Employee,
-  type InvoiceDocumentType,
   type InvoiceItem,
   type InvoiceTemplateWithCategories,
   type InvoiceItemTemplate,
@@ -617,7 +616,6 @@ export async function createInvoiceSimple(data: {
   business_entity_code: string;
   invoice_date: string;
   recipient_customer_id: string | null;
-  document_type: InvoiceDocumentType;
   fee_tax_excluded: number;
   expenses: number;
   total_amount: number;
@@ -640,7 +638,6 @@ export async function createInvoiceSimple(data: {
       sequence_number: sequenceNumber,
       invoice_date: data.invoice_date,
       recipient_customer_id: data.recipient_customer_id,
-      document_type: data.document_type,
       fee_tax_excluded: data.fee_tax_excluded,
       expenses: data.expenses,
       total_amount: data.total_amount,
@@ -702,7 +699,6 @@ export async function createInvoiceWithItems(data: {
   invoice_date: string;
   recipient_customer_id: string | null;
   person_in_charge_id: string | null;
-  document_type: InvoiceDocumentType;
   expenses: number;
   notes: string | null;
   tax_rate: number;
@@ -742,7 +738,6 @@ export async function createInvoiceWithItems(data: {
       invoice_date: data.invoice_date,
       recipient_customer_id: data.recipient_customer_id,
       person_in_charge_id: data.person_in_charge_id,
-      document_type: data.document_type,
       fee_tax_excluded: subtotal,
       expenses: data.expenses,
       total_amount: totalAmount,
@@ -901,12 +896,11 @@ export async function updateInvoiceItems(
 }
 
 // ============================================
-// 明細読み込み用の請求書/見積書一覧取得
+// 明細読み込み用の請求書一覧取得
 // ============================================
 export type InvoiceForImport = {
   id: string;
   invoice_number: string;
-  document_type: InvoiceDocumentType | null;
   invoice_date: string;
   project_code: string;
   project_name: string;
@@ -921,7 +915,6 @@ export async function getInvoicesForImport(): Promise<InvoiceForImport[]> {
     .select(`
       id,
       invoice_number,
-      document_type,
       invoice_date,
       total_amount,
       project_id
@@ -949,7 +942,6 @@ export async function getInvoicesForImport(): Promise<InvoiceForImport[]> {
     return {
       id: inv.id,
       invoice_number: inv.invoice_number,
-      document_type: inv.document_type as InvoiceDocumentType | null,
       invoice_date: inv.invoice_date,
       project_code: project?.code || "",
       project_name: project?.name || "",

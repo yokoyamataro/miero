@@ -851,7 +851,6 @@ export interface Invoice {
   recipient_account_id: string | null; // 担当者がいない法人の場合
   recipient_customer_id: string | null; // Phase 3: 統合顧客 (旧2本の後継)
   person_in_charge_id: string | null;
-  document_type: InvoiceDocumentType | null;
   fee_tax_excluded: number;
   expenses: number;
   total_amount: number;
@@ -1148,12 +1147,6 @@ export interface InvoiceTemplateWithCategories extends InvoiceTemplate {
 // ============================================
 // InvoiceItem (請求書明細項目)
 // ============================================
-export type InvoiceDocumentType = "invoice" | "estimate";
-
-export const INVOICE_DOCUMENT_TYPE_LABELS: Record<InvoiceDocumentType, string> = {
-  invoice: "請求書",
-  estimate: "見積書",
-};
 
 export interface InvoiceItem {
   id: string;
@@ -1188,7 +1181,6 @@ export interface InvoiceItemInsert {
 // 請求書（明細付き）
 export interface InvoiceWithItems extends InvoiceWithDetails {
   items: InvoiceItem[];
-  document_type: InvoiceDocumentType;
   subtotal: number;
   tax_amount: number;
   tax_rate: number;

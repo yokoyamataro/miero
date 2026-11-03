@@ -21,11 +21,9 @@ import {
 } from "@/components/ui/dialog";
 import { Search, X, Upload } from "lucide-react";
 import {
-  type InvoiceDocumentType,
   type BusinessEntity,
   type Employee,
   type InvoiceWithDetails,
-  INVOICE_DOCUMENT_TYPE_LABELS,
 } from "@/types/database";
 import {
   createInvoiceSimple,
@@ -71,7 +69,6 @@ export function InvoiceCreateDialog({
   const recipientSearchRef = useRef<HTMLDivElement>(null);
 
   // 基本情報
-  const [documentType, setDocumentType] = useState<InvoiceDocumentType>("invoice");
   const [projectId, setProjectId] = useState("");
   const [businessEntityId, setBusinessEntityId] = useState("");
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split("T")[0]);
@@ -115,7 +112,6 @@ export function InvoiceCreateDialog({
     }
 
     if (editingInvoice) {
-      setDocumentType((editingInvoice.document_type as InvoiceDocumentType) || "invoice");
       setProjectId(editingInvoice.project_id);
       setBusinessEntityId(editingInvoice.business_entity_id);
       setInvoiceDate(editingInvoice.invoice_date);
@@ -138,7 +134,6 @@ export function InvoiceCreateDialog({
 
   // フォームリセット
   const resetForm = () => {
-    setDocumentType("invoice");
     setProjectId("");
     setBusinessEntityId("");
     setInvoiceDate(new Date().toISOString().split("T")[0]);
@@ -315,7 +310,6 @@ export function InvoiceCreateDialog({
           business_entity_code: entity.code,
           invoice_date: invoiceDate,
           recipient_customer_id: recipientCustomerId || null,
-          document_type: documentType,
           fee_tax_excluded: feeTaxExcluded,
           expenses: expenses,
           total_amount: totalAmount,
@@ -345,7 +339,7 @@ export function InvoiceCreateDialog({
       <DialogContent className="max-w-lg">
         <DialogHeader>
           <DialogTitle>
-            {documentType === "invoice" ? "請求書" : "見積書"}を{isEditMode ? "編集" : "登録"}
+            請求書を{isEditMode ? "編集" : "登録"}
           </DialogTitle>
         </DialogHeader>
 
@@ -424,7 +418,7 @@ export function InvoiceCreateDialog({
 
           {/* 請求日 */}
           <div className="space-y-2">
-            <Label>{documentType === "invoice" ? "請求日" : "見積日"} *</Label>
+            <Label>請求日 *</Label>
             <Input
               type="date"
               value={invoiceDate}
@@ -528,7 +522,7 @@ export function InvoiceCreateDialog({
                 <div className="space-y-1 pt-2 border-t">
                   <div className="flex items-center justify-between">
                     <Label className="text-sm font-medium">
-                      {documentType === "invoice" ? "請求総額" : "見積金額"}
+                      請求総額
                     </Label>
                     <span className="text-xs text-muted-foreground">
                       税抜報酬 × 1.1 + 立替金の自動計算値。上書き可
