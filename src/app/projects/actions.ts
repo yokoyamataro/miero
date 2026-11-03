@@ -62,6 +62,8 @@ export interface CreateProjectData {
   name: string;
   status: ProjectStatus;
   contact_id: string | null;
+  account_id?: string | null;
+  customer_id?: string | null;
   manager_id: string | null;
   start_date: string | null;
   end_date: string | null;
@@ -93,6 +95,8 @@ export async function createProject(data: CreateProjectData): Promise<{
     name: data.name,
     status: data.status,
     contact_id: data.contact_id || null,
+    account_id: data.account_id || null,
+    customer_id: data.customer_id || null,
     manager_id: data.manager_id || null,
     start_date: data.start_date || null,
     end_date: data.end_date || null,
@@ -119,6 +123,8 @@ export interface CreateProjectsData {
   name: string;
   status: ProjectStatus;
   contact_id: string | null;
+  account_id?: string | null;
+  customer_id?: string | null;
   manager_id: string | null;
   start_date: string | null;
   end_date: string | null;
@@ -161,6 +167,8 @@ export async function createProjects(data: CreateProjectsData): Promise<{
       name: data.name,
       status: data.status,
       contact_id: data.contact_id || null,
+      account_id: data.account_id || null,
+      customer_id: data.customer_id || null,
       manager_id: data.manager_id || null,
       start_date: data.start_date || null,
       end_date: data.end_date || null,

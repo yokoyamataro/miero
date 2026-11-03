@@ -1,7 +1,7 @@
 "use server";
 
 import { createClient } from "@/lib/supabase/server";
-import type { DocumentTemplate, Employee, Account, Contact } from "@/types/database";
+import type { DocumentTemplate, Employee, Customer } from "@/types/database";
 
 // テンプレート一覧取得
 export async function getDocumentTemplates(): Promise<DocumentTemplate[]> {
@@ -43,12 +43,10 @@ function formatJapaneseDate(date: Date): string {
   return `令和${reiwaYear}年${month}月${day}日`;
 }
 
-// 文書生成用データ取得
+// 文書生成用データ取得 (Phase 3-5: customers テーブルベース)
 export async function generateDocument(request: {
   templateId: string;
-  recipientType: "account" | "contact";
-  recipientId: string;
-  contactId?: string;
+  customerId: string;
   senderId: string;
   documentDate: string;
 }): Promise<{
@@ -70,68 +68,29 @@ export async function generateDocument(request: {
     return { success: false, error: "テンプレートが見つかりません" };
   }
 
-  // 2. 宛先情報取得
-  let recipientData: {
-    company_name: string;
-    name: string;
-    postal_code: string;
-    address: string;
-  };
+  // 2. 顧客情報取得
+  const { data: customer, error: customerError } = await supabase
+    .from("customers")
+    .select("*")
+    .eq("id", request.customerId)
+    .maybeSingle();
 
-  if (request.recipientType === "account") {
-    const { data: account, error: accountError } = await supabase
-      .from("accounts")
-      .select("*")
-      .eq("id", request.recipientId)
-      .single();
-
-    if (accountError || !account) {
-      return { success: false, error: "法人が見つかりません" };
-    }
-
-    const acct = account as Account;
-
-    recipientData = {
-      company_name: acct.company_name || "",
-      name: "",
-      postal_code: acct.postal_code || "",
-      address: `${acct.prefecture || ""}${acct.city || ""}${acct.street || ""}${acct.building || ""}`,
-    };
-  } else {
-    const { data: contact, error: contactError } = await supabase
-      .from("contacts")
-      .select("*, account:accounts(*)")
-      .eq("id", request.recipientId)
-      .single();
-
-    if (contactError || !contact) {
-      return { success: false, error: "個人が見つかりません" };
-    }
-
-    const cont = contact as Contact & { account: Account | null };
-    // 個人の住所があればそれを使用、なければ法人の住所
-    const hasOwnAddress = cont.postal_code || cont.prefecture;
-    recipientData = {
-      company_name: cont.account?.company_name || "",
-      name: `${cont.last_name} ${cont.first_name}`,
-      postal_code: hasOwnAddress
-        ? cont.postal_code || ""
-        : cont.account?.postal_code || "",
-      address: hasOwnAddress
-        ? `${cont.prefecture || ""}${cont.city || ""}${cont.street || ""}${cont.building || ""}`
-        : `${cont.account?.prefecture || ""}${cont.account?.city || ""}${cont.account?.street || ""}${cont.account?.building || ""}`,
-    };
+  if (customerError || !customer) {
+    return { success: false, error: "顧客が見つかりません" };
   }
 
-  // 3. 担当者情報取得（法人選択時のみ）
-  let contactData: {
-    name: string;
-    nameWithKeisho: string;
-    department: string;
-    position: string;
-    phone: string;
-    email: string;
-  } = {
+  const cust = customer as Customer;
+
+  // 3. 宛先情報と担当者情報を顧客タイプに応じて組み立て
+  const buildAddress = (c: Customer): string =>
+    [c.prefecture, c.city, c.street, c.building].filter(Boolean).join("");
+
+  let recipientCompanyName = "";
+  let recipientName = "";
+  const recipientPostalCode = cust.postal_code || "";
+  const recipientAddress = buildAddress(cust);
+
+  const contactData = {
     name: "",
     nameWithKeisho: "",
     department: "",
@@ -140,27 +99,24 @@ export async function generateDocument(request: {
     email: "",
   };
 
-  if (request.contactId) {
-    const { data: contact } = await supabase
-      .from("contacts")
-      .select("*")
-      .eq("id", request.contactId)
-      .single();
-
-    if (contact) {
-      const cont = contact as Contact;
-      contactData = {
-        name: `${cont.last_name} ${cont.first_name}`,
-        nameWithKeisho: `${cont.last_name} ${cont.first_name}様`,
-        department: cont.department || "",
-        position: cont.position || "",
-        phone: cont.phone || "",
-        email: cont.email || "",
-      };
+  if (cust.type === "corporate") {
+    recipientCompanyName = cust.display_name || "";
+    // 担当者情報 (customer 内の contact_* カラム)
+    if (cust.contact_last_name || cust.contact_first_name) {
+      const name = `${cust.contact_last_name ?? ""} ${cust.contact_first_name ?? ""}`.trim();
+      contactData.name = name;
+      contactData.nameWithKeisho = name ? `${name}様` : "";
     }
+    contactData.department = cust.contact_department || "";
+    contactData.position = cust.contact_position || "";
+    contactData.phone = cust.contact_phone || "";
+    contactData.email = cust.contact_email || "";
+  } else {
+    // 個人
+    recipientName = cust.display_name || "";
   }
 
-  // 5. 差出人情報取得
+  // 4. 差出人情報取得
   const { data: sender, error: senderError } = await supabase
     .from("employees")
     .select("*")
@@ -173,16 +129,20 @@ export async function generateDocument(request: {
 
   const emp = sender as Employee;
 
-  // 6. 敬称を決定（担当者が選択されていれば空、なければ「御中」）
-  const hasContact = request.contactId && contactData.name;
-  const keisho = hasContact ? "" : "御中";
+  // 5. 敬称を決定（法人で担当者がいる場合は空、個人は様、法人のみは御中）
+  let keisho = "";
+  if (cust.type === "individual") {
+    keisho = "様";
+  } else if (!contactData.name) {
+    keisho = "御中";
+  }
 
-  // 7. プレースホルダー値マップを作成
+  // 6. プレースホルダー値マップ
   const placeholderValues = {
-    宛先_会社名: recipientData.company_name,
-    宛先_氏名: recipientData.name,
-    宛先_郵便番号: recipientData.postal_code ? `〒${recipientData.postal_code}` : "",
-    宛先_住所: recipientData.address,
+    宛先_会社名: recipientCompanyName,
+    宛先_氏名: recipientName,
+    宛先_郵便番号: recipientPostalCode ? `〒${recipientPostalCode}` : "",
+    宛先_住所: recipientAddress,
     敬称: keisho,
     担当者_氏名: contactData.name,
     担当者_氏名様: contactData.nameWithKeisho,

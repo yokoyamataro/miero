@@ -1,18 +1,12 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { CustomerTabs } from "./customer-tabs";
-import type {
-  Account,
-  Contact,
-  Customer,
-  Employee,
-  DocumentTemplate,
-} from "@/types/database";
+import type { Customer, Employee, DocumentTemplate } from "@/types/database";
 
 export default async function CustomersPage() {
   const supabase = await createClient();
 
-  // ログインユーザーのemployee_idを取得
+  // ログインユーザーの employee_id を取得
   const {
     data: { user },
   } = await supabase.auth.getUser();
@@ -28,32 +22,12 @@ export default async function CustomersPage() {
     currentEmployeeId = employee?.id || null;
   }
 
-  // 新: customers 統合テーブル (顧客一覧タブ用)
+  // customers 統合テーブル (顧客一覧 + 文書作成タブ 両方で使用)
   const { data: customersData } = await supabase
     .from("customers")
     .select("*")
     .is("deleted_at", null)
     .order("display_name_kana", { ascending: true });
-
-  // 旧: accounts/contacts (文書作成タブ用、Phase 3-5 で統合予定)
-  const { data: accounts } = await supabase
-    .from("accounts" as never)
-    .select("*")
-    .is("deleted_at", null)
-    .order("company_name_kana");
-
-  const { data: individuals } = await supabase
-    .from("contacts" as never)
-    .select("*")
-    .is("account_id", null)
-    .is("deleted_at", null)
-    .order("last_name_kana");
-
-  const { data: allContacts } = await supabase
-    .from("contacts" as never)
-    .select("*")
-    .is("deleted_at", null)
-    .order("last_name_kana");
 
   const { data: employees } = await supabase
     .from("employees")
@@ -73,9 +47,6 @@ export default async function CustomersPage() {
 
       <CustomerTabs
         customers={(customersData || []) as Customer[]}
-        accounts={(accounts || []) as Account[]}
-        individuals={(individuals || []) as Contact[]}
-        allContacts={(allContacts || []) as Contact[]}
         employees={(employees || []) as Employee[]}
         templates={(templates || []) as DocumentTemplate[]}
         currentEmployeeId={currentEmployeeId}

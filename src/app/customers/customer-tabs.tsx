@@ -4,21 +4,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Users, FileText } from "lucide-react";
 import { CustomersList } from "./customers-list";
 import { DocumentTab } from "./document-tab";
-import type {
-  Account,
-  Contact,
-  Customer,
-  Employee,
-  DocumentTemplate,
-} from "@/types/database";
+import type { Customer, Employee, DocumentTemplate } from "@/types/database";
 
 interface CustomerTabsProps {
-  // 新: customers 統合テーブル用
   customers: Customer[];
-  // 旧: 文書作成タブで引き続き使用 (Phase 3-5 で統合予定)
-  accounts: Account[];
-  individuals: Contact[];
-  allContacts: Contact[];
   employees: Employee[];
   templates: DocumentTemplate[];
   currentEmployeeId: string | null;
@@ -26,9 +15,6 @@ interface CustomerTabsProps {
 
 export function CustomerTabs({
   customers,
-  accounts,
-  individuals,
-  allContacts,
   employees,
   templates,
   currentEmployeeId,
@@ -53,9 +39,7 @@ export function CustomerTabs({
       <TabsContent value="documents" className="mt-4">
         <DocumentTab
           templates={templates}
-          accounts={accounts}
-          allContacts={allContacts}
-          individuals={individuals}
+          customers={customers}
           employees={employees}
           currentEmployeeId={currentEmployeeId}
         />

@@ -70,7 +70,7 @@ import Docxtemplater from "docxtemplater";
 import PizZip from "pizzip";
 import { createClient } from "@/lib/supabase/client";
 import { generateDocument } from "@/app/customers/document-actions";
-import type { DocumentTemplate } from "@/types/database";
+import type { DocumentTemplate, Customer } from "@/types/database";
 
 // 法人の担当者
 export interface CorporateContact {
@@ -934,17 +934,35 @@ function DocumentGenerateDialogForContact({
     setError(null);
 
     try {
-      // 宛先タイプを判定（法人に所属していればaccount、なければcontact）
-      const recipientType = account ? "account" : "contact";
-      const recipientId = account ? account.id : contact.id;
-      const contactId = account ? contact.id : undefined;
+      // legacy_id から customer を解決 (account 優先、無ければ contact)
+      const supabase = createClient();
+      let customerId: string | null = null;
 
-      // Server Actionでプレースホルダー値を取得
+      if (account) {
+        const { data } = await supabase
+          .from("customers")
+          .select("id")
+          .eq("legacy_account_id", account.id)
+          .maybeSingle();
+        customerId = (data as { id: string } | null)?.id ?? null;
+      } else if (contact) {
+        const { data } = await supabase
+          .from("customers")
+          .select("id")
+          .eq("legacy_contact_id", contact.id)
+          .maybeSingle();
+        customerId = (data as { id: string } | null)?.id ?? null;
+      }
+
+      if (!customerId) {
+        setError("顧客が設定されていません");
+        return;
+      }
+
+      // Server Action でプレースホルダー値を取得
       const result = await generateDocument({
         templateId: selectedTemplateId,
-        recipientType,
-        recipientId,
-        contactId,
+        customerId,
         senderId: selectedSenderId,
         documentDate: useToday ? format(new Date(), "yyyy-MM-dd") : documentDate,
       });
@@ -1542,12 +1560,39 @@ export function ProjectInfo({
 
   const handleCustomerChange = (selection: CustomerSelection) => {
     startTransition(async () => {
-      if (selection.type === "none") {
-        await updateProject(project.id, { contact_id: null, account_id: null });
-      } else if (selection.type === "individual") {
-        await updateProject(project.id, { contact_id: selection.contactId, account_id: null });
+      // customer_id を legacy_* から解決してセット (Phase 3-5 の互換レイヤー)
+      const supabase = createClient();
+      let customerId: string | null = null;
+      if (selection.type === "individual") {
+        const { data } = await supabase
+          .from("customers")
+          .select("id")
+          .eq("legacy_contact_id", selection.contactId)
+          .maybeSingle();
+        customerId = (data as { id: string } | null)?.id ?? null;
       } else if (selection.type === "corporate") {
-        await updateProject(project.id, { contact_id: null, account_id: selection.accountId });
+        const { data } = await supabase
+          .from("customers")
+          .select("id")
+          .eq("legacy_account_id", selection.accountId)
+          .maybeSingle();
+        customerId = (data as { id: string } | null)?.id ?? null;
+      }
+
+      if (selection.type === "none") {
+        await updateProject(project.id, { contact_id: null, account_id: null, customer_id: null });
+      } else if (selection.type === "individual") {
+        await updateProject(project.id, {
+          contact_id: selection.contactId,
+          account_id: null,
+          customer_id: customerId,
+        });
+      } else if (selection.type === "corporate") {
+        await updateProject(project.id, {
+          contact_id: null,
+          account_id: selection.accountId,
+          customer_id: customerId,
+        });
       }
       setShowContactModal(false);
       router.refresh();
