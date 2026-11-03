@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useState, useTransition, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -408,13 +409,13 @@ export function ContactSelectModal({
 function CustomerDetailSection({
   contact,
   account,
-  onEditClick,
+  customerId,
   onChangeClick,
   onDocumentClick,
 }: {
   contact: Contact | null;
   account: Account | null;
-  onEditClick: () => void;
+  customerId: string | null;
   onChangeClick: () => void;
   onDocumentClick: () => void;
 }) {
@@ -472,16 +473,18 @@ function CustomerDetailSection({
               <FileText className="h-4 w-4 text-primary" />
             </Button>
           )}
-          {(contact || account) && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 px-2"
-              onClick={onEditClick}
-            >
-              <Pencil className="h-3.5 w-3.5 mr-1" />
-              修正
-            </Button>
+          {customerId && (
+            <Link href={`/customers/${customerId}/edit`}>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2"
+                title="顧客を編集"
+              >
+                <Pencil className="h-3.5 w-3.5 mr-1" />
+                修正
+              </Button>
+            </Link>
           )}
           <Button
             variant="ghost"
@@ -558,320 +561,6 @@ function CustomerDetailSection({
   );
 }
 
-// 顧客編集モーダル
-function CustomerEditModal({
-  open,
-  onOpenChange,
-  contact,
-  account,
-  onSave,
-  isPending,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  contact: Contact;
-  account: Account | null;
-  onSave: (contactUpdates: Partial<Contact>, accountUpdates?: Partial<Account>) => void;
-  isPending: boolean;
-}) {
-  const [contactForm, setContactForm] = useState({
-    last_name: contact.last_name,
-    first_name: contact.first_name,
-    last_name_kana: contact.last_name_kana || "",
-    first_name_kana: contact.first_name_kana || "",
-    phone: contact.phone || "",
-    email: contact.email || "",
-    postal_code: contact.postal_code || "",
-    prefecture: contact.prefecture || "",
-    city: contact.city || "",
-    street: contact.street || "",
-    building: contact.building || "",
-    department: contact.department || "",
-    position: contact.position || "",
-  });
-
-  const [accountForm, setAccountForm] = useState(account ? {
-    company_name: account.company_name,
-    company_name_kana: account.company_name_kana || "",
-    main_phone: account.main_phone || "",
-    fax: account.fax || "",
-    postal_code: account.postal_code || "",
-    prefecture: account.prefecture || "",
-    city: account.city || "",
-    street: account.street || "",
-    building: account.building || "",
-  } : null);
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const contactUpdates: Partial<Contact> = {
-      last_name: contactForm.last_name,
-      first_name: contactForm.first_name,
-      last_name_kana: contactForm.last_name_kana || null,
-      first_name_kana: contactForm.first_name_kana || null,
-      phone: contactForm.phone || null,
-      email: contactForm.email || null,
-      postal_code: contactForm.postal_code || null,
-      prefecture: contactForm.prefecture || null,
-      city: contactForm.city || null,
-      street: contactForm.street || null,
-      building: contactForm.building || null,
-      department: contactForm.department || null,
-      position: contactForm.position || null,
-    };
-
-    let accountUpdates: Partial<Account> | undefined;
-    if (accountForm) {
-      accountUpdates = {
-        company_name: accountForm.company_name,
-        company_name_kana: accountForm.company_name_kana || null,
-        main_phone: accountForm.main_phone || null,
-        fax: accountForm.fax || null,
-        postal_code: accountForm.postal_code || null,
-        prefecture: accountForm.prefecture || null,
-        city: accountForm.city || null,
-        street: accountForm.street || null,
-        building: accountForm.building || null,
-      };
-    }
-
-    onSave(contactUpdates, accountUpdates);
-  };
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>顧客情報を編集</DialogTitle>
-        </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-6">
-          {/* 法人情報（法人の場合） */}
-          {accountForm && (
-            <div className="space-y-4">
-              <h3 className="font-medium text-sm border-b pb-2">法人情報</h3>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="col-span-2">
-                  <Label htmlFor="company_name">法人名</Label>
-                  <Input
-                    id="company_name"
-                    value={accountForm.company_name}
-                    onChange={(e) => setAccountForm({ ...accountForm, company_name: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="col-span-2">
-                  <Label htmlFor="company_name_kana">フリガナ</Label>
-                  <Input
-                    id="company_name_kana"
-                    value={accountForm.company_name_kana}
-                    onChange={(e) => setAccountForm({ ...accountForm, company_name_kana: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="account_phone">電話番号</Label>
-                  <Input
-                    id="account_phone"
-                    value={accountForm.main_phone}
-                    onChange={(e) => setAccountForm({ ...accountForm, main_phone: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="account_fax">FAX番号</Label>
-                  <Input
-                    id="account_fax"
-                    value={accountForm.fax}
-                    onChange={(e) => setAccountForm({ ...accountForm, fax: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="account_postal_code">郵便番号</Label>
-                  <Input
-                    id="account_postal_code"
-                    value={accountForm.postal_code}
-                    onChange={(e) => setAccountForm({ ...accountForm, postal_code: e.target.value })}
-                    placeholder="000-0000"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="account_prefecture">都道府県</Label>
-                  <Input
-                    id="account_prefecture"
-                    value={accountForm.prefecture}
-                    onChange={(e) => setAccountForm({ ...accountForm, prefecture: e.target.value })}
-                  />
-                </div>
-                <div className="col-span-2">
-                  <Label htmlFor="account_city">市区町村</Label>
-                  <Input
-                    id="account_city"
-                    value={accountForm.city}
-                    onChange={(e) => setAccountForm({ ...accountForm, city: e.target.value })}
-                  />
-                </div>
-                <div className="col-span-2">
-                  <Label htmlFor="account_street">字・町名</Label>
-                  <Input
-                    id="account_street"
-                    value={accountForm.street}
-                    onChange={(e) => setAccountForm({ ...accountForm, street: e.target.value })}
-                  />
-                </div>
-                <div className="col-span-2">
-                  <Label htmlFor="account_building">建物名</Label>
-                  <Input
-                    id="account_building"
-                    value={accountForm.building}
-                    onChange={(e) => setAccountForm({ ...accountForm, building: e.target.value })}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* 担当者/個人情報 */}
-          <div className="space-y-4">
-            <h3 className="font-medium text-sm border-b pb-2">
-              {account ? "担当者情報" : "個人情報"}
-            </h3>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label htmlFor="last_name">姓</Label>
-                <Input
-                  id="last_name"
-                  value={contactForm.last_name}
-                  onChange={(e) => setContactForm({ ...contactForm, last_name: e.target.value })}
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="first_name">名</Label>
-                <Input
-                  id="first_name"
-                  value={contactForm.first_name}
-                  onChange={(e) => setContactForm({ ...contactForm, first_name: e.target.value })}
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="last_name_kana">姓（カナ）</Label>
-                <Input
-                  id="last_name_kana"
-                  value={contactForm.last_name_kana}
-                  onChange={(e) => setContactForm({ ...contactForm, last_name_kana: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label htmlFor="first_name_kana">名（カナ）</Label>
-                <Input
-                  id="first_name_kana"
-                  value={contactForm.first_name_kana}
-                  onChange={(e) => setContactForm({ ...contactForm, first_name_kana: e.target.value })}
-                />
-              </div>
-              {account && (
-                <>
-                  <div>
-                    <Label htmlFor="department">部署</Label>
-                    <Input
-                      id="department"
-                      value={contactForm.department}
-                      onChange={(e) => setContactForm({ ...contactForm, department: e.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="position">役職</Label>
-                    <Input
-                      id="position"
-                      value={contactForm.position}
-                      onChange={(e) => setContactForm({ ...contactForm, position: e.target.value })}
-                    />
-                  </div>
-                </>
-              )}
-              <div className="col-span-2">
-                <Label htmlFor="contact_phone">電話番号</Label>
-                <Input
-                  id="contact_phone"
-                  value={contactForm.phone}
-                  onChange={(e) => setContactForm({ ...contactForm, phone: e.target.value })}
-                />
-              </div>
-              <div className="col-span-2">
-                <Label htmlFor="email">メールアドレス</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  value={contactForm.email}
-                  onChange={(e) => setContactForm({ ...contactForm, email: e.target.value })}
-                />
-              </div>
-
-              {/* 個人の場合のみ住所を表示 */}
-              {!account && (
-                <>
-                  <div>
-                    <Label htmlFor="contact_postal_code">郵便番号</Label>
-                    <Input
-                      id="contact_postal_code"
-                      value={contactForm.postal_code}
-                      onChange={(e) => setContactForm({ ...contactForm, postal_code: e.target.value })}
-                      placeholder="000-0000"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="contact_prefecture">都道府県</Label>
-                    <Input
-                      id="contact_prefecture"
-                      value={contactForm.prefecture}
-                      onChange={(e) => setContactForm({ ...contactForm, prefecture: e.target.value })}
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <Label htmlFor="contact_city">市区町村</Label>
-                    <Input
-                      id="contact_city"
-                      value={contactForm.city}
-                      onChange={(e) => setContactForm({ ...contactForm, city: e.target.value })}
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <Label htmlFor="contact_street">字・町名</Label>
-                    <Input
-                      id="contact_street"
-                      value={contactForm.street}
-                      onChange={(e) => setContactForm({ ...contactForm, street: e.target.value })}
-                    />
-                  </div>
-                  <div className="col-span-2">
-                    <Label htmlFor="contact_building">建物名</Label>
-                    <Input
-                      id="contact_building"
-                      value={contactForm.building}
-                      onChange={(e) => setContactForm({ ...contactForm, building: e.target.value })}
-                    />
-                  </div>
-                </>
-              )}
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-2 pt-2">
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-            >
-              キャンセル
-            </Button>
-            <Button type="submit" disabled={isPending}>
-              保存
-            </Button>
-          </div>
-        </form>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 // ============================================
 // 依頼人用文書作成ダイアログ
@@ -1508,7 +1197,6 @@ export function ProjectInfo({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [showContactModal, setShowContactModal] = useState(false);
-  const [showCustomerEditModal, setShowCustomerEditModal] = useState(false);
   const [showOnHoldDialog, setShowOnHoldDialog] = useState(false);
   const [onHoldReason, setOnHoldReason] = useState("");
   const [showDocumentDialog, setShowDocumentDialog] = useState(false);
@@ -1579,41 +1267,12 @@ export function ProjectInfo({
         customerId = (data as { id: string } | null)?.id ?? null;
       }
 
-      if (selection.type === "none") {
-        await updateProject(project.id, { contact_id: null, account_id: null, customer_id: null });
-      } else if (selection.type === "individual") {
-        await updateProject(project.id, {
-          contact_id: selection.contactId,
-          account_id: null,
-          customer_id: customerId,
-        });
-      } else if (selection.type === "corporate") {
-        await updateProject(project.id, {
-          contact_id: null,
-          account_id: selection.accountId,
-          customer_id: customerId,
-        });
-      }
+      await updateProject(project.id, { customer_id: customerId });
       setShowContactModal(false);
       router.refresh();
     });
   };
 
-  const handleCustomerSave = (
-    contactUpdates: Partial<Contact>,
-    accountUpdates?: Partial<Account>
-  ) => {
-    startTransition(async () => {
-      if (contact) {
-        await updateContact(contact.id, contactUpdates as Parameters<typeof updateContact>[1]);
-      }
-      if (account && accountUpdates) {
-        await updateAccount(account.id, accountUpdates as Parameters<typeof updateAccount>[1]);
-      }
-      setShowCustomerEditModal(false);
-      router.refresh();
-    });
-  };
 
   const handleDelete = () => {
     startTransition(async () => {
@@ -1708,7 +1367,7 @@ export function ProjectInfo({
               <CustomerDetailSection
                 contact={contact}
                 account={account}
-                onEditClick={() => setShowCustomerEditModal(true)}
+                customerId={project.customer_id}
                 onChangeClick={() => setShowContactModal(true)}
                 onDocumentClick={() => setShowDocumentDialog(true)}
               />
@@ -1766,18 +1425,6 @@ export function ProjectInfo({
         onSelect={handleCustomerChange}
         industries={industries}
       />
-
-      {/* 顧客編集モーダル */}
-      {contact && (
-        <CustomerEditModal
-          open={showCustomerEditModal}
-          onOpenChange={setShowCustomerEditModal}
-          contact={contact}
-          account={account}
-          onSave={handleCustomerSave}
-          isPending={isPending}
-        />
-      )}
 
       {/* 依頼人用文書作成ダイアログ */}
       {contact && (

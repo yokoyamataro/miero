@@ -288,8 +288,9 @@ export interface Project {
   status: ProjectStatus;
   is_urgent: boolean;
   is_on_hold: boolean;
-  contact_id: string | null;
-  account_id: string | null;  // 法人顧客の場合はこちらを使用
+  contact_id: string | null; // Phase 3-6で削除予定
+  account_id: string | null; // Phase 3-6で削除予定
+  customer_id: string | null; // 統合顧客 (customers.id)
   manager_id: string | null;
   start_date: string | null;
   end_date: string | null;
